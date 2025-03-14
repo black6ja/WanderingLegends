@@ -1,0 +1,19 @@
+{
+  "spawns": [
+    { "type": "creatures", "subtype": "dragon", "lat": 51.512, "lng": -0.095, "spawnRate": 0.1 },
+    { "type": "dungeons", "lat": 51.514, "lng": -0.092, "spawnRate": 0.05 },
+    { "type": "inns", "lat": 51.513, "lng": -0.090, "spawnRate": 0.08 },
+    { "type": "shops", "subtype": "weapon", "lat": 51.511, "lng": -0.089, "spawnRate": 0.07 },
+    { "type": "quests", "lat": 51.510, "lng": -0.088, "spawnRate": 0.09 },
+    { "type": "keeps", "lat": 51.509, "lng": -0.091, "spawnRate": 0.06 },
+    { "type": "lairs", "lat": 51.508, "lng": -0.093, "spawnRate": 0.04 },
+    { 
+      "type": "publicEvent",
+      "subtype": "festival",
+      "lat": 51.507,
+      "lng": -0.092,
+      "spawnRate": 0.03,
+      "zone": { "radius": 30, "color": "red", "fillOpacity": 0.3, "blinking": true }
+    }
+  ]
+}
