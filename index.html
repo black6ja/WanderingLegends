@@ -1,1 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wandering Legends Map Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    /* Basic Reset & Layout */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    /* Player Marker – Blinking Blue Dot */
+    .blinking-circle {
+      width: 12px;
+      height: 12px;
+      background: rgba(0, 0, 255, 0.7);
+      border: 2px solid white;
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Initialize the map centered at an example location.
+    var map = L.map('map').setView([51.505, -0.09], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
 
+    // Create the player marker using a blinking circle.
+    var playerMarker = L.marker([51.505, -0.09], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div class="blinking-circle"></div>',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+      })
+    }).addTo(map);
+
+    // Set the interaction radius to half of the original (e.g., 115 meters)
+    var interactionRadius = 115;
+    var radiusCircle = L.circle([51.505, -0.09], {
+      radius: interactionRadius,
+      color: 'blue',
+      fillOpacity: 0.2
+    }).addTo(map);
+
+    // Function to generate a random point within a given radius (in meters)
+    function randomPointNear(lat, lng, radius) {
+      // Convert radius from meters to degrees (approximation)
+      var rd = radius / 111300; 
+      var u = Math.random();
+      var v = Math.random();
+      var w = rd * Math.sqrt(u);
+      var t = 2 * Math.PI * v;
+      var x = w * Math.cos(t);
+      var y = w * Math.sin(t);
+      // Adjust the x-coordinate for the shrinking of east-west distances
+      var newX = x / Math.cos(lat * Math.PI / 180);
+      return [lat + y, lng + newX];
+    }
+
+    // Spawn a few markers (for example, 5 markers) randomly within the interaction radius.
+    for (var i = 0; i < 5; i++) {
+      var pt = randomPointNear(51.505, -0.09, interactionRadius);
+      L.marker(pt).addTo(map).bindPopup("Spawn " + (i + 1));
+    }
+  </script>
+</body>
+</html>
