@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <style>
     /* Basic Reset & Layout */
     body, html {
@@ -38,11 +41,13 @@
   
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
     // Initialize the map centered at an example location.
     var map = L.map('map').setView([51.505, -0.09], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+      maxZoom: 17,  // Lower max zoom to improve performance
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
@@ -54,6 +59,7 @@
         iconSize: [12, 12],
         iconAnchor: [6, 6]
       })
+      // To optionally use canvas rendering, you could add: renderer: L.canvas()
     }).addTo(map);
 
     // Set the interaction radius to half of the original (e.g., 115 meters)
@@ -79,11 +85,41 @@
       return [lat + y, lng + newX];
     }
 
+    // Create a MarkerClusterGroup for spawn markers.
+    var markersCluster = L.markerClusterGroup();
+    
+    // Use a layer group for spawn markers.
+    var spawnGroup = L.layerGroup();
+
     // Spawn a few markers (for example, 5 markers) randomly within the interaction radius.
     for (var i = 0; i < 5; i++) {
       var pt = randomPointNear(51.505, -0.09, interactionRadius);
-      L.marker(pt).addTo(map).bindPopup("Spawn " + (i + 1));
+      var marker = L.marker(pt)
+                    // Optionally, add renderer: L.canvas() for canvas-based rendering if needed
+                    .bindPopup("Spawn " + (i + 1));
+      spawnGroup.addLayer(marker);
     }
+    
+    // Add spawn markers to the marker cluster group, then add to the map.
+    markersCluster.addLayer(spawnGroup);
+    map.addLayer(markersCluster);
+
+    // Example of debounced live player location updates.
+    var lastUpdate = 0;
+    function updatePlayerLocation(lat, lng) {
+      var now = Date.now();
+      if (now - lastUpdate > 500) {  // Update every 500ms
+        playerMarker.setLatLng([lat, lng]);
+        radiusCircle.setLatLng([lat, lng]);
+        lastUpdate = now;
+      }
+    }
+    
+    // Simulate live updates with a small random offset every second (for demo purposes)
+    setInterval(function() {
+      var newPoint = randomPointNear(51.505, -0.09, 10); // Small offset for simulation
+      updatePlayerLocation(newPoint[0], newPoint[1]);
+    }, 1000);
   </script>
 </body>
 </html>
