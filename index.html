@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Optimized Map Prototype</title>
-  <!-- Mobile-friendly viewport tag -->
+  <title>Mobile Optimized Leaflet Map</title>
+  <!-- Mobile-friendly viewport -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- MarkerCluster CSS (optional) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <style>
     html, body {
       margin: 0;
@@ -14,16 +17,10 @@
       height: 100%;
     }
     #map {
-      height: 100%;
       width: 100%;
+      height: 100%;
     }
-    /* Player marker blinking animation (disabled on small screens) */
-    @media (max-width: 768px) {
-      .blinking-circle {
-        animation: none;
-        background: rgba(0, 0, 255, 1);
-      }
-    }
+    /* Player marker with blinking effect */
     .blinking-circle {
       width: 12px;
       height: 12px;
@@ -37,29 +34,34 @@
       50% { opacity: 0.3; }
       100% { opacity: 1; }
     }
+    /* Disable animation on mobile for performance */
+    @media (max-width: 768px) {
+      .blinking-circle {
+        animation: none;
+        background: rgba(0, 0, 255, 1);
+      }
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- MarkerCluster (optional for clustering spawn markers) -->
+  <!-- MarkerCluster JS (for clustering spawn markers) -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // Initialize the map using canvas for vector layers
+    // Initialize map with canvas rendering for better performance
     var map = L.map('map', {
       preferCanvas: true,
-      center: [51.505, -0.09],
-      zoom: 15,
       zoomAnimation: true
-    });
+    }).setView([51.505, -0.09], 15);  // temporary starting view
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Create the player marker (with blinking circle) and its interaction radius circle
+    // Create a player marker (with a blinking circle) and an accuracy circle
     var playerMarker = L.marker([51.505, -0.09], {
       icon: L.divIcon({
         className: '',
@@ -67,16 +69,35 @@
         iconSize: [12, 12],
         iconAnchor: [6, 6]
       })
-    }).addTo(map);
-
-    var interactionRadius = 115;
-    var radiusCircle = L.circle([51.505, -0.09], {
-      radius: interactionRadius,
+    });
+    var accuracyCircle = L.circle([51.505, -0.09], {
       color: 'blue',
-      fillOpacity: 0.2
-    }).addTo(map);
+      fillOpacity: 0.2,
+      radius: 0  // Will be updated based on geolocation accuracy
+    });
 
-    // Generate a random point within a given radius (in meters)
+    // When a location is found, update or add the player marker and accuracy circle
+    function onLocationFound(e) {
+      var radius = e.accuracy; // in meters
+      // If not already added, add the marker and circle to the map
+      if (!map.hasLayer(playerMarker)) {
+        playerMarker.addTo(map);
+        accuracyCircle.addTo(map);
+      }
+      playerMarker.setLatLng(e.latlng);
+      accuracyCircle.setLatLng(e.latlng);
+      accuracyCircle.setRadius(radius);
+    }
+    function onLocationError(e) {
+      alert("Location error: " + e.message);
+    }
+    map.on('locationfound', onLocationFound);
+    map.on('locationerror', onLocationError);
+
+    // Start geolocation: center the map on the user and continuously watch location
+    map.locate({setView: true, watch: true, maxZoom: 16});
+
+    // Utility function to generate a random point within a given radius (in meters)
     function randomPointNear(lat, lng, radius) {
       var rd = radius / 111300;
       var u = Math.random();
@@ -89,41 +110,15 @@
       return [lat + y, lng + newX];
     }
 
-    // Update the player’s position only if movement exceeds a threshold (e.g., 5 meters)
-    var lastUpdateTime = 0;
-    var updateThreshold = 5; // in meters
-
-    function updatePlayerLocation(newLat, newLng) {
-      var currentPos = playerMarker.getLatLng();
-      var distance = map.distance(currentPos, L.latLng(newLat, newLng));
-      if (distance > updateThreshold) {
-        playerMarker.setLatLng([newLat, newLng]);
-        radiusCircle.setLatLng([newLat, newLng]);
-      }
-    }
-
-    // Use requestAnimationFrame for smooth, throttled updates
-    function simulateMovement(timestamp) {
-      if (!lastUpdateTime) lastUpdateTime = timestamp;
-      var elapsed = timestamp - lastUpdateTime;
-      // Update at most every 1000ms (or longer if needed)
-      if (elapsed > 1000) {
-        var newPoint = randomPointNear(51.505, -0.09, 10);
-        updatePlayerLocation(newPoint[0], newPoint[1]);
-        lastUpdateTime = timestamp;
-      }
-      requestAnimationFrame(simulateMovement);
-    }
-    requestAnimationFrame(simulateMovement);
-
-    // Level-of-detail: render spawn markers only if they are within current map bounds.
-    // Generate sample spawn marker data
+    // Sample spawn markers data (for demonstration)
     var spawnMarkersData = [];
+    var spawnRadius = 115;
+    // Generate 50 random points around the starting point
     for (var i = 0; i < 50; i++) {
-      spawnMarkersData.push(randomPointNear(51.505, -0.09, interactionRadius));
+      spawnMarkersData.push(randomPointNear(51.505, -0.09, spawnRadius));
     }
-
     var markersCluster = L.markerClusterGroup();
+    // Function to add spawn markers only within the current bounds
     function addVisibleSpawnMarkers() {
       markersCluster.clearLayers();
       var bounds = map.getBounds();
@@ -133,9 +128,10 @@
           markersCluster.addLayer(marker);
         }
       });
-      map.addLayer(markersCluster);
+      if (!map.hasLayer(markersCluster)) {
+        map.addLayer(markersCluster);
+      }
     }
-    // Update spawn markers when the map stops moving
     map.on('moveend zoomend', addVisibleSpawnMarkers);
     addVisibleSpawnMarkers();
   </script>
