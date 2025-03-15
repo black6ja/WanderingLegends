@@ -13,7 +13,18 @@
   <style>
     html, body { margin: 0; padding: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
-    #error { color: red; padding: 10px; font-family: sans-serif; }
+    /* Error messages container */
+    #error { 
+      color: red; 
+      padding: 10px; 
+      font-family: sans-serif; 
+      position: absolute; 
+      z-index: 1000; 
+      background: rgba(255,255,255,0.8); 
+      max-width: 300px; 
+      top: 0;
+      left: 0;
+    }
 
     /* Blinking Player Marker */
     .blinking-circle {
@@ -35,7 +46,7 @@
       animation: blinkZone 2s infinite;
     }
     @keyframes blinkZone {
-      0% { fill-opacity: 0.1; } 
+      0% { fill-opacity: 0.1; }
       50% { fill-opacity: 0.05; }
       100% { fill-opacity: 0.1; }
     }
@@ -107,7 +118,6 @@
           var lng = center.lng + dLng;
           var st = pickSpawnType();
           if (!st) continue;
-
           if (isSpawnAllowed(st.type, lat, lng)) {
             dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng, radius: PUBLIC_EVENT_RADIUS });
           }
@@ -115,6 +125,7 @@
       }
     }
 
+    // Check spawn restrictions defined in JSON (if any)
     function isSpawnAllowed(type, lat, lng) {
       let restrictions = spawnTypes.find(s => s.type === type)?.restrictions;
       if (!restrictions || !restrictions.minDistanceFrom) return true;
@@ -126,11 +137,11 @@
     }
 
     function generateIrregularPolygon(center, baseRadius) {
-      var numPoints = 8 + Math.floor(Math.random() * 4); // Random between 8-12 points
+      var numPoints = 8 + Math.floor(Math.random() * 4); // 8-12 points
       var points = [];
       for (var i = 0; i < numPoints; i++) {
-        var angle = (2 * Math.PI / numPoints) * i + (Math.random() * 0.4 - 0.2); // Slight random offset
-        var factor = 0.6 + Math.random() * 0.8; // random factor between 0.6 and 1.4
+        var angle = (2 * Math.PI / numPoints) * i + (Math.random() * 0.4 - 0.2); // add slight randomness
+        var factor = 0.6 + Math.random() * 0.8; // factor between 0.6 and 1.4
         var r = baseRadius * factor;
         var latOffset = (r * Math.cos(angle)) / 111300;
         var lngOffset = (r * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI / 180));
@@ -181,8 +192,8 @@
       return colors[type] || "red";
     }
 
-    // Set up geolocation event listeners
-    map.on('locationfound', function (e) {
+    // Geolocation event: location found
+    map.on('locationfound', function(e) {
       lastPlayerLatLng = e.latlng;
       // Update player marker and radius
       if (!map.hasLayer(playerMarker)) {
@@ -195,16 +206,16 @@
       updateVisibleSpawns();
     });
 
+    // Geolocation event: error
     map.on('locationerror', function(e) {
       var errorDiv = document.getElementById("error");
       errorDiv.innerHTML += `<p>Error locating user: ${e.message}</p>`;
-      // Fallback to default location
       lastPlayerLatLng = DEFAULT_LOCATION;
       generateDynamicSpawns(DEFAULT_LOCATION);
       updateVisibleSpawns();
     });
 
-    // Load spawn types and then start locating
+    // Load spawn types from JSON and start locating
     fetch(spawnDataUrl)
       .then(resp => resp.json())
       .then(data => {
@@ -212,7 +223,8 @@
         map.locate({ setView: false, watch: true, maxZoom: 16 });
       })
       .catch(err => {
-        document.getElementById("error").innerHTML += `<p>Error loading spawn data: ${err}</p>`;
+        var errorDiv = document.getElementById("error");
+        errorDiv.innerHTML += `<p>Error loading spawn data: ${err}</p>`;
         console.error("Error loading spawn data:", err);
       });
   </script>
