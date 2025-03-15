@@ -14,24 +14,23 @@
     html, body { margin: 0; padding: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
 
+    /* Player Marker - Blinking Blue Dot */
     .blinking-circle {
-      width: 12px;
-      height: 12px;
-      background: rgba(0, 0, 255, 0.7);
+      width: 15px;
+      height: 15px;
+      background: rgba(0, 0, 255, 0.8);
       border: 2px solid white;
       border-radius: 50%;
-      animation: pulse 1s infinite;
+      animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.2); opacity: 0.5; }
+      50% { transform: scale(1.5); opacity: 0.5; }
       100% { transform: scale(1); opacity: 1; }
     }
-    .spawn-icon div {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
+
+    /* Spawn Colors */
+    .spawn-icon div { width: 12px; height: 12px; border-radius: 50%; }
     .spawn-icon.creatures div { background: purple; }
     .spawn-icon.dungeons div { background: darkgray; }
     .spawn-icon.inns div { background: orange; }
@@ -39,7 +38,7 @@
     .spawn-icon.quests div { background: green; }
     .spawn-icon.keeps div { background: brown; }
     .spawn-icon.lairs div { background: black; }
-    
+
     #debug-panel {
       position: absolute;
       bottom: 10px;
@@ -82,11 +81,18 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    // Blinking Player Marker
     var playerMarker = L.marker([51.505, -0.09], {
-      icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [12, 12], iconAnchor: [6, 6] })
+      icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [15, 15], iconAnchor: [7, 7] })
     });
 
-    var playerRadiusCircle = L.circle([], { color: 'green', fillOpacity: 0.2, radius: 229 });
+    // Soft Blue Translucent Player Radius
+    var playerRadiusCircle = L.circle([0, 0], {
+      color: 'blue',
+      fillColor: 'rgba(0, 0, 255, 0.3)',
+      fillOpacity: 0.3,
+      radius: 229
+    });
 
     function logDebug(message) {
       const debugPanel = document.getElementById("debug-log");
@@ -131,12 +137,30 @@
       dynamicSpawnPoints.forEach((spawn) => {
         var pt = L.latLng(spawn.lat, spawn.lng);
         if (bounds.contains(pt)) {
-          var marker = L.marker(pt).bindPopup(`Spawn: ${spawn.type}`);
+          var marker = L.circleMarker(pt, {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.7,
+            radius: 7
+          }).bindPopup(`Spawn: ${spawn.type}`);
           markersCluster.addLayer(marker);
           logDebug(`Spawn visible: ${spawn.type} at lat=${spawn.lat}, lng=${spawn.lng}`);
         }
       });
       if (!map.hasLayer(markersCluster)) map.addLayer(markersCluster);
+    }
+
+    function getSpawnColor(type) {
+      const colors = {
+        "creatures": "purple",
+        "dungeons": "gray",
+        "inns": "orange",
+        "shops": "blue",
+        "quests": "green",
+        "keeps": "brown",
+        "lairs": "black"
+      };
+      return colors[type] || "red";
     }
 
     function onLocationFound(e) {
@@ -148,7 +172,6 @@
         initialCentered = true;
         map.setView(userLatLng, 16, { animate: false });
 
-        // Fetch spawn data AFTER user location is available
         fetch(spawnDataUrl)
           .then(resp => {
             if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
