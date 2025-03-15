@@ -24,7 +24,7 @@
       top: 0;
       left: 0;
     }
-    /* Loader overlay covers entire viewport until location is fixed */
+    /* Loader overlay (covers entire viewport until location is ready) */
     #loader-overlay {
       position: fixed;
       top: 0;
@@ -81,25 +81,36 @@
   </div>
   <div id="map"></div>
   <div id="error"></div>
+  
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // URL to spawn data JSON
+    // Configuration and constants
     const spawnDataUrl = "https://raw.githubusercontent.com/black6ja/WanderingLegends/main/spawnData.json";
     const PUBLIC_EVENT_RADIUS = 300;      // Base radius for public event zones
     const SPAWN_AREA_RADIUS = 4827;         // 3 miles in meters (max view distance)
-    const REGEN_THRESHOLD = 300;            // Regenerate spawns if player moves >300 m from spawnAreaCenter
-    // New local rules: maximum spawns per type within a 0.5-mile (≈800 m) radius
-    const LOCAL_AREA_RADIUS = 800;          // 0.5 mile in meters
-    const localMaxSpawnsByType = {
-      "creatures": 20,
-      "dungeons": 10,
-      "inns": 10,
-      "shops": 10,
-      "quests": 10,
-      "keeps": 5,
-      "lairs": 5,
+    const REGEN_THRESHOLD = 300;            // Regenerate spawns if moved >300 m from spawnAreaCenter
+    // Local (half-mile) rules: minimum spawns per type within the area (global within the SPAWN_AREA_RADIUS)
+    const minSpawnsByType = {
+      "creatures": 5,
+      "dungeons": 2,
+      "inns": 2,
+      "shops": 2,
+      "quests": 2,
+      "keeps": 1,
+      "lairs": 1,
+      "publicEvent": 1
+    };
+    // Increased maximum spawns per type (global)
+    const maxSpawnsByType = {
+      "creatures": 10,
+      "dungeons": 5,
+      "inns": 5,
+      "shops": 5,
+      "quests": 6,
+      "keeps": 3,
+      "lairs": 3,
       "publicEvent": 1
     };
 
@@ -121,7 +132,7 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Create the blinking player marker and its radius circle.
+    // Create player marker and its radius circle.
     var playerMarker = L.marker([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], {
       icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [15,15], iconAnchor: [7,7] })
     });
@@ -139,13 +150,13 @@
       maximumAge: 30000
     };
 
-    // Hide loader and show map; then force Leaflet to recalc its size.
+    // Hide loader overlay and show map; call invalidateSize() to recalc dimensions.
     function showMap() {
       document.getElementById("loader-overlay").style.display = "none";
       map.invalidateSize();
     }
 
-    // Pick a spawn type based on weighted spawnRate.
+    // Pick a spawn type based on weighted spawnRate from JSON.
     function pickSpawnType() {
       if (!spawnTypes || !Array.isArray(spawnTypes) || spawnTypes.length === 0) return null;
       let totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
@@ -158,11 +169,11 @@
       return spawnTypes[spawnTypes.length - 1];
     }
 
-    // Count how many spawns of a given type exist within a LOCAL_AREA_RADIUS of (lat, lng)
-    function localCountForType(type, lat, lng) {
+    // Helper: count spawns of a given type within SPAWN_AREA_RADIUS of spawnAreaCenter.
+    function countSpawnsOfType(type) {
       let count = 0;
-      dynamicSpawnPoints.forEach(existing => {
-        if (existing.type === type && map.distance([lat, lng], [existing.lat, existing.lng]) <= LOCAL_AREA_RADIUS) {
+      dynamicSpawnPoints.forEach(spawn => {
+        if (spawn.type === type && map.distance(spawnAreaCenter, L.latLng(spawn.lat, spawn.lng)) <= SPAWN_AREA_RADIUS) {
           count++;
         }
       });
@@ -170,35 +181,40 @@
     }
 
     // Generate spawn points uniformly within SPAWN_AREA_RADIUS around center.
-    // Enforce local maximums (per 0.5-mile area).
+    // Then force-add spawns for types that do not meet the minimum requirement.
     function generateDynamicSpawns(center) {
       setTimeout(() => {
         dynamicSpawnPoints = [];
-        const attempts = 100; // Increase attempts to get dense spawns
+        // First, generate using attempts (for dense spawns)
+        const attempts = 100; // Increase attempts for density
+        const spawnsByType = {};
+        for (let type in maxSpawnsByType) {
+          spawnsByType[type] = 0;
+        }
         for (let i = 0; i < attempts; i++) {
           const st = pickSpawnType();
           if (!st) continue;
-          // Generate a random point uniformly in a circle of radius SPAWN_AREA_RADIUS.
+          if (spawnsByType[st.type] >= maxSpawnsByType[st.type]) continue;
           let r = SPAWN_AREA_RADIUS * Math.sqrt(Math.random());
           let angle = Math.random() * 2 * Math.PI;
           let dLat = r * Math.cos(angle) / 111300;
           let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
           let lat = center.lat + dLat;
           let lng = center.lng + dLng;
-          // Check global spawn restrictions (if any).
-          if (!isSpawnAllowed(st.type, lat, lng)) continue;
-          // Enforce local maximum spawns per type within LOCAL_AREA_RADIUS.
-          if (localCountForType(st.type, lat, lng) >= localMaxSpawnsByType[st.type]) continue;
-          dynamicSpawnPoints.push({
-            type: st.type,
-            lat: lat,
-            lng: lng,
-            radius: st.type === "publicEvent" ? PUBLIC_EVENT_RADIUS : null,
-            polygonCoords: null,
-            enhanced: false
-          });
+          if (isSpawnAllowed(st.type, lat, lng)) {
+            dynamicSpawnPoints.push({
+              type: st.type,
+              lat: lat,
+              lng: lng,
+              radius: st.type === "publicEvent" ? PUBLIC_EVENT_RADIUS : null,
+              polygonCoords: null,
+              forced: false,
+              enhanced: false
+            });
+            spawnsByType[st.type]++;
+          }
         }
-        // Force-add a public event spawn if none exists.
+        // Force-add a public event if none exists.
         if (!dynamicSpawnPoints.some(spawn => spawn.type === "publicEvent")) {
           let r = 100 + Math.random() * 300;
           let angle = Math.random() * 2 * Math.PI;
@@ -210,10 +226,33 @@
             lng: center.lng + dLng,
             radius: PUBLIC_EVENT_RADIUS,
             polygonCoords: null,
+            forced: false,
             enhanced: false
           });
         }
-        // For each public event spawn, ensure there is at least one non-public event spawn within its radius.
+        // Now, enforce minimum spawns per type (global within SPAWN_AREA_RADIUS).
+        for (let type in minSpawnsByType) {
+          let currentCount = countSpawnsOfType(type);
+          let minCount = minSpawnsByType[type];
+          let toAdd = minCount - currentCount;
+          for (let j = 0; j < toAdd; j++) {
+            // Force-add a spawn for this type near spawnAreaCenter (within 200-400 m).
+            let r = 200 + Math.random() * 200;
+            let angle = Math.random() * 2 * Math.PI;
+            let dLat = r * Math.cos(angle) / 111300;
+            let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
+            dynamicSpawnPoints.push({
+              type: type,
+              lat: center.lat + dLat,
+              lng: center.lng + dLng,
+              radius: type === "publicEvent" ? PUBLIC_EVENT_RADIUS : null,
+              polygonCoords: null,
+              forced: true,
+              enhanced: false
+            });
+          }
+        }
+        // For each public event spawn, ensure at least one non-public event exists within its radius.
         dynamicSpawnPoints.forEach(spawn => {
           if (spawn.type === "publicEvent") {
             let hasEnhanced = dynamicSpawnPoints.some(other =>
@@ -221,9 +260,9 @@
               map.distance([spawn.lat, spawn.lng], [other.lat, other.lng]) < PUBLIC_EVENT_RADIUS
             );
             if (!hasEnhanced) {
-              // Create an "enhanced" spawn (default to creatures) within 50 m of the public event.
+              // Force-add an enhanced spawn (default to creatures) within 50 m of the public event.
               let angle = Math.random() * 2 * Math.PI;
-              let offset = 50; // 50 m offset
+              let offset = 50;
               let dLat = offset * Math.cos(angle) / 111300;
               let dLng = offset * Math.sin(angle) / (111300 * Math.cos(spawn.lat * Math.PI/180));
               dynamicSpawnPoints.push({
@@ -232,6 +271,7 @@
                 lng: spawn.lng + dLng,
                 radius: null,
                 polygonCoords: null,
+                forced: true,
                 enhanced: true
               });
             }
@@ -241,7 +281,7 @@
       }, 0);
     }
 
-    // Check spawn restrictions (if defined in JSON restrictions).
+    // Check spawn restrictions (if defined in JSON).
     function isSpawnAllowed(type, lat, lng) {
       let restrictions = spawnTypes.find(s => s.type === type)?.restrictions;
       if (!restrictions || !restrictions.minDistanceFrom) return true;
@@ -272,8 +312,7 @@
       return points;
     }
 
-    // Update visible spawns on the map.
-    // Only spawns within SPAWN_AREA_RADIUS of spawnAreaCenter are shown.
+    // Update visible spawns on the map: only show those within SPAWN_AREA_RADIUS of spawnAreaCenter.
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
       // Remove old public event polygons.
@@ -299,6 +338,7 @@
         } else if (map.getBounds().contains(pt)) {
           let popupText = `Spawn: ${spawn.type}`;
           if (spawn.enhanced) popupText += " (Enhanced by nearby event)";
+          if (spawn.forced) popupText += " (Forced)";
           let marker = L.circleMarker(pt, {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
@@ -343,7 +383,7 @@
       updateVisibleSpawns();
     });
 
-    // Throttle spawn regeneration on location update.
+    // On location update, update position and regenerate spawns if moved > REGEN_THRESHOLD.
     map.on('locationupdate', function(e) {
       let newLatLng = e.latlng;
       playerMarker.setLatLng(newLatLng);
