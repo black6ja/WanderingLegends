@@ -24,7 +24,7 @@
       top: 0;
       left: 0;
     }
-    /* Loader overlay (covers entire viewport until initial position is ready) */
+    /* Loader overlay (covers entire viewport until location is ready) */
     #loader-overlay {
       position: fixed;
       top: 0;
@@ -90,29 +90,30 @@
     const PUBLIC_EVENT_RADIUS = 300;      // Base radius for public event zones
     const SPAWN_AREA_RADIUS = 4827;         // 3 miles in meters (max view distance)
     const REGEN_THRESHOLD = 300;            // Regenerate spawns if moved >300 m from spawnAreaCenter
-    const MIN_SPAWN_DISTANCE = 20;          // Minimum distance (in meters) between any two spawns
-    // Global maximum spawns per type (across SPAWN_AREA_RADIUS)
+    // Global maximum spawns per type (quadrupled)
     const maxSpawnsByType = {
-      "creatures": 10,
-      "dungeons": 5,
-      "inns": 5,
-      "shops": 5,
-      "quests": 6,
-      "keeps": 3,
-      "lairs": 3,
-      "publicEvent": 1
+      "creatures": 40,
+      "dungeons": 20,
+      "inns": 20,
+      "shops": 20,
+      "quests": 24,
+      "keeps": 12,
+      "lairs": 12,
+      "publicEvent": 4
     };
-    // Local (half-mile) minimum spawns per type (to ensure density near the player)
+    // Local (half-mile ~800 m) minimum spawns per type (quadrupled)
     const minSpawnsByType = {
-      "creatures": 5,
-      "dungeons": 2,
-      "inns": 2,
-      "shops": 2,
-      "quests": 2,
-      "keeps": 1,
-      "lairs": 1,
+      "creatures": 20,
+      "dungeons": 8,
+      "inns": 8,
+      "shops": 8,
+      "quests": 8,
+      "keeps": 4,
+      "lairs": 4,
       "publicEvent": 1
     };
+    // Global minimum distance between any two spawns (to avoid overlapping)
+    const MIN_SPAWN_DISTANCE = 20; // in meters
 
     // Fallback default location if geolocation fails.
     const DEFAULT_LOCATION = { lat: 51.505, lng: -0.09 };
@@ -156,7 +157,7 @@
       map.invalidateSize();
     }
 
-    // Pick a spawn type based on weighted spawnRate from the JSON config.
+    // Pick a spawn type based on weighted spawnRate.
     function pickSpawnType() {
       if (!spawnTypes || !Array.isArray(spawnTypes) || spawnTypes.length === 0) return null;
       let totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
@@ -169,18 +170,18 @@
       return spawnTypes[spawnTypes.length - 1];
     }
 
-    // Helper: count how many spawns of a given type exist within LOCAL_AREA_RADIUS of a point.
+    // Helper: count spawns of a given type within LOCAL_AREA_RADIUS of a point.
     function localCountForType(type, lat, lng) {
       let count = 0;
       dynamicSpawnPoints.forEach(existing => {
-        if (existing.type === type && map.distance([lat, lng], [existing.lat, existing.lng]) < LOCAL_AREA_RADIUS) {
+        if (existing.type === type && map.distance([lat, lng], [existing.lat, existing.lng]) < 800) {
           count++;
         }
       });
       return count;
     }
 
-    // Generate spawn points uniformly within SPAWN_AREA_RADIUS around a given center.
+    // Generate spawn points uniformly within SPAWN_AREA_RADIUS around center.
     // Then enforce local minimum spawns per type.
     function generateDynamicSpawns(center) {
       setTimeout(() => {
@@ -189,7 +190,7 @@
         for (let type in maxSpawnsByType) {
           spawnsByType[type] = 0;
         }
-        const attempts = 100; // Increase attempts for higher density
+        const attempts = 400; // Increase attempts for quadrupled density.
         for (let i = 0; i < attempts; i++) {
           const st = pickSpawnType();
           if (!st) continue;
@@ -200,7 +201,7 @@
           let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
           let lat = center.lat + dLat;
           let lng = center.lng + dLng;
-          // Global minimum distance check: ensure candidate is not closer than MIN_SPAWN_DISTANCE to any existing spawn.
+          // Global minimum distance check.
           let tooClose = dynamicSpawnPoints.some(existing => {
             try {
               return map.distance([lat, lng], [existing.lat, existing.lng]) < MIN_SPAWN_DISTANCE;
@@ -239,13 +240,14 @@
             enhanced: false
           });
         }
-        // Enforce local minimum spawns per type within LOCAL_AREA_RADIUS.
+        // Enforce local minimum spawns per type within the view (LOCAL_AREA_RADIUS ~800m).
         for (let type in minSpawnsByType) {
           let currentCount = localCountForType(type, spawnAreaCenter.lat, spawnAreaCenter.lng);
           let minCount = minSpawnsByType[type];
           let toAdd = minCount - currentCount;
           for (let j = 0; j < toAdd; j++) {
-            let r = 200 + Math.random() * 200; // Place within 200-400 m of spawnAreaCenter
+            // Force-add a spawn near spawnAreaCenter (within 200-400 m).
+            let r = 200 + Math.random() * 200;
             let angle = Math.random() * 2 * Math.PI;
             let dLat = r * Math.cos(angle) / 111300;
             let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
@@ -260,7 +262,7 @@
             });
           }
         }
-        // For each public event spawn, ensure there's at least one non-public event within its radius.
+        // For each public event spawn, ensure at least one non-public event exists within its radius.
         dynamicSpawnPoints.forEach(spawn => {
           if (spawn.type === "publicEvent") {
             let hasEnhanced = dynamicSpawnPoints.some(other =>
@@ -288,7 +290,7 @@
       }, 0);
     }
 
-    // Check spawn restrictions from JSON, if any.
+    // Check spawn restrictions using JSON "restrictions" if defined.
     function isSpawnAllowed(type, lat, lng) {
       let restrictions = spawnTypes.find(s => s.type === type)?.restrictions;
       if (!restrictions || !restrictions.minDistanceFrom) return true;
@@ -304,7 +306,7 @@
       });
     }
 
-    // Generate an irregular polygon for a public event.
+    // Generate an irregular polygon for a public event spawn.
     function generateIrregularPolygon(center, baseRadius) {
       let numPoints = 8 + Math.floor(Math.random() * 4);
       let points = [];
@@ -390,7 +392,7 @@
       updateVisibleSpawns();
     });
 
-    // On location update, update player marker and regenerate spawns if moved > REGEN_THRESHOLD.
+    // On location update, update position and regenerate spawns if moved > REGEN_THRESHOLD.
     map.on('locationupdate', function(e) {
       let newLatLng = e.latlng;
       playerMarker.setLatLng(newLatLng);
@@ -415,7 +417,7 @@
       updateVisibleSpawns();
     });
 
-    // Start initial geolocation using getCurrentPosition, then watchPosition.
+    // Use getCurrentPosition for an initial fast fix, then start watchPosition.
     function initGeolocation() {
       navigator.geolocation.getCurrentPosition(position => {
         let pos = { lat: position.coords.latitude, lng: position.coords.longitude };
@@ -456,7 +458,7 @@
       }, geoOptions);
     }
 
-    // Load spawn types from JSON, then start geolocation.
+    // Load spawn types from JSON then start geolocation.
     fetch(spawnDataUrl)
       .then(resp => {
         if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
