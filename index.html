@@ -4,14 +4,15 @@
   <meta charset="UTF-8">
   <title>Leaflet: Dynamic Spawn Types</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
   <style>
     html, body { margin: 0; padding: 0; height: 100%; }
-    #map { width: 100%; height: 100%; }
-    /* Error messages container */
+    #map { width: 100%; height: 100%; display: none; } /* Hide map until location is fixed */
     #error { 
       color: red; 
       padding: 10px; 
@@ -22,6 +23,24 @@
       max-width: 300px; 
       top: 0;
       left: 0;
+    }
+    /* Loader styling */
+    #loader {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 12px solid #f3f3f3;
+      border-top: 12px solid #3498db;
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      animation: spin 1s linear infinite;
+      z-index: 2000;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
     /* Blinking Player Marker */
     .blinking-circle {
@@ -49,18 +68,19 @@
   </style>
 </head>
 <body>
+  <div id="loader"></div>
   <div id="map"></div>
   <div id="error"></div>
+
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // Constants and configuration
+    // Configuration and constants
     const spawnDataUrl = "https://raw.githubusercontent.com/black6ja/WanderingLegends/main/spawnData.json";
     const PUBLIC_EVENT_RADIUS = 300;      // Base radius for public event zones
     const SPAWN_AREA_RADIUS = 4827;         // 3 miles in meters
     const REGEN_THRESHOLD = 300;            // Regenerate spawns if moved >300 m from spawnAreaCenter
-    // Maximum spawns per type within the spawn area
     const maxSpawnsByType = {
       "creatures": 5,
       "dungeons": 2,
@@ -72,25 +92,26 @@
       "publicEvent": 1
     };
 
+    // Fallback default location if geolocation fails.
+    const DEFAULT_LOCATION = { lat: 51.505, lng: -0.09 };
+
     var lastPlayerLatLng = null;
     var spawnAreaCenter = null;  // Fixed center for spawn generation
     var spawnTypes = null;       // Loaded from JSON
     var markersCluster = L.markerClusterGroup();
     var dynamicSpawnPoints = []; // Array to store spawn objects
 
-    // Fallback default location if geolocation fails.
-    const DEFAULT_LOCATION = { lat: 51.505, lng: -0.09 };
+    var errorDiv = document.getElementById("error");
 
-    // Initialize map
+    // Initialize map but keep it hidden until we have a location.
     var map = L.map('map', { preferCanvas: true, zoomAnimation: true })
                .setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
-    var errorDiv = document.getElementById("error");
 
-    // Create blinking player marker and its radius circle
+    // Create player marker and its radius circle.
     var playerMarker = L.marker([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], {
       icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [15,15], iconAnchor: [7,7] })
     });
@@ -101,14 +122,14 @@
       radius: 229
     });
 
-    // Optimized geolocation options: short timeout & use cached location if available
+    // Optimized geolocation options for faster fix.
     const geoOptions = {
       enableHighAccuracy: true,
-      timeout: 5000,         // 5-second timeout
-      maximumAge: 30000      // Accept a cached position up to 30 seconds old
+      timeout: 5000,
+      maximumAge: 30000
     };
 
-    // Pick a spawn type based on weighted spawnRate from JSON
+    // Pick a spawn type randomly based on weighted spawnRate.
     function pickSpawnType() {
       if (!spawnTypes || !Array.isArray(spawnTypes) || spawnTypes.length === 0) return null;
       let totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
@@ -121,53 +142,56 @@
       return spawnTypes[spawnTypes.length - 1];
     }
 
-    // Generate spawn points uniformly within SPAWN_AREA_RADIUS around "center"
+    // Generate spawn points uniformly within SPAWN_AREA_RADIUS around center.
+    // Wrap heavy computation in a setTimeout to yield to the UI thread.
     function generateDynamicSpawns(center) {
-      dynamicSpawnPoints = [];
-      const spawnsByType = {};
-      for (let type in maxSpawnsByType) {
-        spawnsByType[type] = 0;
-      }
-      const attempts = 50; // Limit iterations
-      for (let i = 0; i < attempts; i++) {
-        const st = pickSpawnType();
-        if (!st) continue;
-        if (spawnsByType[st.type] >= maxSpawnsByType[st.type]) continue;
-        // Uniform random point within a circle
-        let r = SPAWN_AREA_RADIUS * Math.sqrt(Math.random());
-        let angle = Math.random() * 2 * Math.PI;
-        let dLat = r * Math.cos(angle) / 111300;
-        let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
-        let lat = center.lat + dLat;
-        let lng = center.lng + dLng;
-        if (isSpawnAllowed(st.type, lat, lng)) {
-          dynamicSpawnPoints.push({
-            type: st.type,
-            lat: lat,
-            lng: lng,
-            radius: st.type === "publicEvent" ? PUBLIC_EVENT_RADIUS : null,
-            polygonCoords: null  // Cache for public events
-          });
-          spawnsByType[st.type]++;
+      setTimeout(() => {
+        dynamicSpawnPoints = [];
+        const spawnsByType = {};
+        for (let type in maxSpawnsByType) {
+          spawnsByType[type] = 0;
         }
-      }
-      // Force-add a public event if none exists
-      if (!dynamicSpawnPoints.some(spawn => spawn.type === "publicEvent")) {
-        let r = 100 + Math.random() * 300;
-        let angle = Math.random() * 2 * Math.PI;
-        let dLat = r * Math.cos(angle) / 111300;
-        let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
-        dynamicSpawnPoints.push({
-          type: "publicEvent",
-          lat: center.lat + dLat,
-          lng: center.lng + dLng,
-          radius: PUBLIC_EVENT_RADIUS,
-          polygonCoords: null
-        });
-      }
+        const attempts = 40; // Reduced attempts to improve performance.
+        for (let i = 0; i < attempts; i++) {
+          const st = pickSpawnType();
+          if (!st) continue;
+          if (spawnsByType[st.type] >= maxSpawnsByType[st.type]) continue;
+          let r = SPAWN_AREA_RADIUS * Math.sqrt(Math.random());
+          let angle = Math.random() * 2 * Math.PI;
+          let dLat = r * Math.cos(angle) / 111300;
+          let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
+          let lat = center.lat + dLat;
+          let lng = center.lng + dLng;
+          if (isSpawnAllowed(st.type, lat, lng)) {
+            dynamicSpawnPoints.push({
+              type: st.type,
+              lat: lat,
+              lng: lng,
+              radius: st.type === "publicEvent" ? PUBLIC_EVENT_RADIUS : null,
+              polygonCoords: null
+            });
+            spawnsByType[st.type]++;
+          }
+        }
+        // Force-add a public event spawn if none exists.
+        if (!dynamicSpawnPoints.some(spawn => spawn.type === "publicEvent")) {
+          let r = 100 + Math.random() * 300;
+          let angle = Math.random() * 2 * Math.PI;
+          let dLat = r * Math.cos(angle) / 111300;
+          let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
+          dynamicSpawnPoints.push({
+            type: "publicEvent",
+            lat: center.lat + dLat,
+            lng: center.lng + dLng,
+            radius: PUBLIC_EVENT_RADIUS,
+            polygonCoords: null
+          });
+        }
+        updateVisibleSpawns();
+      }, 0);
     }
 
-    // Check spawn restrictions using JSON "restrictions" if defined
+    // Check spawn restrictions using JSON "restrictions" if defined.
     function isSpawnAllowed(type, lat, lng) {
       let restrictions = spawnTypes.find(s => s.type === type)?.restrictions;
       if (!restrictions || !restrictions.minDistanceFrom) return true;
@@ -183,9 +207,9 @@
       });
     }
 
-    // Generate an irregular polygon for public events
+    // Generate an irregular polygon for public event spawn.
     function generateIrregularPolygon(center, baseRadius) {
-      let numPoints = 8 + Math.floor(Math.random() * 4); // 8–12 points
+      let numPoints = 8 + Math.floor(Math.random() * 4);
       let points = [];
       for (let i = 0; i < numPoints; i++) {
         let angle = (2 * Math.PI / numPoints) * i + (Math.random() * 0.4 - 0.2);
@@ -198,10 +222,11 @@
       return points;
     }
 
-    // Update visible spawns based on spawnAreaCenter
+    // Update visible spawns on the map.
+    // Only spawns within SPAWN_AREA_RADIUS of spawnAreaCenter are shown.
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
-      // Remove old public event polygons
+      // Remove old public event polygons to avoid duplicates.
       map.eachLayer(layer => {
         if (layer instanceof L.Polygon && layer.options.className === "blinking-zone") {
           map.removeLayer(layer);
@@ -249,14 +274,20 @@
       return colors[type] || "red";
     }
 
-    // Start by trying to get a quick position using getCurrentPosition with our options.
+    // Once an initial position is obtained, hide the loader and show the map.
+    function showMap() {
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("map").style.display = "block";
+    }
+
+    // Initial geolocation using getCurrentPosition for a fast fix.
     function initGeolocation() {
       navigator.geolocation.getCurrentPosition(position => {
         let pos = { lat: position.coords.latitude, lng: position.coords.longitude };
         lastPlayerLatLng = pos;
-        spawnAreaCenter = pos; // set initial spawn area center
+        spawnAreaCenter = pos;
         map.setView(pos, 15);
-        // Add player marker and radius
+        // Add player marker and radius.
         if (!map.hasLayer(playerMarker)) {
           playerMarker.addTo(map);
           playerRadiusCircle.addTo(map);
@@ -264,25 +295,24 @@
         playerMarker.setLatLng(pos);
         playerRadiusCircle.setLatLng(pos);
         generateDynamicSpawns(pos);
-        updateVisibleSpawns();
+        showMap(); // Now show the map and hide loader.
       }, error => {
         errorDiv.innerHTML += `<p>Error getting initial position: ${error.message}</p>`;
         lastPlayerLatLng = DEFAULT_LOCATION;
         spawnAreaCenter = DEFAULT_LOCATION;
         map.setView(DEFAULT_LOCATION, 15);
         generateDynamicSpawns(DEFAULT_LOCATION);
-        updateVisibleSpawns();
+        showMap();
       }, geoOptions);
     }
 
-    // Use locationwatchPosition to update location thereafter
+    // Start continuous location watch.
     function startLocationWatch() {
       navigator.geolocation.watchPosition(position => {
         let pos = { lat: position.coords.latitude, lng: position.coords.longitude };
         lastPlayerLatLng = pos;
         playerMarker.setLatLng(pos);
         playerRadiusCircle.setLatLng(pos);
-        // Only regenerate spawns if moved more than REGEN_THRESHOLD from spawnAreaCenter
         if (!spawnAreaCenter || map.distance(pos, spawnAreaCenter) > REGEN_THRESHOLD) {
           spawnAreaCenter = pos;
           generateDynamicSpawns(pos);
@@ -293,7 +323,7 @@
       }, geoOptions);
     }
 
-    // Load spawn types from JSON then initialize geolocation.
+    // Load spawn types from JSON and start geolocation.
     fetch(spawnDataUrl)
       .then(resp => {
         if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
