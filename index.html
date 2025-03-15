@@ -34,9 +34,9 @@
       animation: blinkZone 2s infinite;
     }
     @keyframes blinkZone {
-      0% { fill-opacity: 0.3; }
-      50% { fill-opacity: 0.1; }
-      100% { fill-opacity: 0.3; }
+      0% { fill-opacity: 0.15; }
+      50% { fill-opacity: 0.05; }
+      100% { fill-opacity: 0.15; }
     }
   </style>
 </head>
@@ -49,6 +49,8 @@
 
   <script>
     const spawnDataUrl = "https://raw.githubusercontent.com/black6ja/WanderingLegends/main/spawnData.json";
+    const PUBLIC_EVENT_RADIUS = 300; // Base radius for public event zones
+    const PUBLIC_EVENT_DISTANCE_LIMIT = 500; // Ensure no two events are within 500 yards
 
     var lastPlayerLatLng = null;
     var spawnTypes = null;
@@ -101,14 +103,34 @@
           var lng = center.lng + dLng;
           var st = pickSpawnType();
           if (!st) continue;
-          if (st.type === "publicEvent") {
-            // Public event now has a fixed radius (like player)
-            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: 300 });
-          } else {
+
+          if (st.type === "publicEvent" && isFarEnoughFromOtherEvents(lat, lng)) {
+            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: PUBLIC_EVENT_RADIUS });
+          } else if (st.type !== "publicEvent") {
             dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
           }
         }
       }
+    }
+
+    function isFarEnoughFromOtherEvents(lat, lng) {
+      return !dynamicSpawnPoints.some(spawn =>
+        spawn.type === "publicEvent" && map.distance([lat, lng], [spawn.lat, spawn.lng]) < PUBLIC_EVENT_DISTANCE_LIMIT
+      );
+    }
+
+    function generateIrregularPolygon(center, baseRadius) {
+      var numPoints = 8;
+      var points = [];
+      for (var i = 0; i < numPoints; i++) {
+        var angle = (2 * Math.PI / numPoints) * i;
+        var factor = 0.7 + Math.random() * 0.6; // random factor between 0.7 and 1.3
+        var r = baseRadius * factor;
+        var latOffset = (r * Math.cos(angle)) / 111300;
+        var lngOffset = (r * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI / 180));
+        points.push([center.lat + latOffset, center.lng + lngOffset]);
+      }
+      return points;
     }
 
     function updateVisibleSpawns() {
@@ -119,12 +141,12 @@
         var pt = L.latLng(spawn.lat, spawn.lng);
         
         if (spawn.type === "publicEvent") {
-          // Public Event now uses a translucent red circle instead of a polygon
-          L.circle(pt, {
+          var polygonCoords = generateIrregularPolygon(pt, spawn.radius);
+          L.polygon(polygonCoords, {
             color: "red",
             fillColor: "red",
-            fillOpacity: 0.3,
-            radius: spawn.radius,
+            fillOpacity: 0.15, // Much more transparent
+            weight: 2,
             className: "blinking-zone"
           }).bindPopup("Public Event Zone").addTo(map);
         } else if (bounds.contains(pt)) {
@@ -163,10 +185,7 @@
         map.setView(userLatLng, 16, { animate: false });
 
         fetch(spawnDataUrl)
-          .then(resp => {
-            if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
-            return resp.json();
-          })
+          .then(resp => resp.json())
           .then(data => {
             spawnTypes = data.spawnTypes || [];
             generateDynamicSpawns(userLatLng);
