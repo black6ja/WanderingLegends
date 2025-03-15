@@ -50,7 +50,6 @@
   <script>
     const spawnDataUrl = "https://raw.githubusercontent.com/black6ja/WanderingLegends/main/spawnData.json";
     const PUBLIC_EVENT_RADIUS = 300; // Base radius for public event zones
-    const PUBLIC_EVENT_DISTANCE_LIMIT = 500; // Ensure no two events are within 500 yards
 
     var lastPlayerLatLng = null;
     var spawnTypes = null;
@@ -68,14 +67,6 @@
     // Blinking Player Marker
     var playerMarker = L.marker([51.505, -0.09], {
       icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [15, 15], iconAnchor: [7, 7] })
-    });
-
-    // Player Radius (soft blue circle)
-    var playerRadiusCircle = L.circle([0, 0], {
-      color: 'blue',
-      fillColor: 'rgba(0, 0, 255, 0.3)',
-      fillOpacity: 0.3,
-      radius: 229
     });
 
     function pickSpawnType() {
@@ -104,33 +95,22 @@
           var st = pickSpawnType();
           if (!st) continue;
 
-          if (st.type === "publicEvent" && isFarEnoughFromOtherEvents(lat, lng)) {
-            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: PUBLIC_EVENT_RADIUS });
-          } else if (st.type !== "publicEvent") {
-            dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
+          if (isSpawnAllowed(st.type, lat, lng)) {
+            dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng, radius: PUBLIC_EVENT_RADIUS });
           }
         }
       }
     }
 
-    function isFarEnoughFromOtherEvents(lat, lng) {
-      return !dynamicSpawnPoints.some(spawn =>
-        spawn.type === "publicEvent" && map.distance([lat, lng], [spawn.lat, spawn.lng]) < PUBLIC_EVENT_DISTANCE_LIMIT
-      );
-    }
+    function isSpawnAllowed(type, lat, lng) {
+      let restrictions = spawnTypes.find(s => s.type === type)?.restrictions;
+      if (!restrictions || !restrictions.minDistanceFrom) return true;
 
-    function generateIrregularPolygon(center, baseRadius) {
-      var numPoints = 8 + Math.floor(Math.random() * 4); // Random between 8-12 points
-      var points = [];
-      for (var i = 0; i < numPoints; i++) {
-        var angle = (2 * Math.PI / numPoints) * i + (Math.random() * 0.4 - 0.2); // Slight random offset
-        var factor = 0.6 + Math.random() * 0.8; // random factor between 0.6 and 1.4
-        var r = baseRadius * factor;
-        var latOffset = (r * Math.cos(angle)) / 111300;
-        var lngOffset = (r * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI / 180));
-        points.push([center.lat + latOffset, center.lng + lngOffset]);
-      }
-      return points;
+      return !dynamicSpawnPoints.some(existing => {
+        let minDistance = restrictions.minDistanceFrom[existing.type];
+        if (!minDistance) return false;
+        return map.distance([lat, lng], [existing.lat, existing.lng]) < minDistance;
+      });
     }
 
     function updateVisibleSpawns() {
@@ -163,37 +143,15 @@
       if (!map.hasLayer(markersCluster)) map.addLayer(markersCluster);
     }
 
-    function getSpawnColor(type) {
-      const colors = {
-        "creatures": "purple",
-        "dungeons": "gray",
-        "inns": "orange",
-        "shops": "blue",
-        "quests": "green",
-        "keeps": "brown",
-        "lairs": "black"
-      };
-      return colors[type] || "red";
-    }
-
-    map.on('locationfound', function (e) {
-      var userLatLng = e.latlng;
-      lastPlayerLatLng = userLatLng;
-
-      if (!initialCentered) {
-        initialCentered = true;
-        map.setView(userLatLng, 16, { animate: false });
-
-        fetch(spawnDataUrl).then(resp => resp.json()).then(data => {
-          spawnTypes = data.spawnTypes || [];
-          generateDynamicSpawns(userLatLng);
-          updateVisibleSpawns();
-        }).catch(err => console.error("Error loading spawn data:", err));
-      }
-    });
-
-    map.locate({ setView: false, watch: true, maxZoom: 16 });
-    map.on('moveend zoomend', updateVisibleSpawns);
+    fetch(spawnDataUrl).then(resp => resp.json()).then(data => {
+      spawnTypes = data.spawnTypes || [];
+      map.on('locationfound', function (e) {
+        lastPlayerLatLng = e.latlng;
+        generateDynamicSpawns(lastPlayerLatLng);
+        updateVisibleSpawns();
+      });
+      map.locate({ setView: false, watch: true, maxZoom: 16 });
+    }).catch(err => console.error("Error loading spawn data:", err));
   </script>
 </body>
 </html>
