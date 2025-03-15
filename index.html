@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leaflet: Dynamic Spawn Types</title>
+  <title>Leaflet: Dynamic Spawn Types with World Boss</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -100,7 +100,8 @@
       "quests": 6,
       "keeps": 3,
       "lairs": 3,
-      "publicEvent": 1
+      "publicEvent": 1,
+      "worldBoss": 1  // Only one world boss per patrol area.
     };
     // Local (half-mile) minimum spawns per type (to ensure density near the player)
     const minSpawnsByType = {
@@ -111,7 +112,8 @@
       "quests": 2,
       "keeps": 1,
       "lairs": 1,
-      "publicEvent": 1
+      "publicEvent": 1,
+      "worldBoss": 1  // Ensure one world boss locally.
     };
 
     // Fallback default location if geolocation fails.
@@ -193,6 +195,7 @@
         for (let i = 0; i < attempts; i++) {
           const st = pickSpawnType();
           if (!st) continue;
+          if (st.type === "worldBoss") continue; // Skip world boss in dynamic generation.
           if (spawnsByType[st.type] >= maxSpawnsByType[st.type]) continue;
           let r = SPAWN_AREA_RADIUS * Math.sqrt(Math.random());
           let angle = Math.random() * 2 * Math.PI;
@@ -200,12 +203,12 @@
           let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
           let lat = center.lat + dLat;
           let lng = center.lng + dLng;
-          // Global minimum distance check: ensure candidate is not closer than MIN_SPAWN_DISTANCE to any existing spawn.
+          // Global minimum distance check.
           let tooClose = dynamicSpawnPoints.some(existing => {
             try {
               return map.distance([lat, lng], [existing.lat, existing.lng]) < MIN_SPAWN_DISTANCE;
             } catch (e) {
-              console.error("Error calculating global minimum distance:", e);
+              console.error("Error calculating distance:", e);
               return true;
             }
           });
@@ -241,6 +244,7 @@
         }
         // Enforce local minimum spawns per type within LOCAL_AREA_RADIUS.
         for (let type in minSpawnsByType) {
+          if (type === "worldBoss") continue; // Handle world boss separately.
           let currentCount = localCountForType(type, spawnAreaCenter.lat, spawnAreaCenter.lng);
           let minCount = minSpawnsByType[type];
           let toAdd = minCount - currentCount;
@@ -456,6 +460,78 @@
       }, geoOptions);
     }
 
+    // === World Boss Configuration and Animation for a 3-Mile Radius ===
+
+    // For the world boss, we use the same radius as SPAWN_AREA_RADIUS (3 miles ≈4827 m)
+    const worldBossPatrolRadius = SPAWN_AREA_RADIUS; 
+    // The patrol center will be our spawnAreaCenter (updated with the player's location)
+    let worldBossPatrolCenter = spawnAreaCenter || DEFAULT_LOCATION;
+    // Starting angle (in radians)
+    let worldBossCurrentAngle = 0;
+    // Average walking speed (m/s)
+    const worldBossSpeed = 1.4;
+    // Calculate angular speed (radians per second)
+    const worldBossAngularSpeed = worldBossSpeed / worldBossPatrolRadius;
+    let worldBossMarker = null;
+
+    // Helper: compute a new position offset from a center point given a distance (in meters) and angle (in radians)
+    function computeOffset(center, distance, angle) {
+      let dLat = (distance * Math.cos(angle)) / 111300;
+      let dLng = (distance * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI / 180));
+      return { lat: center.lat + dLat, lng: center.lng + dLng };
+    }
+
+    // Initialize the world boss marker with a red glow and larger size
+    function initWorldBoss() {
+      // Use the current spawnAreaCenter if available; otherwise, fallback to default.
+      worldBossPatrolCenter = spawnAreaCenter || DEFAULT_LOCATION;
+      // Starting position on the patrol circle
+      const initialPos = computeOffset(worldBossPatrolCenter, worldBossPatrolRadius, worldBossCurrentAngle);
+      
+      // Create a custom div icon for the red glowing effect
+      const bossIcon = L.divIcon({
+        html: `<div style="
+                    width: 30px; height: 30px; 
+                    background: rgba(255,0,0,0.5);
+                    border: 3px solid red;
+                    border-radius: 50%;
+                    box-shadow: 0 0 15px red;
+                    "></div>`,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+      
+      worldBossMarker = L.marker(initialPos, { icon: bossIcon })
+                         .bindPopup("World Boss")
+                         .addTo(map);
+      
+      // Optionally draw the patrol circle for visualization
+      L.circle(worldBossPatrolCenter, {
+        color: 'red',
+        weight: 2,
+        fill: false,
+        radius: worldBossPatrolRadius
+      }).addTo(map);
+      
+      // Start updating its position every second
+      setInterval(updateWorldBossPosition, 1000);
+    }
+
+    // Update the world boss position along its patrol circle.
+    function updateWorldBossPosition() {
+      // Update the patrol center if the player's position has changed.
+      if (spawnAreaCenter) {
+        worldBossPatrolCenter = spawnAreaCenter;
+      }
+      worldBossCurrentAngle += worldBossAngularSpeed;
+      if (worldBossCurrentAngle > 2 * Math.PI) {
+        worldBossCurrentAngle -= 2 * Math.PI;
+      }
+      const newPos = computeOffset(worldBossPatrolCenter, worldBossPatrolRadius, worldBossCurrentAngle);
+      worldBossMarker.setLatLng(newPos);
+    }
+
     // Load spawn types from JSON, then start geolocation.
     fetch(spawnDataUrl)
       .then(resp => {
@@ -467,12 +543,16 @@
         console.log(`Loaded ${spawnTypes.length} spawn types`);
         initGeolocation();
         startLocationWatch();
+        // For testing, initialize the world boss immediately.
+        initWorldBoss();
       })
       .catch(err => {
         errorDiv.innerHTML += `<p>Error loading spawn data: ${err.message}</p>`;
         console.error("Error loading spawn data:", err);
         initGeolocation();
         startLocationWatch();
+        // Still initialize world boss even if spawn types fail to load.
+        initWorldBoss();
       });
   </script>
 </body>
