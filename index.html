@@ -29,11 +29,14 @@
       100% { transform: scale(1); opacity: 1; }
     }
 
-    /* Player Radius */
-    .player-radius {
-      color: blue;
-      fill: rgba(0, 0, 255, 0.3);
-      fill-opacity: 0.3;
+    /* Public Event Highlight (Blinking) */
+    .blinking-zone {
+      animation: blinkZone 2s infinite;
+    }
+    @keyframes blinkZone {
+      0% { fill-opacity: 0.3; }
+      50% { fill-opacity: 0.1; }
+      100% { fill-opacity: 0.3; }
     }
   </style>
 </head>
@@ -98,7 +101,13 @@
           var lng = center.lng + dLng;
           var st = pickSpawnType();
           if (!st) continue;
-          dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
+          
+          // If it's a public event, create a highlight zone instead of a circle marker
+          if (st.type === "publicEvent") {
+            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: 150 });
+          } else {
+            dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
+          }
         }
       }
     }
@@ -106,18 +115,37 @@
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
       var bounds = map.getBounds();
+      
       dynamicSpawnPoints.forEach((spawn) => {
         var pt = L.latLng(spawn.lat, spawn.lng);
-        if (bounds.contains(pt)) {
+        
+        if (spawn.type === "publicEvent") {
+          // Highlight Area for Public Events
+          var zone = L.circle(pt, {
+            radius: spawn.radius,
+            color: "red",
+            fillColor: "red",
+            fillOpacity: 0.3,
+            weight: 2,
+            className: "blinking-zone"
+          }).bindPopup("Public Event Zone");
+          
+          if (bounds.intersects(zone.getBounds())) {
+            zone.addTo(map);
+          }
+        } else if (bounds.contains(pt)) {
+          // Normal spawn points as distinct-colored dots
           var marker = L.circleMarker(pt, {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
             fillOpacity: 0.7,
             radius: 7
           }).bindPopup(`Spawn: ${spawn.type}`);
+          
           markersCluster.addLayer(marker);
         }
       });
+
       if (!map.hasLayer(markersCluster)) map.addLayer(markersCluster);
     }
 
@@ -129,8 +157,7 @@
         "shops": "blue",
         "quests": "green",
         "keeps": "brown",
-        "lairs": "black",
-        "publicEvent": "red"
+        "lairs": "black"
       };
       return colors[type] || "red";
     }
