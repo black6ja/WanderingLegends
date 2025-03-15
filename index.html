@@ -29,7 +29,7 @@
       100% { transform: scale(1); opacity: 1; }
     }
 
-    /* Blinking Zone for Public Event */
+    /* Blinking Public Event Zone */
     .blinking-zone {
       animation: blinkZone 2s infinite;
     }
@@ -55,7 +55,6 @@
     var markersCluster = L.markerClusterGroup();
     var initialCentered = false;
     var dynamicSpawnPoints = [];
-    var forcedPublicEvent = null;
 
     var map = L.map('map', { preferCanvas: true, zoomAnimation: true }).setView([51.505, -0.09], 15);
 
@@ -77,31 +76,38 @@
       radius: 229
     });
 
-    // Generate an irregular polygon around a center point
-    function generateIrregularPolygon(center, baseRadius) {
-      var numPoints = 8;
-      var points = [];
-      for (var i = 0; i < numPoints; i++) {
-        var angle = (2 * Math.PI / numPoints) * i;
-        var factor = 0.7 + Math.random() * 0.6; // random factor between 0.7 and 1.3
-        var r = baseRadius * factor;
-        var latOffset = (r * Math.cos(angle)) / 111300;
-        var lngOffset = (r * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI / 180));
-        points.push([center.lat + latOffset, center.lng + lngOffset]);
+    function pickSpawnType() {
+      if (!spawnTypes) return null;
+      var totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
+      var rnd = Math.random() * totalRate;
+      var cumulative = 0;
+      for (var i = 0; i < spawnTypes.length; i++) {
+        cumulative += spawnTypes[i].spawnRate || 0;
+        if (rnd <= cumulative) return spawnTypes[i];
       }
-      return points;
+      return spawnTypes[spawnTypes.length - 1];
     }
 
-    // Force a Public Event near the player's starting location
-    function createForcedPublicEvent(userLatLng) {
-      if (!forcedPublicEvent) {
-        let offsetLat = userLatLng.lat + (Math.random() * 0.002 - 0.001);
-        let offsetLng = userLatLng.lng + (Math.random() * 0.002 - 0.001);
-        forcedPublicEvent = {
-          lat: offsetLat,
-          lng: offsetLng,
-          radius: 300 // Larger area for public event
-        };
+    function generateDynamicSpawns(center) {
+      dynamicSpawnPoints = [];
+      for (var i = 0; i < 3; i++) {
+        var numPoints = Math.floor(Math.random() * 3) + 3;
+        for (var j = 0; j < numPoints; j++) {
+          var r = 250 + Math.random() * 500;
+          var angle = Math.random() * 2 * Math.PI;
+          var dLat = r / 111300 * Math.cos(angle);
+          var dLng = r / (111300 * Math.cos(center.lat * Math.PI / 180)) * Math.sin(angle);
+          var lat = center.lat + dLat;
+          var lng = center.lng + dLng;
+          var st = pickSpawnType();
+          if (!st) continue;
+          if (st.type === "publicEvent") {
+            // Public event now has a fixed radius (like player)
+            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: 300 });
+          } else {
+            dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
+          }
+        }
       }
     }
 
@@ -109,22 +115,19 @@
       markersCluster.clearLayers();
       var bounds = map.getBounds();
 
-      // Always add the forced Public Event
-      if (forcedPublicEvent) {
-        var centerPt = L.latLng(forcedPublicEvent.lat, forcedPublicEvent.lng);
-        var polygonCoords = generateIrregularPolygon(centerPt, forcedPublicEvent.radius);
-        L.polygon(polygonCoords, {
-          color: "red",
-          fillColor: "red",
-          fillOpacity: 0.3,
-          weight: 2,
-          className: "blinking-zone"
-        }).addTo(map).bindPopup("Forced Public Event Zone");
-      }
-
       dynamicSpawnPoints.forEach((spawn) => {
         var pt = L.latLng(spawn.lat, spawn.lng);
-        if (bounds.contains(pt)) {
+        
+        if (spawn.type === "publicEvent") {
+          // Public Event now uses a translucent red circle instead of a polygon
+          L.circle(pt, {
+            color: "red",
+            fillColor: "red",
+            fillOpacity: 0.3,
+            radius: spawn.radius,
+            className: "blinking-zone"
+          }).bindPopup("Public Event Zone").addTo(map);
+        } else if (bounds.contains(pt)) {
           var marker = L.circleMarker(pt, {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
@@ -159,8 +162,6 @@
         initialCentered = true;
         map.setView(userLatLng, 16, { animate: false });
 
-        createForcedPublicEvent(userLatLng); // Hardcode a public event near the start
-
         fetch(spawnDataUrl)
           .then(resp => {
             if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
@@ -168,6 +169,7 @@
           })
           .then(data => {
             spawnTypes = data.spawnTypes || [];
+            generateDynamicSpawns(userLatLng);
             updateVisibleSpawns();
           })
           .catch(err => console.error("Error loading spawn data:", err));
