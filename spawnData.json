@@ -1,50 +1,15 @@
 {
   "spawnTypes": [
-    {
-      "type": "creatures",
-      "spawnRate": 0.1,
+    { "type": "creatures", "spawnRate": 1.0 },
+    { "type": "dungeons", "spawnRate": 1.0 },
+    { "type": "inns", "spawnRate": 1.0 },
+    { "type": "shops", "spawnRate": 1.0 },
+    { "type": "quests", "spawnRate": 1.0 },
+    { "type": "keeps", "spawnRate": 0.5 },
+    { "type": "lairs", "spawnRate": 1.0 },
+    { "type": "publicEvent", "spawnRate": 1.0,
       "restrictions": {
-        "minDistanceFrom": {
-          "publicEvent": 200, 
-          "keeps": 300
-        }
-      }
-    },
-    {
-      "type": "dungeons",
-      "spawnRate": 0.03
-    },
-    {
-      "type": "inns",
-      "spawnRate": 0.02
-    },
-    {
-      "type": "shops",
-      "spawnRate": 0.04,
-      "subTypes": [
-        { "name": "weapon", "spawnRate": 0.02 },
-        { "name": "armor", "spawnRate": 0.02 }
-      ]
-    },
-    {
-      "type": "quests",
-      "spawnRate": 0.05
-    },
-    {
-      "type": "keeps",
-      "spawnRate": 0.01
-    },
-    {
-      "type": "lairs",
-      "spawnRate": 0.02
-    },
-    {
-      "type": "publicEvent",
-      "spawnRate": 0.01,
-      "restrictions": {
-        "minDistanceFrom": {
-          "publicEvent": 800
-        }
+        "minDistanceFrom": { "publicEvent": 800 }
       }
     }
   ]
