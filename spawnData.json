@@ -3,11 +3,12 @@
     {
       "type": "creatures",
       "spawnRate": 0.1,
-      "subTypes": [
-        { "name": "dragon", "spawnRate": 0.01 },
-        { "name": "goblin", "spawnRate": 0.05 },
-        { "name": "wolf", "spawnRate": 0.04 }
-      ]
+      "restrictions": {
+        "minDistanceFrom": {
+          "publicEvent": 200, 
+          "keeps": 300
+        }
+      }
     },
     {
       "type": "dungeons",
@@ -40,11 +41,10 @@
     {
       "type": "publicEvent",
       "spawnRate": 0.01,
-      "zone": {
-        "radius": 50,
-        "color": "red",
-        "fillOpacity": 0.3,
-        "blinking": true
+      "restrictions": {
+        "minDistanceFrom": {
+          "publicEvent": 800
+        }
       }
     }
   ]
