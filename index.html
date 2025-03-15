@@ -55,6 +55,7 @@
     var markersCluster = L.markerClusterGroup();
     var initialCentered = false;
     var dynamicSpawnPoints = [];
+    var forcedPublicEvent = null;
 
     var map = L.map('map', { preferCanvas: true, zoomAnimation: true }).setView([51.505, -0.09], 15);
 
@@ -76,44 +77,7 @@
       radius: 229
     });
 
-    // Weighted random spawn type selection
-    function pickSpawnType() {
-      if (!spawnTypes) return null;
-      var totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
-      var rnd = Math.random() * totalRate;
-      var cumulative = 0;
-      for (var i = 0; i < spawnTypes.length; i++) {
-        cumulative += spawnTypes[i].spawnRate || 0;
-        if (rnd <= cumulative) return spawnTypes[i];
-      }
-      return spawnTypes[spawnTypes.length - 1];
-    }
-
-    // Generate dynamic spawns in rings around the center
-    function generateDynamicSpawns(center) {
-      dynamicSpawnPoints = [];
-      for (var i = 0; i < 3; i++) {
-        var numPoints = Math.floor(Math.random() * 3) + 3; // 3-5 spawns per ring
-        for (var j = 0; j < numPoints; j++) {
-          var r = 250 + Math.random() * 500;
-          var angle = Math.random() * 2 * Math.PI;
-          var dLat = r / 111300 * Math.cos(angle);
-          var dLng = r / (111300 * Math.cos(center.lat * Math.PI / 180)) * Math.sin(angle);
-          var lat = center.lat + dLat;
-          var lng = center.lng + dLng;
-          var st = pickSpawnType();
-          if (!st) continue;
-          if (st.type === "publicEvent") {
-            // For public events, use a larger base radius (300)
-            dynamicSpawnPoints.push({ type: "publicEvent", lat: lat, lng: lng, radius: 300 });
-          } else {
-            dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
-          }
-        }
-      }
-    }
-
-    // Generate an irregular polygon (array of coordinates) around a center point
+    // Generate an irregular polygon around a center point
     function generateIrregularPolygon(center, baseRadius) {
       var numPoints = 8;
       var points = [];
@@ -128,42 +92,52 @@
       return points;
     }
 
-    // Update visible spawns on the map
+    // Force a Public Event near the player's starting location
+    function createForcedPublicEvent(userLatLng) {
+      if (!forcedPublicEvent) {
+        let offsetLat = userLatLng.lat + (Math.random() * 0.002 - 0.001);
+        let offsetLng = userLatLng.lng + (Math.random() * 0.002 - 0.001);
+        forcedPublicEvent = {
+          lat: offsetLat,
+          lng: offsetLng,
+          radius: 300 // Larger area for public event
+        };
+      }
+    }
+
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
       var bounds = map.getBounds();
 
+      // Always add the forced Public Event
+      if (forcedPublicEvent) {
+        var centerPt = L.latLng(forcedPublicEvent.lat, forcedPublicEvent.lng);
+        var polygonCoords = generateIrregularPolygon(centerPt, forcedPublicEvent.radius);
+        L.polygon(polygonCoords, {
+          color: "red",
+          fillColor: "red",
+          fillOpacity: 0.3,
+          weight: 2,
+          className: "blinking-zone"
+        }).addTo(map).bindPopup("Forced Public Event Zone");
+      }
+
       dynamicSpawnPoints.forEach((spawn) => {
-        if (spawn.type === "publicEvent") {
-          // Create an irregular polygon for the public event zone
-          var centerPt = L.latLng(spawn.lat, spawn.lng);
-          var polygonCoords = generateIrregularPolygon(centerPt, spawn.radius);
-          var zone = L.polygon(polygonCoords, {
-            color: "red",
-            fillColor: "red",
-            fillOpacity: 0.3,
-            weight: 2,
-            className: "blinking-zone"
-          }).bindPopup("Public Event Zone");
-          // Always add the public event zone so it is visible
-          zone.addTo(map);
-        } else {
-          var pt = L.latLng(spawn.lat, spawn.lng);
-          if (bounds.contains(pt)) {
-            var marker = L.circleMarker(pt, {
-              color: getSpawnColor(spawn.type),
-              fillColor: getSpawnColor(spawn.type),
-              fillOpacity: 0.7,
-              radius: 7
-            }).bindPopup(`Spawn: ${spawn.type}`);
-            markersCluster.addLayer(marker);
-          }
+        var pt = L.latLng(spawn.lat, spawn.lng);
+        if (bounds.contains(pt)) {
+          var marker = L.circleMarker(pt, {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.7,
+            radius: 7
+          }).bindPopup(`Spawn: ${spawn.type}`);
+          markersCluster.addLayer(marker);
         }
       });
+
       if (!map.hasLayer(markersCluster)) map.addLayer(markersCluster);
     }
 
-    // Return a distinct color for each spawn type
     function getSpawnColor(type) {
       const colors = {
         "creatures": "purple",
@@ -177,7 +151,6 @@
       return colors[type] || "red";
     }
 
-    // When the player's location is found, update the map and spawns
     function onLocationFound(e) {
       var userLatLng = e.latlng;
       lastPlayerLatLng = userLatLng;
@@ -185,6 +158,9 @@
       if (!initialCentered) {
         initialCentered = true;
         map.setView(userLatLng, 16, { animate: false });
+
+        createForcedPublicEvent(userLatLng); // Hardcode a public event near the start
+
         fetch(spawnDataUrl)
           .then(resp => {
             if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
@@ -192,13 +168,6 @@
           })
           .then(data => {
             spawnTypes = data.spawnTypes || [];
-            // Increase publicEvent spawn rate for testing (multiply by 10)
-            spawnTypes.forEach(function(st) {
-              if (st.type === "publicEvent") {
-                st.spawnRate = st.spawnRate * 10;
-              }
-            });
-            generateDynamicSpawns(userLatLng);
             updateVisibleSpawns();
           })
           .catch(err => console.error("Error loading spawn data:", err));
