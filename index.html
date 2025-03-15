@@ -85,7 +85,7 @@
     // Fallback default location if geolocation fails.
     const DEFAULT_LOCATION = { lat: 51.505, lng: -0.09 };
 
-    // Initialize the map at the default location
+    // Initialize the map at the default location.
     var map = L.map('map', { preferCanvas: true, zoomAnimation: true })
                .setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -95,7 +95,7 @@
 
     var errorDiv = document.getElementById("error");
 
-    // Create the blinking player marker and its radius circle
+    // Create the blinking player marker and its radius circle.
     var playerMarker = L.marker([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], {
       icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [15,15], iconAnchor: [7,7] })
     });
@@ -106,7 +106,7 @@
       radius: 229
     });
 
-    // Pick a spawn type randomly based on weighted spawnRate
+    // Pick a spawn type randomly based on weighted spawnRate from the JSON config.
     function pickSpawnType() {
       if (!spawnTypes || !Array.isArray(spawnTypes) || spawnTypes.length === 0) return null;
       let totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
@@ -119,7 +119,7 @@
       return spawnTypes[spawnTypes.length - 1];
     }
 
-    // Generate spawn points uniformly within a circle of radius SPAWN_AREA_RADIUS centered at "center"
+    // Generate spawn points uniformly within a circle of radius SPAWN_AREA_RADIUS centered at "center".
     // Enforce maximum spawns per type and spawn restrictions.
     function generateDynamicSpawns(center) {
       dynamicSpawnPoints = [];
@@ -127,7 +127,7 @@
       for (let type in maxSpawnsByType) {
         spawnsByType[type] = 0;
       }
-      const attempts = 50; // Limit iterations to avoid excessive computation
+      const attempts = 50; // Limit iterations to avoid excessive computation.
       for (let i = 0; i < attempts; i++) {
         const st = pickSpawnType();
         if (!st) continue;
@@ -150,10 +150,9 @@
           spawnsByType[st.type]++;
         }
       }
-      // Force-add a publicEvent spawn if none exists
+      // Force-add a publicEvent spawn if none exists.
       if (!dynamicSpawnPoints.some(spawn => spawn.type === "publicEvent")) {
-        // Place it near the center (with a small random offset)
-        let r = 100 + Math.random() * 300;
+        let r = 100 + Math.random() * 300; // Place it near the center with a small offset.
         let angle = Math.random() * 2 * Math.PI;
         let dLat = r * Math.cos(angle) / 111300;
         let dLng = r * Math.sin(angle) / (111300 * Math.cos(center.lat * Math.PI/180));
@@ -183,13 +182,13 @@
       });
     }
 
-    // Generate an irregular polygon for a public event spawn and return an array of LatLng points.
+    // Generate an irregular polygon for a public event spawn.
     function generateIrregularPolygon(center, baseRadius) {
-      let numPoints = 8 + Math.floor(Math.random() * 4); // 8–12 points
+      let numPoints = 8 + Math.floor(Math.random() * 4); // 8–12 points.
       let points = [];
       for (let i = 0; i < numPoints; i++) {
         let angle = (2 * Math.PI / numPoints) * i + (Math.random() * 0.4 - 0.2);
-        let factor = 0.6 + Math.random() * 0.8; // Factor between 0.6 and 1.4
+        let factor = 0.6 + Math.random() * 0.8; // Factor between 0.6 and 1.4.
         let r = baseRadius * factor;
         let latOffset = (r * Math.cos(angle)) / 111300;
         let lngOffset = (r * Math.sin(angle)) / (111300 * Math.cos(center.lat * Math.PI/180));
@@ -198,12 +197,10 @@
       return points;
     }
 
-    // Update visible spawn points on the map.
+    // Update visible spawns on the map.
     // Only spawns within SPAWN_AREA_RADIUS of spawnAreaCenter are shown.
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
-      // Use spawnAreaCenter for filtering
-      let bounds = map.getBounds();
       // Remove old public event polygons to avoid duplicates.
       map.eachLayer(layer => {
         if (layer instanceof L.Polygon && layer.options.className === "blinking-zone") {
@@ -212,7 +209,7 @@
       });
       dynamicSpawnPoints.forEach(spawn => {
         let pt = L.latLng(spawn.lat, spawn.lng);
-        // Only show spawns within SPAWN_AREA_RADIUS of the spawnAreaCenter
+        // Filter spawns: only show those within SPAWN_AREA_RADIUS of spawnAreaCenter.
         if (map.distance(spawnAreaCenter, pt) > SPAWN_AREA_RADIUS) return;
         if (spawn.type === "publicEvent" && spawn.radius) {
           if (!spawn.polygonCoords) {
@@ -225,14 +222,17 @@
             weight: 2,
             className: "blinking-zone"
           }).bindPopup("Public Event Zone").addTo(map);
-        } else if (bounds.contains(pt)) {
-          let marker = L.circleMarker(pt, {
-            color: getSpawnColor(spawn.type),
-            fillColor: getSpawnColor(spawn.type),
-            fillOpacity: 0.7,
-            radius: 7
-          }).bindPopup(`Spawn: ${spawn.type}`);
-          markersCluster.addLayer(marker);
+        } else {
+          // For other spawns, only add if within the current map bounds.
+          if (map.getBounds().contains(pt)) {
+            let marker = L.circleMarker(pt, {
+              color: getSpawnColor(spawn.type),
+              fillColor: getSpawnColor(spawn.type),
+              fillOpacity: 0.7,
+              radius: 7
+            }).bindPopup(`Spawn: ${spawn.type}`);
+            markersCluster.addLayer(marker);
+          }
         }
       });
       if (!map.hasLayer(markersCluster)) {
@@ -256,14 +256,14 @@
     // When a location is found, update the player marker and (if needed) regenerate spawn points.
     map.on('locationfound', function(e) {
       lastPlayerLatLng = e.latlng;
-      // Update player marker and radius
+      // Update player marker and radius.
       if (!map.hasLayer(playerMarker)) {
         playerMarker.addTo(map);
         playerRadiusCircle.addTo(map);
       }
       playerMarker.setLatLng(e.latlng);
       playerRadiusCircle.setLatLng(e.latlng);
-      // On first location, set spawnAreaCenter and generate spawns
+      // On first location, set spawnAreaCenter and generate spawns.
       if (!spawnAreaCenter) {
         map.setView(e.latlng, 15);
         spawnAreaCenter = e.latlng;
@@ -272,12 +272,11 @@
       updateVisibleSpawns();
     });
 
-    // Use locationupdate events to throttle regeneration based on REGEN_THRESHOLD.
+    // Use locationupdate events to update player marker and regenerate spawns only if moved > REGEN_THRESHOLD.
     map.on('locationupdate', function(e) {
       let newLatLng = e.latlng;
       playerMarker.setLatLng(newLatLng);
       playerRadiusCircle.setLatLng(newLatLng);
-      // Only regenerate spawns if the player has moved more than REGEN_THRESHOLD from spawnAreaCenter.
       if (!spawnAreaCenter || map.distance(newLatLng, spawnAreaCenter) > REGEN_THRESHOLD) {
         spawnAreaCenter = newLatLng;
         generateDynamicSpawns(newLatLng);
@@ -286,7 +285,7 @@
       lastPlayerLatLng = newLatLng;
     });
 
-    // Handle geolocation errors by printing them on screen and falling back to default location.
+    // Handle geolocation errors: print them on screen and fall back to the default location.
     map.on('locationerror', function(e) {
       errorDiv.innerHTML += `<p>Error locating user: ${e.message}</p>`;
       lastPlayerLatLng = DEFAULT_LOCATION;
