@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <title>Leaflet: Dynamic Spawn Types</title>
-  <!-- Mobile-friendly viewport -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <!-- MarkerCluster CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
   <style>
     html, body {
       margin: 0;
@@ -20,7 +21,6 @@
       width: 100%;
       height: 100%;
     }
-    /* Player marker (pulsing circle) */
     .blinking-circle {
       width: 12px;
       height: 12px;
@@ -34,19 +34,11 @@
       50% { transform: scale(1.2); opacity: 0.5; }
       100% { transform: scale(1); opacity: 1; }
     }
-    @media (max-width: 768px) {
-      .blinking-circle {
-        animation: none;
-        background: rgba(0, 0, 255, 1);
-      }
-    }
-    /* Various spawn icons - small colored circles */
     .spawn-icon div {
       width: 10px;
       height: 10px;
       border-radius: 50%;
     }
-    /* We'll assign color classes dynamically in code if we want, or define them if you prefer. */
     .spawn-icon.creatures div { background: purple; }
     .spawn-icon.dungeons div { background: darkgray; }
     .spawn-icon.inns div { background: orange; }
@@ -54,7 +46,6 @@
     .spawn-icon.quests div { background: green; }
     .spawn-icon.keeps div { background: brown; }
     .spawn-icon.lairs div { background: black; }
-    /* Public event zone blink */
     .blinking-zone {
       animation: blinkZone 2s infinite;
     }
@@ -63,241 +54,135 @@
       50% { fill-opacity: 0.1; }
       100% { fill-opacity: 0.3; }
     }
+    #debug-panel {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      font-size: 12px;
+      max-width: 300px;
+      z-index: 1000;
+      overflow: auto;
+      max-height: 200px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  
+  <div id="debug-panel">
+    <strong>Debug Output:</strong>
+    <pre id="debug-log"></pre>
+  </div>
+
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <!-- MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script>
-    // --- Configuration Constants ---
-    const MIN_MOVE_DISTANCE = 50;       // Only recenter if user moves >50 m after first fix.
-    const PLAYER_RADIUS_YARDS = 250;    // 250 yards ~229 m.
-    const RING_WIDTH_YARDS = 500;       // Each ring is 500 yards wide.
-    const RING_WIDTH = RING_WIDTH_YARDS * 0.9144; // in meters
-    const MAX_SPAWN_RADIUS_YARDS = 1500; // Example: 3 rings, up to 1500 yards away from user.
-    const MAX_SPAWN_RADIUS = MAX_SPAWN_RADIUS_YARDS * 0.9144; // in meters
-    
-    // URL to your spawn data JSON file
-    const spawnDataUrl = "spawnData.json";
 
-    // --- Global Variables ---
+  <script>
+    const spawnDataUrl = "spawnData.json";
     var lastPlayerLatLng = null;
-    var spawnTypes = null;        // Will hold spawn type definitions from JSON
+    var spawnTypes = null;
     var markersCluster = L.markerClusterGroup();
     var initialCentered = false;
-
-    // We'll store the final spawn points here
     var dynamicSpawnPoints = [];
-    
-    // --- Initialize Map ---
-    var map = L.map('map', {
-      preferCanvas: true,
-      zoomAnimation: true
-    }).setView([51.505, -0.09], 15);
+
+    var map = L.map('map', { preferCanvas: true, zoomAnimation: true }).setView([51.505, -0.09], 15);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Player marker & 250-yard circle
     var playerMarker = L.marker([51.505, -0.09], {
-      icon: L.divIcon({
-        className: '',
-        html: '<div class="blinking-circle"></div>',
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
-      })
-    });
-    var playerRadiusCircle = L.circle([], {
-      color: 'green',
-      fillOpacity: 0.2,
-      radius: PLAYER_RADIUS_YARDS * 0.9144
+      icon: L.divIcon({ className: '', html: '<div class="blinking-circle"></div>', iconSize: [12, 12], iconAnchor: [6, 6] })
     });
 
-    // Utility: pick a spawn type (and possibly subType) from the spawnData, weighting by spawnRate
+    var playerRadiusCircle = L.circle([], { color: 'green', fillOpacity: 0.2, radius: 229 });
+
+    function logDebug(message) {
+      const debugPanel = document.getElementById("debug-log");
+      debugPanel.innerText += message + "\n";
+      console.log(message);
+    }
+
     function pickSpawnType() {
       if (!spawnTypes) return null;
-      // Weighted random by spawnRate
-      // 1) sum all spawnRates
       var totalRate = spawnTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
       var rnd = Math.random() * totalRate;
       var cumulative = 0;
       for (var i = 0; i < spawnTypes.length; i++) {
         cumulative += spawnTypes[i].spawnRate || 0;
-        if (rnd <= cumulative) {
-          return spawnTypes[i];
-        }
+        if (rnd <= cumulative) return spawnTypes[i];
       }
       return spawnTypes[spawnTypes.length - 1];
     }
 
-    // If a spawn type has subTypes, pick one
-    function pickSubType(spawnType) {
-      if (!spawnType.subTypes) return null;
-      // Weighted random among subTypes
-      var totalSubRate = spawnType.subTypes.reduce((acc, st) => acc + (st.spawnRate || 0), 0);
-      var rnd = Math.random() * totalSubRate;
-      var cumulative = 0;
-      for (var i = 0; i < spawnType.subTypes.length; i++) {
-        cumulative += spawnType.subTypes[i].spawnRate || 0;
-        if (rnd <= cumulative) {
-          return spawnType.subTypes[i].name;
-        }
-      }
-      return spawnType.subTypes[spawnType.subTypes.length - 1].name;
-    }
-
-    // Create a circle for public events
-    function createPublicEventZone(spawn) {
-      return L.circle([spawn.lat, spawn.lng], {
-        radius: spawn.zone.radius,
-        color: spawn.zone.color,
-        weight: 2,
-        fillColor: spawn.zone.color,
-        fillOpacity: spawn.zone.fillOpacity,
-        className: spawn.zone.blinking ? 'blinking-zone' : ''
-      });
-    }
-
-    // Create a DivIcon for a given spawn type name
-    function getSpawnIcon(type) {
-      // We can define classes for each type
-      return L.divIcon({
-        className: 'spawn-icon ' + type,
-        html: '<div></div>',
-        iconSize: [10, 10],
-        iconAnchor: [5, 5]
-      });
-    }
-
-    // Generate dynamic spawn points in rings of 500 yards up to MAX_SPAWN_RADIUS
-    // Each ring: 3-5 spawns
     function generateDynamicSpawns(center) {
-      dynamicSpawnPoints = []; // reset
-      var rings = Math.floor(MAX_SPAWN_RADIUS / RING_WIDTH);
-      for (var i = 0; i < rings; i++) {
-        var numPoints = Math.floor(Math.random() * 3) + 3; // 3-5 spawns per ring
-        var innerRadius = i * RING_WIDTH;
-        var outerRadius = (i + 1) * RING_WIDTH;
+      dynamicSpawnPoints = [];
+      for (var i = 0; i < 3; i++) {
+        var numPoints = Math.floor(Math.random() * 3) + 3;
         for (var j = 0; j < numPoints; j++) {
-          // choose random distance between innerRadius & outerRadius
-          var r = innerRadius + Math.random() * (outerRadius - innerRadius);
+          var r = 250 + Math.random() * 500;
           var angle = Math.random() * 2 * Math.PI;
           var dLat = r / 111300 * Math.cos(angle);
           var dLng = r / (111300 * Math.cos(center.lat * Math.PI / 180)) * Math.sin(angle);
           var lat = center.lat + dLat;
           var lng = center.lng + dLng;
-
-          // pick spawn type
           var st = pickSpawnType();
           if (!st) continue;
-
-          // if it's publicEvent => zone spawn
-          if (st.type === "publicEvent" && st.zone) {
-            dynamicSpawnPoints.push({
-              type: "publicEvent",
-              lat: lat,
-              lng: lng,
-              zone: st.zone,
-              // spawnRate, etc.
-            });
-          } else {
-            // normal point spawn
-            var sub = pickSubType(st) || null;
-            dynamicSpawnPoints.push({
-              type: st.type,
-              subtype: sub,
-              lat: lat,
-              lng: lng
-            });
-          }
+          dynamicSpawnPoints.push({ type: st.type, lat: lat, lng: lng });
+          logDebug(`Spawn generated: ${st.type} at lat=${lat}, lng=${lng}`);
         }
       }
     }
 
-    // Update the map with any dynamic spawn points that fall within the current map bounds
     function updateVisibleSpawns() {
       markersCluster.clearLayers();
-      if (!dynamicSpawnPoints.length) return;
-
       var bounds = map.getBounds();
-      dynamicSpawnPoints.forEach(function(spawn, index) {
+      dynamicSpawnPoints.forEach((spawn) => {
         var pt = L.latLng(spawn.lat, spawn.lng);
-        if (spawn.type === "publicEvent") {
-          // zone-based
-          var zone = createPublicEventZone(spawn);
-          if (bounds.intersects(zone.getBounds())) {
-            zone.addTo(map);
-          }
-        } else {
-          // point-based
-          if (bounds.contains(pt)) {
-            var icon = getSpawnIcon(spawn.type);
-            var label = "Spawn " + (index + 1) + (spawn.subtype ? " (" + spawn.subtype + ")" : "");
-            var marker = L.marker(pt, { icon: icon }).bindPopup(label);
-            markersCluster.addLayer(marker);
-          }
+        if (bounds.contains(pt)) {
+          var marker = L.marker(pt).bindPopup(`Spawn: ${spawn.type}`);
+          markersCluster.addLayer(marker);
+          logDebug(`Spawn visible: ${spawn.type} at lat=${spawn.lat}, lng=${spawn.lng}`);
         }
       });
-      if (!map.hasLayer(markersCluster)) {
-        map.addLayer(markersCluster);
-      }
+      if (!map.hasLayer(markersCluster)) map.addLayer(markersCluster);
     }
 
-    // Geolocation found
     function onLocationFound(e) {
       var userLatLng = e.latlng;
-
+      logDebug(`User Location: lat=${userLatLng.lat}, lng=${userLatLng.lng}`);
       if (!initialCentered) {
         initialCentered = true;
         map.setView(userLatLng, 16, { animate: false });
-
-        // fetch spawnData.json, parse spawn types
         fetch(spawnDataUrl)
           .then(resp => resp.json())
           .then(data => {
             spawnTypes = data.spawnTypes || [];
-            // once we have spawn types, generate dynamic spawns
+            logDebug("Spawn data loaded successfully.");
             generateDynamicSpawns(userLatLng);
             updateVisibleSpawns();
           })
-          .catch(err => console.error("Error loading spawn data:", err));
-
-      } else if (lastPlayerLatLng) {
-        var dist = map.distance(lastPlayerLatLng, userLatLng);
-        if (dist >= MIN_MOVE_DISTANCE) {
-          map.setView(userLatLng, 16, { animate: false });
-        }
+          .catch(err => logDebug("Error loading spawn data: " + err.message));
+      } else {
+        map.setView(userLatLng, 16, { animate: false });
       }
       lastPlayerLatLng = userLatLng;
-
-      // add marker + circle if not present
       if (!map.hasLayer(playerMarker)) {
         playerMarker.addTo(map);
         playerRadiusCircle.addTo(map);
       }
       playerMarker.setLatLng(userLatLng);
       playerRadiusCircle.setLatLng(userLatLng);
-
       updateVisibleSpawns();
     }
 
-    function onLocationError(e) {
-      alert("Geolocation error: " + e.message);
-    }
-
     map.on('locationfound', onLocationFound);
-    map.on('locationerror', onLocationError);
-
-    // Start watching user location
     map.locate({ setView: false, watch: true, maxZoom: 16 });
-
-    // On map move/zoom, re-check spawns
     map.on('moveend zoomend', updateVisibleSpawns);
   </script>
 </body>
