@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Dynamic Spawns & Multiplayer Test</title>
+  <title>WanderingLegends - Connectivity & Map Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Dynamic Spawns & Multiplayer Test</h1>
+  <h1>WanderingLegends - Connectivity & Map Test</h1>
   <div id="output"></div>
   <div id="map"></div>
   
@@ -24,7 +24,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   
-  <!-- Photon SDK: Ensure photon.js is in your repository root -->
+  <!-- Photon SDK (ensure photon.js is in the repository root) -->
   <script src="photon.js"></script>
   
   <script>
@@ -37,7 +37,7 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-
+    
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -52,74 +52,82 @@
     const auth = firebase.auth();
     const firestore = firebase.firestore();
     
-    // Sign in anonymously (ensure Anonymous sign-in is enabled in Firebase Console)
     auth.signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously."))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
     
     // ---------- Photon Setup ----------
-    const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-    var photonClient = new Photon.Realtime.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
-    
-    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
-      logMessage("Photon: Connected and joined lobby successfully.");
-    });
-    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.Disconnected, function (event) {
-      logMessage("Photon: Disconnected. Details: " + JSON.stringify(event), true);
-    });
-    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.ErrorInfo, function (event) {
-      logMessage("Photon Error: " + JSON.stringify(event), true);
-    });
-    photonClient.connectToRegionMaster("us");
+    try {
+      if (typeof Photon === 'undefined') {
+        logMessage("Photon SDK is not loaded.", true);
+      } else {
+        logMessage("Photon SDK loaded successfully.");
+        const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
+        var photonClient = new Photon.Realtime.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
+        
+        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
+          logMessage("Photon: Connected and joined lobby successfully.");
+        });
+        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.Disconnected, function (event) {
+          logMessage("Photon: Disconnected. Details: " + JSON.stringify(event), true);
+        });
+        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.ErrorInfo, function (event) {
+          logMessage("Photon Error: " + JSON.stringify(event), true);
+        });
+        
+        photonClient.connectToRegionMaster("us");
+      }
+    } catch(e) {
+      logMessage("Error initializing Photon: " + e.message, true);
+    }
     
     // ---------- Leaflet Map Setup ----------
-    var map = L.map('map').setView([37.7749, -122.4194], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-    logMessage("Leaflet: Map loaded.");
+    try {
+      var map = L.map('map').setView([37.7749, -122.4194], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      logMessage("Leaflet: Map loaded.");
+    } catch(e) {
+      logMessage("Error initializing Leaflet: " + e.message, true);
+    }
     
     // ---------- Dynamic Spawn Points Setup ----------
-    // Utility: Generate a random offset (in meters) and convert to lat/lng differences.
+    // Utility: Generate random offsets (in meters) converted to lat/lng differences.
     function generateRandomOffset(meters) {
-      const earthRadius = 6378137; // in meters
+      const earthRadius = 6378137; // meters
       const dLat = (meters / earthRadius) * (180 / Math.PI);
       const dLng = dLat / Math.cos((map.getCenter().lat * Math.PI) / 180);
       return {
-        latOffset: (Math.random() * 2 - 1) * dLat, // random between -dLat and dLat
+        latOffset: (Math.random() * 2 - 1) * dLat,
         lngOffset: (Math.random() * 2 - 1) * dLng
       };
     }
     
-    // Function: Generate spawn points around a given center (e.g., player's location)
+    // Function: Dynamically generate spawn points around a center coordinate.
     function generateDynamicSpawns(center, count = 5) {
       logMessage("Generating " + count + " spawn points around (" + center.lat + ", " + center.lng + ")");
       for (let i = 0; i < count; i++) {
         const offset = generateRandomOffset(500); // within 500 meters
         const spawnLat = center.lat + offset.latOffset;
         const spawnLng = center.lng + offset.lngOffset;
-        
-        // Create spawn data. In a full app, spawn type might be determined by game logic.
         const spawnData = {
           location: { lat: spawnLat, lng: spawnLng },
-          type: "creatures", // for example; you can randomize or set different types
-          respawnInterval: 300, // seconds (5 minutes)
+          type: "creatures",         // For testing, all spawns are "creatures"
+          respawnInterval: 300,        // 5 minutes (in seconds)
           lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp(),
           currentMonster: null
         };
-        
-        // Add the spawn point to Firestore.
         firestore.collection("spawnPoints").add(spawnData)
           .then(docRef => logMessage("Spawn point created with ID: " + docRef.id))
           .catch(error => logMessage("Error creating spawn point: " + error.message, true));
       }
     }
     
-    // Check if spawnPoints exist; if not, generate some.
+    // Check if any spawn points exist; if none, generate dynamic spawns.
     firestore.collection("spawnPoints").limit(1).get().then(snapshot => {
       if (snapshot.empty) {
-        // Use the player's current location as center if available.
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(position => {
             const playerLocation = {
@@ -127,13 +135,10 @@
               lng: position.coords.longitude
             };
             logMessage("Player location determined: (" + playerLocation.lat + ", " + playerLocation.lng + ")");
-            // Optionally, recenter the map on the player's location:
             map.setView([playerLocation.lat, playerLocation.lng], 15);
-            // Generate dynamic spawn points around the player's location.
             generateDynamicSpawns(playerLocation, 5);
           }, error => {
             logMessage("Error retrieving player location: " + error.message, true);
-            // Fall back to a default center if geolocation fails.
             generateDynamicSpawns({ lat: 37.7749, lng: -122.4194 }, 5);
           });
         } else {
@@ -147,25 +152,21 @@
       logMessage("Error checking spawn points: " + error.message, true);
     });
     
-    // ---------- Real-Time Listener for Spawn Points ----------
+    // Real-Time Listener: Update the map with spawn points from Firestore.
     firebase.firestore().collection("spawnPoints")
       .onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === "added") {
             const spawn = change.doc.data();
             const spawnId = change.doc.id;
-            // Add a marker for each new spawn.
             var marker = L.marker([spawn.location.lat, spawn.location.lng]).addTo(map);
             marker.bindPopup("Spawn type: " + spawn.type);
-            
-            // On marker click, log the event and attempt to join a Photon room.
             marker.on('click', function() {
               logMessage("Marker clicked for spawn " + spawnId);
               photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 5 }, null);
               logMessage("Attempting to join Photon room: battle_" + spawnId);
             });
           }
-          // Optionally, you can handle 'modified' and 'removed' changes here.
         });
       }, error => {
         logMessage("Error loading spawn data: " + error.message, true);
