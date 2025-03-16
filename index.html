@@ -2,76 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Dynamic Spawns & Multiplayer</title>
-  <!-- Ensure the page scales on any device -->
+  <title>WanderingLegends - Debugging Photon</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    /* Responsive layout with flex */
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    h1 {
-      text-align: center;
-      padding: 10px;
-      background-color: #333;
-      color: #fff;
-      margin: 0;
-    }
-    #output {
-      padding: 10px;
-      background-color: #f2f2f2;
-      font-size: 0.9em;
-      overflow-y: auto;
-      max-height: 150px;
-    }
-    #output p {
-      margin: 0 0 5px 0;
-      padding: 2px;
-      border-bottom: 1px solid #ddd;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+    h1 { text-align: center; padding: 10px; background-color: #333; color: #fff; margin: 0; }
+    #output { padding: 10px; background-color: #f2f2f2; font-size: 0.9em; overflow-y: auto; max-height: 200px; }
     .error { color: red; }
-    /* Map container takes available space */
-    #map {
-      flex: 1;
-      width: 100%;
-      height: 60vh;
-      min-height: 400px;
-    }
-    #refreshStatus {
-      padding: 10px;
-      text-align: center;
-      font-size: 0.85em;
-      color: #555;
-      background: #eee;
-    }
+    #map { flex: 1; width: 100%; height: 60vh; min-height: 400px; }
   </style>
 </head>
 <body>
-  <h1>WanderingLegends</h1>
+  <h1>WanderingLegends - Debugging Photon</h1>
   <div id="output"></div>
   <div id="map"></div>
-  <div id="refreshStatus"></div>
-  
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  
-  <!-- Photon SDK: Ensure photon.js is correctly placed in your repository -->
+
+  <!-- Photon SDK -->
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  
+
   <script>
-    // ---------- Helper: Log messages to the page ----------
-    function logMessage(message, isError) {
+    function logMessage(message, isError = false) {
       console[isError ? "error" : "log"](message);
       const outputDiv = document.getElementById("output");
       const p = document.createElement("p");
@@ -79,7 +37,20 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-    
+
+    // ---------- WebSocket Debugging ----------
+    function testWebSocket() {
+      logMessage("Testing WebSocket connection to Photon...");
+      try {
+        let ws = new WebSocket("wss://ns.photonengine.io:19093");
+        ws.onopen = () => logMessage("WebSocket Test: Connection successful ✅");
+        ws.onerror = (err) => logMessage("WebSocket Test: Connection FAILED ❌", true);
+      } catch (error) {
+        logMessage("WebSocket Test Error: " + error.message, true);
+      }
+    }
+    testWebSocket();
+
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -93,204 +64,59 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const firestore = firebase.firestore();
-    
-    // Authenticate anonymously (ensure Anonymous Auth is enabled)
+
     auth.signInAnonymously()
-      .then(() => logMessage("Firebase: Signed in anonymously."))
+      .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
-    
+
     // ---------- Photon Setup ----------
+    let photonClient;
     try {
-      if (typeof Photon === 'undefined') {
-        logMessage("Photon SDK not loaded.", true);
+      if (typeof Photon === "undefined") {
+        logMessage("Photon SDK NOT loaded ❌", true);
       } else {
-        logMessage("Photon SDK loaded successfully.");
+        logMessage("Photon SDK loaded ✅");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        // Instantiate Photon client. Adjust the namespace if needed.
-        var photonClient = new Photon.LoadBalancing.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
-        
-        // Use onStateChange to log state changes (numeric state codes).
+
+        logMessage("Initializing Photon Client...");
+        photonClient = new Photon.LoadBalancing.LoadBalancingClient(
+          Photon.ConnectionProtocol.Wss, 
+          photonAppId, 
+          "1.0"
+        );
+
         photonClient.onStateChange = function (state) {
-          logMessage("Photon: State changed to " + state);
+          logMessage(`Photon: State changed to ${state} ✅`);
         };
-        // Log Photon errors.
+
         photonClient.onError = function (errorCode, errorMsg) {
-          logMessage("Photon Error: " + errorCode + " / " + errorMsg, true);
+          logMessage(`Photon Error: ${errorCode} / ${errorMsg} ❌`, true);
+          if (errorCode === 3001) {
+            logMessage("❌ Photon NameServer Connection Failed! Possible Causes:\n" +
+              "- Incorrect App ID?\n" +
+              "- Cloud region misconfigured?\n" +
+              "- WebSockets blocked by firewall?", true);
+          }
         };
-        
-        // Connect to Photon Cloud using the "us" region.
+
+        logMessage("Attempting to connect to Photon...");
         photonClient.connectToRegionMaster("us");
       }
-    } catch (e) {
-      logMessage("Error initializing Photon: " + e.message, true);
+    } catch (error) {
+      logMessage("Error initializing Photon: " + error.message, true);
     }
-    
+
     // ---------- Leaflet Map Setup ----------
     try {
-      var map = L.map('map').setView([37.7749, -122.4194], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      var map = L.map("map").setView([37.7749, -122.4194], 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
-      logMessage("Leaflet: Map loaded.");
-    } catch (e) {
-      logMessage("Error initializing Leaflet: " + e.message, true);
+      logMessage("Leaflet: Map loaded ✅");
+    } catch (error) {
+      logMessage("Error initializing Leaflet: " + error.message, true);
     }
-    
-    // ---------- Dynamic Spawn Points Setup ----------
-    const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
-    const REGEN_THRESHOLD = 300; // regenerate if player moves >300m
-    
-    // Define spawn settings per type
-    const spawnSettings = {
-      "creatures": { min: 10, max: 20, radius: [50, 500] },
-      "dungeons": { min: 2, max: 5, radius: [500, 1500] },
-      "inns": { min: 2, max: 4, radius: [200, 1000] },
-      "shops": { min: 2, max: 4, radius: [200, 1000] },
-      "quests": { min: 5, max: 10, radius: [100, 500] },
-      "keeps": { min: 1, max: 2, radius: [1000, 2000] },
-      "lairs": { min: 1, max: 3, radius: [800, 2000] },
-      "publicEvent": { min: 1, max: 1, radius: [500, 2500] },
-      "worldBoss": { min: 1, max: 1, roaming: true }
-    };
-
-    // Count existing spawn types from Firestore
-    async function countSpawnTypes() {
-      let spawnCounts = {};
-      for (let type in spawnSettings) {
-        let snapshot = await firestore.collection("spawnPoints").where("type", "==", type).get();
-        spawnCounts[type] = snapshot.size;
-      }
-      return spawnCounts;
-    }
-    
-    // Dynamically generate missing spawn points around a center coordinate
-    async function generateDynamicSpawns(center) {
-      const spawnCounts = await countSpawnTypes();
-      let totalSpawns = 0;
-      
-      for (let type in spawnSettings) {
-        let { min, max, radius, roaming } = spawnSettings[type];
-        
-        if (roaming) {
-          // For worldBoss, only one should exist.
-          if (spawnCounts[type] === 0) {
-            let bossOffset = generateRandomOffset(SPAWN_AREA_RADIUS);
-            await firestore.collection("spawnPoints").add({
-              type: type,
-              location: { lat: center.lat + bossOffset.latOffset, lng: center.lng + bossOffset.lngOffset },
-              roaming: true
-            });
-            totalSpawns++;
-          }
-          continue;
-        }
-        
-        let spawnsToAdd = Math.max(0, min - spawnCounts[type]);
-        spawnsToAdd = Math.min(spawnsToAdd, max - spawnCounts[type]);
-        
-        for (let i = 0; i < spawnsToAdd; i++) {
-          let spawnRange = radius[0] + Math.random() * (radius[1] - radius[0]);
-          let offset = generateRandomOffset(spawnRange);
-          await firestore.collection("spawnPoints").add({
-            type: type,
-            location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
-            lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          totalSpawns++;
-        }
-      }
-      logMessage(`Generated ${totalSpawns} new spawns.`);
-    }
-    
-    // Utility: Generate random offset (in meters) converted to lat/lng differences.
-    function generateRandomOffset(meters) {
-      const dLat = meters / 111300;
-      const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
-      return { latOffset: (Math.random() * 2 - 1) * dLat, lngOffset: (Math.random() * 2 - 1) * dLng };
-    }
-    
-    // Track last spawn generation center for regeneration
-    let lastSpawnCenter = null;
-    
-    // Check if spawn points exist; if not, generate them based on player's location
-    firestore.collection("spawnPoints").limit(1).get().then(snapshot => {
-      if (snapshot.empty) {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(position => {
-            const playerLocation = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            };
-            logMessage("Player location determined: (" + playerLocation.lat + ", " + playerLocation.lng + ")");
-            map.setView([playerLocation.lat, playerLocation.lng], 15);
-            lastSpawnCenter = playerLocation;
-            generateDynamicSpawns(playerLocation);
-          }, error => {
-            logMessage("Error retrieving player location: " + error.message, true);
-            lastSpawnCenter = { lat: 37.7749, lng: -122.4194 };
-            generateDynamicSpawns(lastSpawnCenter);
-          });
-        } else {
-          logMessage("Geolocation not supported.", true);
-          lastSpawnCenter = { lat: 37.7749, lng: -122.4194 };
-          generateDynamicSpawns(lastSpawnCenter);
-        }
-      } else {
-        logMessage("Spawn points already exist in Firestore.");
-      }
-    }).catch(error => {
-      logMessage("Error checking spawn points: " + error.message, true);
-    });
-    
-    // Real-Time Listener: Update the map with spawn points from Firestore.
-    firestore.collection("spawnPoints")
-      .onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === "added") {
-            const spawn = change.doc.data();
-            const spawnId = change.doc.id;
-            var marker = L.marker([spawn.location.lat, spawn.location.lng]).addTo(map);
-            marker.bindPopup("Spawn type: " + spawn.type);
-            marker.on('click', function() {
-              logMessage("Marker clicked for spawn " + spawnId);
-              photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 5 }, null);
-              logMessage("Attempting to join Photon room: battle_" + spawnId);
-            });
-          }
-        });
-      }, error => {
-        logMessage("Error loading spawn data: " + error.message, true);
-      });
-    
-    // ---------- Client-Side Timer for Spawn Refresh ----------
-    // Every 60 seconds, check for spawn points with no monster and update them.
-    setInterval(async () => {
-      try {
-        const spawnsSnapshot = await firestore.collection("spawnPoints")
-          .where("currentMonster", "==", null)
-          .get();
-          
-        if (spawnsSnapshot.empty) {
-          document.getElementById("refreshStatus").textContent = "No spawn points need refresh at " + new Date().toLocaleTimeString();
-        } else {
-          spawnsSnapshot.forEach(doc => {
-            const newMonster = { name: "Goblin", hp: 100, level: 1 };
-            doc.ref.update({
-              currentMonster: newMonster,
-              lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-              logMessage("Spawn " + doc.id + " refreshed with new monster.");
-            }).catch(error => {
-              logMessage("Error updating spawn " + doc.id + ": " + error.message, true);
-            });
-          });
-          document.getElementById("refreshStatus").textContent = "Spawn refresh executed at " + new Date().toLocaleTimeString();
-        }
-      } catch (error) {
-        logMessage("Error during spawn refresh: " + error.message, true);
-      }
-    }, 60000); // every 60 seconds
   </script>
 </body>
 </html>
