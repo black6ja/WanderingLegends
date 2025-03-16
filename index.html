@@ -23,46 +23,25 @@
       height: 100vh;
       background-color: #f4f4f4;
     }
-    #login-container input {
+    #login-container input, button {
       padding: 10px;
       margin: 5px;
       width: 80%;
       max-width: 300px;
     }
-    #login-container button {
-      padding: 10px;
-      width: 80%;
-      max-width: 300px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    #login-container button:hover {
-      background-color: #0056b3;
-    }
     #map-container {
       display: none; /* Hide until user logs in */
     }
-    #output {
+    #output, #queueStatus {
       padding: 10px;
       background-color: #f2f2f2;
       font-size: 0.9em;
-      overflow-y: auto;
-      max-height: 150px;
     }
     #map {
       flex: 1;
       width: 100%;
       height: 100vh;
       min-height: 400px;
-    }
-    #queueStatus {
-      padding: 10px;
-      text-align: center;
-      font-size: 0.85em;
-      color: #555;
-      background: #eee;
     }
   </style>
 </head>
@@ -78,8 +57,9 @@
     <p id="login-message"></p>
   </div>
 
-  <!-- Map and Game UI (Hidden Until Login) -->
+  <!-- Game UI (Hidden Until Login) -->
   <div id="map-container">
+    <button onclick="logout()">Logout</button>
     <div id="output"></div>
     <div id="map"></div>
     <div id="queueStatus">Click a **World Boss** or **Public Event** to enter battle.</div>
@@ -135,13 +115,19 @@
         .catch(error => showMessage("Sign-up Failed: " + error.message, true));
     }
 
+    function logout() {
+      firebase.auth().signOut().then(() => {
+        location.reload(); // Reload to show login screen again
+      });
+    }
+
     function showGame() {
       document.getElementById("login-container").style.display = "none";
       document.getElementById("map-container").style.display = "block";
       initializeGame();
     }
 
-    // Auto-login if already signed in
+    // Ensures game loads only after login
     firebase.auth().onAuthStateChanged(user => {
       if (user) {
         showGame();
