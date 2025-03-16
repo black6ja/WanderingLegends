@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Spawns & Multiplayer</title>
+  <title>WanderingLegends - Player & Spawns</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -11,10 +11,26 @@
     #output { padding: 10px; background-color: #f2f2f2; font-size: 0.9em; overflow-y: auto; max-height: 200px; }
     .error { color: red; }
     #map { flex: 1; width: 100%; height: 60vh; min-height: 400px; }
+
+    /* Blinking player circle */
+    .blinking-dot {
+      width: 15px;
+      height: 15px;
+      background: rgba(0,0,255,0.8);
+      border: 2px solid white;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.5; }
+      100% { transform: scale(1); opacity: 1; }
+    }
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Spawns & Multiplayer</h1>
+  <h1>WanderingLegends - Player & Spawns</h1>
   <div id="output"></div>
   <div id="map"></div>
 
@@ -49,56 +65,51 @@
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
     const firestore = firebase.firestore();
 
-    auth.signInAnonymously()
-      .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
-      .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
-
-    // ---------- Photon Setup ----------
-    let photonClient;
-    try {
-      if (typeof Photon === "undefined") {
-        logMessage("Photon SDK NOT loaded ❌", true);
-      } else {
-        logMessage("Photon SDK loaded ✅");
-        const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
-
-        photonClient.onStateChange = function (state) {
-          logMessage(`Photon: State changed to ${state} ✅`);
-        };
-
-        photonClient.onError = function (errorCode, errorMsg) {
-          logMessage(`Photon Error: ${errorCode} / ${errorMsg} ❌`, true);
-        };
-
-        logMessage("Connecting to Photon...");
-        photonClient.connectToRegionMaster("us");
-      }
-    } catch (error) {
-      logMessage("Error initializing Photon: " + error.message, true);
-    }
-
     // ---------- Leaflet Map Setup ----------
-    let map;
-    try {
-      map = L.map("map").setView([37.7749, -122.4194], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(map);
-      logMessage("Leaflet: Map loaded ✅");
-    } catch (error) {
-      logMessage("Error initializing Leaflet: " + error.message, true);
+    let map = L.map("map").setView([37.7749, -122.4194], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+    logMessage("Leaflet: Map loaded ✅");
+
+    // ---------- Player Marker & Action Zone ----------
+    let playerMarker = L.marker([0, 0], {
+      icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15, 15], iconAnchor: [7, 7] })
+    }).addTo(map);
+
+    let playerActionZone = L.circle([0, 0], {
+      color: "blue",
+      fillColor: "rgba(0, 0, 255, 0.3)",
+      fillOpacity: 0.3,
+      radius: 300 // Action zone radius
+    }).addTo(map);
+
+    function updatePlayerMarker(lat, lng) {
+      playerMarker.setLatLng([lat, lng]);
+      playerActionZone.setLatLng([lat, lng]);
+      map.setView([lat, lng], 15, { animate: true });
     }
 
-    // ---------- Dynamic Spawn Points ----------
-    const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
-    const REGEN_THRESHOLD = 300; // If player moves 300m, regenerate spawns
+    // ---------- Spawn Generation ----------
+    const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent"];
+    
+    async function generateSpawns(center) {
+      for (let type of spawnTypes) {
+        for (let i = 0; i < Math.floor(Math.random() * 5) + 1; i++) { // 1-5 spawns per type
+          let offset = generateRandomOffset(500);
+          await firestore.collection("spawnPoints").add({
+            type: type,
+            location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
+            lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+      logMessage("Spawn points generated.");
+    }
 
-    // Function to generate spawn points around the player
     function generateRandomOffset(meters) {
       const dLat = meters / 111300;
       const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
@@ -108,39 +119,12 @@
       };
     }
 
-    async function generateDynamicSpawns(center) {
-      let totalSpawns = 0;
-      for (let i = 0; i < 10; i++) { // Generating 10 random spawns
-        let offset = generateRandomOffset(500);
-        await firestore.collection("spawnPoints").add({
-          type: "creature",
-          location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
-          lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        totalSpawns++;
-      }
-      logMessage(`Generated ${totalSpawns} spawn points.`);
-    }
-
-    // Handle player movement and spawn generation
-    let lastPlayerLatLng = null;
-    let lastSpawnCenter = null;
-    
-    function updateSpawns(playerLatLng) {
-      if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > REGEN_THRESHOLD) {
-        lastSpawnCenter = playerLatLng;
-        generateDynamicSpawns(playerLatLng);
-      }
-    }
-
+    // ---------- Location & Spawn Updates ----------
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(position => {
-        const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
-        if (!lastPlayerLatLng) {
-          map.setView([playerLatLng.lat, playerLatLng.lng], 15);
-        }
-        lastPlayerLatLng = playerLatLng;
-        updateSpawns(playerLatLng);
+        let playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
+        updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
+        generateSpawns(playerLatLng);
       }, error => {
         logMessage("Error retrieving player location: " + error.message, true);
       }, { enableHighAccuracy: true });
@@ -148,7 +132,7 @@
       logMessage("Geolocation not supported ❌", true);
     }
 
-    // Real-Time Firestore Listener for Spawns
+    // ---------- Firestore Listener for Spawns ----------
     firestore.collection("spawnPoints").onSnapshot(snapshot => {
       snapshot.docChanges().forEach(change => {
         if (change.type === "added") {
@@ -157,9 +141,14 @@
             .bindPopup(`Spawn Type: ${spawn.type}`);
         }
       });
-    }, error => {
-      logMessage("Error loading spawn data: " + error.message, true);
     });
+
+    // ---------- Clear Spawns Every 5 Minutes (Optional) ----------
+    setInterval(async () => {
+      const snapshot = await firestore.collection("spawnPoints").get();
+      snapshot.forEach(doc => doc.ref.delete());
+      logMessage("🔥 All spawn points cleared for testing.");
+    }, 300000); // 300,000ms = 5 minutes
 
   </script>
 </body>
