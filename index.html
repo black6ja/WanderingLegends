@@ -105,6 +105,18 @@
       firebase.auth().signInWithRedirect(provider);
     }
 
+    // Handle the redirect result
+    function handleRedirectResult() {
+      firebase.auth().getRedirectResult().then((result) => {
+        if (result.user) {
+          logMessage("User signed in: " + result.user.displayName);
+          showGame();
+        }
+      }).catch((error) => {
+        logMessage("Error during sign-in redirect: " + error.message, true);
+      });
+    }
+
     // Detect login state
     firebase.auth().onAuthStateChanged(user => {
       if (user) {
@@ -166,6 +178,9 @@
       };
       return colors[type] || "gray";
     }
+
+    // Call handleRedirectResult when the page loads
+    window.onload = handleRedirectResult;
   </script>
 </body>
 </html>
