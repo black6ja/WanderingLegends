@@ -2,29 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Connectivity & Map Test</title>
+  <title>WanderingLegends - Connectivity, Map & Dynamic Spawns</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Include Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
     body { font-family: sans-serif; margin: 20px; }
     #output { margin-top: 20px; }
     #output p { padding: 5px; border-bottom: 1px solid #ddd; }
     .error { color: red; }
     #map { width: 100%; height: 400px; margin-top: 20px; }
+    #refreshStatus { margin-top: 10px; font-size: 0.9em; color: gray; }
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Connectivity & Map Test</h1>
+  <h1>WanderingLegends - Connectivity, Map & Dynamic Spawns</h1>
   <div id="output"></div>
   <div id="map"></div>
+  <div id="refreshStatus"></div>
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   
-  <!-- Photon SDK (ensure photon.js is in the repository root) -->
+  <!-- Photon SDK: Ensure photon.js is correctly placed in your repository -->
   <script src="photon.js"></script>
   
   <script>
@@ -37,7 +41,7 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-    
+
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -52,6 +56,7 @@
     const auth = firebase.auth();
     const firestore = firebase.firestore();
     
+    // Sign in anonymously (ensure Anonymous Auth is enabled in your Firebase Console)
     auth.signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously."))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
@@ -59,11 +64,12 @@
     // ---------- Photon Setup ----------
     try {
       if (typeof Photon === 'undefined') {
-        logMessage("Photon SDK is not loaded.", true);
+        logMessage("Photon SDK not loaded.", true);
       } else {
         logMessage("Photon SDK loaded successfully.");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        var photonClient = new Photon.Realtime.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
+        // Use the namespace based on your SDK build; here we try Photon.LoadBalancing.LoadBalancingClient
+        var photonClient = new Photon.LoadBalancing.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
         
         photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
           logMessage("Photon: Connected and joined lobby successfully.");
@@ -77,7 +83,7 @@
         
         photonClient.connectToRegionMaster("us");
       }
-    } catch(e) {
+    } catch (e) {
       logMessage("Error initializing Photon: " + e.message, true);
     }
     
@@ -89,14 +95,14 @@
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
       logMessage("Leaflet: Map loaded.");
-    } catch(e) {
+    } catch (e) {
       logMessage("Error initializing Leaflet: " + e.message, true);
     }
     
     // ---------- Dynamic Spawn Points Setup ----------
-    // Utility: Generate random offsets (in meters) converted to lat/lng differences.
+    // Utility: Generate random offset (in meters) converted to lat/lng differences.
     function generateRandomOffset(meters) {
-      const earthRadius = 6378137; // meters
+      const earthRadius = 6378137; // in meters
       const dLat = (meters / earthRadius) * (180 / Math.PI);
       const dLng = dLat / Math.cos((map.getCenter().lat * Math.PI) / 180);
       return {
@@ -105,7 +111,7 @@
       };
     }
     
-    // Function: Dynamically generate spawn points around a center coordinate.
+    // Function: Generate spawn points dynamically around a center coordinate.
     function generateDynamicSpawns(center, count = 5) {
       logMessage("Generating " + count + " spawn points around (" + center.lat + ", " + center.lng + ")");
       for (let i = 0; i < count; i++) {
@@ -114,8 +120,8 @@
         const spawnLng = center.lng + offset.lngOffset;
         const spawnData = {
           location: { lat: spawnLat, lng: spawnLng },
-          type: "creatures",         // For testing, all spawns are "creatures"
-          respawnInterval: 300,        // 5 minutes (in seconds)
+          type: "creatures",
+          respawnInterval: 300, // seconds (5 minutes)
           lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp(),
           currentMonster: null
         };
@@ -125,7 +131,7 @@
       }
     }
     
-    // Check if any spawn points exist; if none, generate dynamic spawns.
+    // Check if spawn points exist; if not, generate dynamic spawns based on geolocation.
     firestore.collection("spawnPoints").limit(1).get().then(snapshot => {
       if (snapshot.empty) {
         if (navigator.geolocation) {
@@ -153,7 +159,7 @@
     });
     
     // Real-Time Listener: Update the map with spawn points from Firestore.
-    firebase.firestore().collection("spawnPoints")
+    firestore.collection("spawnPoints")
       .onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === "added") {
@@ -171,6 +177,40 @@
       }, error => {
         logMessage("Error loading spawn data: " + error.message, true);
       });
+    
+    // ---------- Client-Side Timer for Spawn Refresh ----------
+    // This timer runs every minute (60000ms) to simulate a spawn refresh.
+    setInterval(async () => {
+      try {
+        // For testing, refresh spawn points that have no current monster.
+        const spawnsSnapshot = await firestore.collection("spawnPoints")
+          .where("currentMonster", "==", null)
+          .get();
+          
+        if (spawnsSnapshot.empty) {
+          document.getElementById("refreshStatus").textContent = "No spawn points need refresh at this time.";
+        } else {
+          spawnsSnapshot.forEach(doc => {
+            const newMonster = {
+              name: "Goblin",
+              hp: 100,
+              level: 1
+            };
+            doc.ref.update({
+              currentMonster: newMonster,
+              lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+              logMessage("Spawn " + doc.id + " refreshed with new monster.");
+            }).catch(error => {
+              logMessage("Error updating spawn " + doc.id + ": " + error.message, true);
+            });
+          });
+          document.getElementById("refreshStatus").textContent = "Spawn refresh executed at " + new Date().toLocaleTimeString();
+        }
+      } catch (error) {
+        logMessage("Error during spawn refresh: " + error.message, true);
+      }
+    }, 60000);  // Every 60 seconds
   </script>
 </body>
 </html>
