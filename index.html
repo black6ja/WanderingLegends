@@ -2,12 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Multiplayer & Spawns</title>
+  <title>WanderingLegends</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    /* Responsive layout with flex */
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -15,13 +13,6 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
-    }
-    h1 {
-      text-align: center;
-      padding: 10px;
-      background-color: #333;
-      color: #fff;
-      margin: 0;
     }
     #output {
       padding: 10px;
@@ -39,51 +30,34 @@
     #map {
       flex: 1;
       width: 100%;
-      height: 60vh;
+      height: 100vh; /* Full height */
       min-height: 400px;
     }
-    #refreshStatus, #queueStatus {
+    #queueStatus {
       padding: 10px;
       text-align: center;
       font-size: 0.85em;
       color: #555;
       background: #eee;
     }
-    /* Blinking player marker */
-    .blinking-dot {
-      width: 15px;
-      height: 15px;
-      background: rgba(0, 0, 255, 0.8);
-      border: 2px solid white;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.5); opacity: 0.5; }
-      100% { transform: scale(1); opacity: 1; }
-    }
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Multiplayer & Spawns</h1>
   <div id="output"></div>
   <div id="map"></div>
-  <div id="refreshStatus"></div>
-  <div id="queueStatus"></div>
-  
+  <div id="queueStatus">Click a **World Boss** or **Public Event** to enter battle.</div>
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   
-  <!-- Photon SDK (ensure photon.js is correctly placed in your repository) -->
+  <!-- Photon SDK -->
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    /********** Helper Functions **********/
     function logMessage(message, isError = false) {
       console[isError ? "error" : "log"](message);
       const outputDiv = document.getElementById("output");
@@ -92,7 +66,7 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-    
+
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -105,11 +79,11 @@
     };
     firebase.initializeApp(firebaseConfig);
     const firestore = firebase.firestore();
-    
+
     firebase.auth().signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
-    
+
     // ---------- Photon Setup ----------
     let photonClient;
     try {
@@ -118,52 +92,23 @@
       } else {
         logMessage("Photon SDK loaded ✅");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        // Use secure WebSocket (Wss) connection
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
-        
+
         photonClient.onStateChange = function (state) {
           logMessage("Photon: State changed to " + state + " ✅");
-          // When joining a room, check if we're queued.
-          if (state === 6) { // Assume state 6 is "joined room" (adjust based on your SDK)
-            let room = photonClient.myRoom();
-            if (room) {
-              if (room.playerCount < 2) {
-                document.getElementById("queueStatus").textContent = "Waiting for opponent...";
-              } else {
-                document.getElementById("queueStatus").textContent = "Battle ready!";
-              }
-            }
-          }
         };
-        
+
         photonClient.onError = function (errorCode, errorMsg) {
           logMessage("Photon Error: " + errorCode + " / " + errorMsg + " ❌", true);
         };
-        
+
         logMessage("Connecting to Photon...");
         photonClient.connectToRegionMaster("us");
       }
     } catch (error) {
       logMessage("Error initializing Photon: " + error.message, true);
     }
-    
-    // ---------- Multiplayer: Function to Join a Battle Room **********/
-    function joinBattleRoom(spawnId) {
-      // Change maxPlayers to 2 for testing.
-      photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 2 }, null);
-      // Wait a bit and then update the queue status.
-      setTimeout(() => {
-        let room = photonClient.myRoom();
-        if (room) {
-          if (room.playerCount < 2) {
-            document.getElementById("queueStatus").textContent = "Waiting for opponent...";
-          } else {
-            document.getElementById("queueStatus").textContent = "Battle ready!";
-          }
-        }
-      }, 3000);
-    }
-    
+
     // ---------- Leaflet Map Setup ----------
     let map;
     try {
@@ -176,174 +121,14 @@
     } catch (error) {
       logMessage("Error initializing Leaflet: " + error.message, true);
     }
-    
-    // ---------- Player Marker & Action Zone ----------
-    let playerMarker = L.marker([0, 0], {
-      icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15, 15], iconAnchor: [7, 7] })
-    }).addTo(map);
-    let playerActionZone = L.circle([0, 0], {
-      color: "blue",
-      fillColor: "rgba(0, 0, 255, 0.3)",
-      fillOpacity: 0.3,
-      radius: 300
-    }).addTo(map);
-    
-    // Allow user to pan freely (disable auto-center on panning)
-    let autoCenter = true;
-    map.on("movestart", function() {
-      autoCenter = false;
-    });
-    
-    function updatePlayerMarker(lat, lng) {
-      playerMarker.setLatLng([lat, lng]);
-      playerActionZone.setLatLng([lat, lng]);
-      if (autoCenter) {
-        map.setView([lat, lng], 15, { animate: true });
-      }
-    }
-    
-    // ---------- Dynamic Spawn Points Setup ----------
-    const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
-    const REGEN_THRESHOLD = 300; // Regenerate if player moves >300m
-    
-    // Define spawn types for testing.
-    const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent", "worldBoss"];
-    
-    function getSpawnColor(type) {
-      const colors = {
-        "creature": "green",
-        "dungeon": "darkred",
-        "inn": "orange",
-        "shop": "purple",
-        "quest": "blue",
-        "keep": "brown",
-        "lair": "black",
-        "publicEvent": "red",
-        "worldBoss": "gold"
-      };
-      return colors[type] || "gray";
-    }
-    
-    // Clear existing spawn points for testing.
-    async function clearSpawnPoints() {
-      try {
-        const snapshot = await firestore.collection("spawnPoints").get();
-        snapshot.forEach(doc => doc.ref.delete());
-        logMessage("Cleared all spawn points from Firestore for testing.");
-      } catch (error) {
-        logMessage("Error clearing spawn points: " + error.message, true);
-      }
-    }
-    
-    // Generate fixed spawn counts per type.
-    async function generateSpawns(center) {
-      let spawnGenerationCount = {
-        "creature": 2,
-        "dungeon": 1,
-        "inn": 1,
-        "shop": 1,
-        "quest": 1,
-        "keep": 1,
-        "lair": 1,
-        "publicEvent": 1,
-        "worldBoss": 1
-      };
-      let totalSpawns = 0;
-      for (let type of spawnTypes) {
-        let count = spawnGenerationCount[type] || 1;
-        for (let i = 0; i < count; i++) {
-          let maxOffset = 500; // default max offset
-          if (type === "dungeon") maxOffset = 1500;
-          else if (type === "keep" || type === "lair") maxOffset = 2000;
-          else if (type === "publicEvent") maxOffset = 2500;
-          else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS;
-          let offset = generateRandomOffset(maxOffset);
-          let spawnData = {
-            type: type,
-            location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
-            lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
-          };
-          if (type === "worldBoss") spawnData.roaming = true;
-          try {
-            await firestore.collection("spawnPoints").add(spawnData);
-            totalSpawns++;
-          } catch (error) {
-            logMessage("Error creating spawn for type " + type + ": " + error.message, true);
-          }
-        }
-      }
-      logMessage(`Generated ${totalSpawns} spawn points.`);
-    }
-    
-    function generateRandomOffset(meters) {
-      const dLat = meters / 111300;
-      const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
-      return { latOffset: (Math.random() * 2 - 1) * dLat, lngOffset: (Math.random() * 2 - 1) * dLng };
-    }
-    
-    // ---------- Player Location & Spawn Updates ----------
-    let lastSpawnCenter = null;
-    
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(position => {
-        const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
-        updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
-        // Send our position update to Photon.
-        if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
-          let eventData = { lat: playerLatLng.lat, lng: playerLatLng.lng };
-          // Use event code 1 for position updates.
-          photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
-        }
-        // Regenerate spawns if player moves >REGEN_THRESHOLD from last spawn center.
-        if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > REGEN_THRESHOLD) {
-          lastSpawnCenter = playerLatLng;
-          generateSpawns(playerLatLng);
-        }
-      }, error => {
-        logMessage("Error retrieving player location: " + error.message, true);
-      }, { enableHighAccuracy: true });
-    } else {
-      logMessage("Geolocation not supported ❌", true);
-    }
-    
-    // ---------- Real-Time Firestore Listener for Spawns ----------
-    firestore.collection("spawnPoints").onSnapshot(snapshot => {
-      snapshot.docChanges().forEach(change => {
-        if (change.type === "added") {
-          const spawn = change.doc.data();
-          const spawnId = change.doc.id;
-          L.circleMarker([spawn.location.lat, spawn.location.lng], {
-            color: getSpawnColor(spawn.type),
-            fillColor: getSpawnColor(spawn.type),
-            fillOpacity: 0.8,
-            radius: 8
-          }).addTo(map)
-            .bindPopup("Spawn Type: " + spawn.type);
-        }
-      });
-    }, error => {
-      logMessage("Error loading spawn data: " + error.message, true);
-    });
-    
-    // ---------- Optional: Clear spawn points every 5 minutes for testing ----------
-    setInterval(async () => {
-      try {
-        const snapshot = await firestore.collection("spawnPoints").get();
-        snapshot.forEach(doc => doc.ref.delete());
-        logMessage("🔥 All spawn points cleared for testing at " + new Date().toLocaleTimeString());
-      } catch (error) {
-        logMessage("Error clearing spawn points: " + error.message, true);
-      }
-    }, 300000); // every 5 minutes
 
-    // ---------- Multiplayer: Join Battle Room on Spawn Click ----------
-    // Updated marker click now calls joinBattleRoom instead of directly calling joinOrCreateRoom.
-    // This function sets maxPlayers to 2 and updates the "queueStatus" div.
+    // ---------- Multiplayer: Join a Battle Room ----------
     function joinBattleRoom(spawnId) {
       if (photonClient) {
-        photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 2 }, null);
-        logMessage("Attempting to join Photon room: battle_" + spawnId);
-        // After a short delay, check room status and update queue UI.
+        let roomName = "battle_" + spawnId;
+        photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+        logMessage("Attempting to join Photon room: " + roomName);
+
         setTimeout(() => {
           let room = photonClient.myRoom();
           if (room) {
@@ -358,14 +143,14 @@
         }, 3000);
       }
     }
-    
-    // Modify the Real-Time Listener for Spawns to use joinBattleRoom on marker click.
-    // (This reuses the earlier listener logic.)
+
+    // ---------- Real-Time Firestore Listener for Spawns ----------
     firestore.collection("spawnPoints").onSnapshot(snapshot => {
       snapshot.docChanges().forEach(change => {
         if (change.type === "added") {
           const spawn = change.doc.data();
           const spawnId = change.doc.id;
+
           let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
@@ -373,16 +158,34 @@
             radius: 8
           }).addTo(map)
             .bindPopup("Spawn Type: " + spawn.type);
-          marker.on('click', function() {
-            logMessage("Marker clicked for spawn " + spawnId);
-            joinBattleRoom(spawnId);
-          });
+
+          // 📌 Only allow battle rooms for World Boss & Public Event
+          if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
+            marker.on('click', function() {
+              logMessage("Joining battle for " + spawn.type);
+              joinBattleRoom(spawnId);
+            });
+          }
         }
       });
     }, error => {
       logMessage("Error loading spawn data: " + error.message, true);
     });
-    
+
+    function getSpawnColor(type) {
+      const colors = {
+        "creature": "green",
+        "dungeon": "darkred",
+        "inn": "orange",
+        "shop": "purple",
+        "quest": "blue",
+        "keep": "brown",
+        "lair": "black",
+        "publicEvent": "red",
+        "worldBoss": "gold"
+      };
+      return colors[type] || "gray";
+    }
   </script>
 </body>
 </html>
