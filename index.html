@@ -29,8 +29,18 @@
       width: 80%;
       max-width: 300px;
     }
+    #login-container button {
+      background-color: #4285F4;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #login-container button:hover {
+      background-color: #357ae8;
+    }
+    /* Game UI */
     #map-container {
-      display: none; /* Hidden until login */
+      display: none;
     }
     #output, #queueStatus {
       padding: 10px;
@@ -47,7 +57,7 @@
     .blinking-dot {
       width: 15px;
       height: 15px;
-      background: rgba(0,0,255,0.8);
+      background: rgba(0, 0, 255, 0.8);
       border: 2px solid white;
       border-radius: 50%;
       animation: pulse 2s infinite;
@@ -64,10 +74,8 @@
   <!-- Login Screen -->
   <div id="login-container">
     <h2>Login to WanderingLegends</h2>
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="Password" required>
-    <button onclick="login()">Login</button>
-    <button onclick="signup()">Sign Up</button>
+    <!-- Google Sign-In Button -->
+    <button onclick="googleLogin()">Sign in with Google</button>
     <p id="login-message"></p>
   </div>
 
@@ -88,9 +96,16 @@
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  
+
   <script>
-    /********** Authentication Functions **********/
+    // ---------- Helper: Log messages ----------
+    function showMessage(message, isError = false) {
+      const messageBox = document.getElementById("login-message");
+      messageBox.textContent = message;
+      messageBox.style.color = isError ? "red" : "green";
+    }
+
+    // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
       authDomain: "wanderinglegends-12cc2.firebaseapp.com",
@@ -102,31 +117,15 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    function showMessage(message, isError = false) {
-      const messageBox = document.getElementById("login-message");
-      messageBox.textContent = message;
-      messageBox.style.color = isError ? "red" : "green";
-    }
-
-    function login() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      firebase.auth().signInWithEmailAndPassword(email, password)
-        .then(() => {
-          showMessage("Login successful! ✅");
+    // ---------- Google Sign-In Function ----------
+    function googleLogin() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider)
+        .then(result => {
+          showMessage("Google sign-in successful! ✅");
           showGame();
         })
-        .catch(error => showMessage("Login Failed: " + error.message, true));
-    }
-
-    function signup() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      firebase.auth().createUserWithEmailAndPassword(email, password)
-        .then(() => {
-          showMessage("Sign-up successful! ✅ Please log in.");
-        })
-        .catch(error => showMessage("Sign-up Failed: " + error.message, true));
+        .catch(error => showMessage("Google sign-in failed: " + error.message, true));
     }
 
     function logout() {
@@ -135,13 +134,14 @@
       });
     }
 
+    // ---------- Show Game UI ----------
     function showGame() {
       document.getElementById("login-container").style.display = "none";
       document.getElementById("map-container").style.display = "block";
       initializeGame();
     }
 
-    // ---------- Initialize Game Logic After Login **********/
+    // ---------- Initialize Game Logic (after login) ----------
     function initializeGame() {
       const firestore = firebase.firestore();
 
@@ -174,6 +174,7 @@
         console.error("Error initializing Photon: " + error.message);
       }
 
+      // Real-time Firestore listener for spawn points
       firestore.collection("spawnPoints").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === "added") {
@@ -187,7 +188,7 @@
             }).addTo(map)
               .bindPopup("Spawn Type: " + spawn.type);
 
-            // Only join a battle if the spawn is a worldBoss or publicEvent.
+            // Only allow joining battle for worldBoss and publicEvent spawns.
             if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
               marker.on('click', function() {
                 console.log("Joining battle for " + spawn.type);
@@ -213,7 +214,7 @@
         return colors[type] || "gray";
       }
 
-      // ---------- Player Marker & Action Zone ----------
+      // Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
       }).addTo(map);
@@ -235,7 +236,7 @@
         }
       }
 
-      // ---------- Multiplayer: Join Battle Room Function ----------
+      // ---------- Multiplayer: Join Battle Room ----------
       function joinBattleRoom(spawnId) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
@@ -273,7 +274,6 @@
       }
 
       async function generateSpawns(center) {
-        // Fixed counts per type for testing.
         let spawnGenerationCount = {
           "creature": 2,
           "dungeon": 1,
@@ -323,7 +323,7 @@
         navigator.geolocation.watchPosition(position => {
           const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
           updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
-          // Send player's position update to Photon (event code 1).
+          // Send player's position update to Photon (event code 1)
           if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
             let eventData = { lat: playerLatLng.lat, lng: playerLatLng.lng };
             photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
