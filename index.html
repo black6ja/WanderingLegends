@@ -23,20 +23,23 @@
       height: 100vh;
       background-color: #f4f4f4;
     }
-    #login-container input, button {
+    #login-container button {
       padding: 10px;
-      margin: 5px;
+      margin: 10px;
       width: 80%;
       max-width: 300px;
-    }
-    #login-container button {
-      background-color: #4285F4;
+      background-color: #4285F4;  /* Google Blue */
       color: white;
       border: none;
       cursor: pointer;
+      font-size: 1em;
     }
     #login-container button:hover {
       background-color: #357ae8;
+    }
+    #login-message {
+      font-size: 0.9em;
+      margin-top: 10px;
     }
     /* Game UI */
     #map-container {
@@ -70,11 +73,9 @@
   </style>
 </head>
 <body>
-
   <!-- Login Screen -->
   <div id="login-container">
     <h2>Login to WanderingLegends</h2>
-    <!-- Google Sign-In Button -->
     <button onclick="googleLogin()">Sign in with Google</button>
     <p id="login-message"></p>
   </div>
@@ -96,7 +97,7 @@
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
+  
   <script>
     // ---------- Helper: Log messages ----------
     function showMessage(message, isError = false) {
@@ -125,7 +126,9 @@
           showMessage("Google sign-in successful! ✅");
           showGame();
         })
-        .catch(error => showMessage("Google sign-in failed: " + error.message, true));
+        .catch(error => {
+          showMessage("Google sign-in failed: " + error.message, true);
+        });
     }
 
     function logout() {
@@ -134,14 +137,14 @@
       });
     }
 
-    // ---------- Show Game UI ----------
+    // ---------- Show Game UI (after login) ----------
     function showGame() {
       document.getElementById("login-container").style.display = "none";
       document.getElementById("map-container").style.display = "block";
       initializeGame();
     }
 
-    // ---------- Initialize Game Logic (after login) ----------
+    // ---------- Initialize Game Logic After Login ----------
     function initializeGame() {
       const firestore = firebase.firestore();
 
@@ -174,7 +177,6 @@
         console.error("Error initializing Photon: " + error.message);
       }
 
-      // Real-time Firestore listener for spawn points
       firestore.collection("spawnPoints").onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === "added") {
@@ -188,7 +190,7 @@
             }).addTo(map)
               .bindPopup("Spawn Type: " + spawn.type);
 
-            // Only allow joining battle for worldBoss and publicEvent spawns.
+            // Only allow battle rooms for worldBoss and publicEvent spawns.
             if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
               marker.on('click', function() {
                 console.log("Joining battle for " + spawn.type);
@@ -214,7 +216,7 @@
         return colors[type] || "gray";
       }
 
-      // Player Marker & Action Zone
+      // ---------- Player Marker & Action Zone ----------
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
       }).addTo(map);
@@ -236,7 +238,7 @@
         }
       }
 
-      // ---------- Multiplayer: Join Battle Room ----------
+      // ---------- Multiplayer: Join Battle Room Function ----------
       function joinBattleRoom(spawnId) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
