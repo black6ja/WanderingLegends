@@ -2,22 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Player, Map & Spawn Test</title>
+  <title>WanderingLegends - Player, Map & Spawns</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
-    h1 { text-align: center; padding: 10px; background-color: #333; color: #fff; margin: 0; }
-    #output { padding: 10px; background-color: #f2f2f2; font-size: 0.9em; overflow-y: auto; max-height: 150px; }
-    #output p { margin: 0 0 5px 0; padding: 2px; border-bottom: 1px solid #ddd; }
-    .error { color: red; }
-    #map { flex: 1; width: 100%; height: 60vh; min-height: 400px; }
-    #refreshStatus { padding: 10px; text-align: center; font-size: 0.85em; color: #555; background: #eee; }
+    /* General responsive layout */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    h1 {
+      text-align: center;
+      padding: 10px;
+      background-color: #333;
+      color: #fff;
+      margin: 0;
+    }
+    #output {
+      padding: 10px;
+      background-color: #f2f2f2;
+      font-size: 0.9em;
+      overflow-y: auto;
+      max-height: 150px;
+    }
+    #output p {
+      margin: 0 0 5px 0;
+      padding: 2px;
+      border-bottom: 1px solid #ddd;
+    }
+    .error {
+      color: red;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 60vh;
+      min-height: 400px;
+    }
+    #refreshStatus {
+      padding: 10px;
+      text-align: center;
+      font-size: 0.85em;
+      color: #555;
+      background: #eee;
+    }
     /* Blinking player marker */
     .blinking-dot {
       width: 15px;
       height: 15px;
-      background: rgba(0,0,255,0.8);
+      background: rgba(0, 0, 255, 0.8);
       border: 2px solid white;
       border-radius: 50%;
       animation: pulse 2s infinite;
@@ -34,18 +72,19 @@
   <div id="output"></div>
   <div id="map"></div>
   <div id="refreshStatus"></div>
-
+  
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-
-  <!-- Photon SDK -->
+  
+  <!-- Photon SDK (ensure photon.js is correctly placed in your repo) -->
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
+  
   <script>
+    // ---------- Helper: Log messages to the page ----------
     function logMessage(message, isError = false) {
       console[isError ? "error" : "log"](message);
       const outputDiv = document.getElementById("output");
@@ -54,7 +93,7 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-
+    
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -66,11 +105,10 @@
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
     const firestore = firebase.firestore();
-
-    // For testing, set open Firestore rules in the Console.
-    // Authenticate anonymously.
-    firebase.auth().signInAnonymously()
+    
+    auth.signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
 
@@ -82,21 +120,23 @@
       } else {
         logMessage("Photon SDK loaded ✅");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
+        // Using secure WebSocket connection; adjust the namespace as needed.
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
-
+        
         photonClient.onStateChange = function (state) {
           logMessage("Photon: State changed to " + state + " ✅");
         };
         photonClient.onError = function (errorCode, errorMsg) {
           logMessage("Photon Error: " + errorCode + " / " + errorMsg + " ❌", true);
         };
+        
         logMessage("Connecting to Photon...");
         photonClient.connectToRegionMaster("us");
       }
     } catch (error) {
       logMessage("Error initializing Photon: " + error.message, true);
     }
-
+    
     // ---------- Leaflet Map Setup ----------
     let map;
     try {
@@ -109,29 +149,52 @@
     } catch (error) {
       logMessage("Error initializing Leaflet: " + error.message, true);
     }
-
+    
     // ---------- Player Marker & Action Zone ----------
     let playerMarker = L.marker([0, 0], {
       icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15, 15], iconAnchor: [7, 7] })
     }).addTo(map);
     let playerActionZone = L.circle([0, 0], {
       color: "blue",
-      fillColor: "rgba(0,0,255,0.3)",
+      fillColor: "rgba(0, 0, 255, 0.3)",
       fillOpacity: 0.3,
       radius: 300
     }).addTo(map);
-
+    
+    // Allow user to pan freely by turning off auto-centering if user moves the map.
+    let autoCenter = true;
+    map.on("movestart", function() {
+      autoCenter = false;
+    });
+    
     function updatePlayerMarker(lat, lng) {
       playerMarker.setLatLng([lat, lng]);
       playerActionZone.setLatLng([lat, lng]);
-      map.setView([lat, lng], 15, { animate: true });
+      if (autoCenter) {
+        map.setView([lat, lng], 15, { animate: true });
+      }
     }
-
+    
     // ---------- Spawn Generation ----------
-    // We'll generate one spawn per type for testing.
+    // Define spawn types and assign distinct colors.
     const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent", "worldBoss"];
-
-    // Clear existing spawns from Firestore on load for testing.
+    
+    function getSpawnColor(type) {
+      const colors = {
+        "creature": "green",
+        "dungeon": "darkred",
+        "inn": "orange",
+        "shop": "purple",
+        "quest": "blue",
+        "keep": "brown",
+        "lair": "black",
+        "publicEvent": "red",
+        "worldBoss": "gold"
+      };
+      return colors[type] || "gray";
+    }
+    
+    // Clear existing spawn points (for testing)
     async function clearSpawnPoints() {
       try {
         const snapshot = await firestore.collection("spawnPoints").get();
@@ -141,10 +204,10 @@
         logMessage("Error clearing spawn points: " + error.message, true);
       }
     }
-
-    // Generate spawn points dynamically around a center coordinate.
+    
+    // Generate spawn points (fixed, reduced numbers per type)
     async function generateSpawns(center) {
-      // For each spawn type, generate a fixed number (e.g., 1 spawn per type, except for "creature" we'll generate 2).
+      // For testing, fixed spawn counts:
       let spawnGenerationCount = {
         "creature": 2,
         "dungeon": 1,
@@ -156,28 +219,24 @@
         "publicEvent": 1,
         "worldBoss": 1
       };
-
       let totalSpawns = 0;
       for (let type of spawnTypes) {
         let count = spawnGenerationCount[type] || 1;
         for (let i = 0; i < count; i++) {
-          // Choose a random offset within a fixed range for each type.
-          let maxOffset = 500; // Default maximum offset in meters.
+          // Determine a max offset for each type:
+          let maxOffset = 500; // default
           if (type === "dungeon") maxOffset = 1500;
           else if (type === "keep" || type === "lair") maxOffset = 2000;
           else if (type === "publicEvent") maxOffset = 2500;
-          else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS; // World boss spawns anywhere in the area.
-
+          else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS;
+          
           let offset = generateRandomOffset(maxOffset);
-          // For worldBoss, we set a roaming flag.
           let spawnData = {
             type: type,
             location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
             lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
           };
-          if (type === "worldBoss") {
-            spawnData.roaming = true;
-          }
+          if (type === "worldBoss") spawnData.roaming = true;
           try {
             await firestore.collection("spawnPoints").add(spawnData);
             totalSpawns++;
@@ -188,23 +247,21 @@
       }
       logMessage(`Generated ${totalSpawns} spawn points.`);
     }
-
+    
     function generateRandomOffset(meters) {
       const dLat = meters / 111300;
       const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
       return { latOffset: (Math.random() * 2 - 1) * dLat, lngOffset: (Math.random() * 2 - 1) * dLng };
     }
-
-    // ---------- Player Location and Spawn Updates ----------
-    let lastPlayerLatLng = null;
+    
+    // ---------- Player Location & Spawn Updates ----------
     let lastSpawnCenter = null;
-
+    
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(position => {
         const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
         updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
-        lastPlayerLatLng = playerLatLng;
-        // Regenerate spawns if player moves more than REGEN_THRESHOLD from last spawn center.
+        // If player moves more than REGEN_THRESHOLD, generate spawns.
         if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > 300) {
           lastSpawnCenter = playerLatLng;
           generateSpawns(playerLatLng);
@@ -215,24 +272,38 @@
     } else {
       logMessage("Geolocation not supported ❌", true);
     }
-
+    
     // ---------- Real-Time Firestore Listener for Spawns ----------
     firestore.collection("spawnPoints").onSnapshot(snapshot => {
       snapshot.docChanges().forEach(change => {
         if (change.type === "added") {
           const spawn = change.doc.data();
           const spawnId = change.doc.id;
-          L.marker([spawn.location.lat, spawn.location.lng]).addTo(map)
-            .bindPopup("Spawn Type: " + spawn.type);
+          // Use circle markers with distinct colors for each spawn type.
+          L.circleMarker([spawn.location.lat, spawn.location.lng], {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.8,
+            radius: 8
+          }).addTo(map)
+          .bindPopup("Spawn Type: " + spawn.type);
         }
       });
     }, error => {
       logMessage("Error loading spawn data: " + error.message, true);
     });
-
-    // ---------- Optional: Clear spawn points on load for testing ----------
-    clearSpawnPoints();
-
+    
+    // ---------- Optional: Clear Spawn Points Every 5 Minutes for Testing ----------
+    setInterval(async () => {
+      try {
+        const snapshot = await firestore.collection("spawnPoints").get();
+        snapshot.forEach(doc => doc.ref.delete());
+        logMessage("🔥 All spawn points cleared for testing at " + new Date().toLocaleTimeString());
+      } catch (error) {
+        logMessage("Error clearing spawn points: " + error.message, true);
+      }
+    }, 300000); // every 5 minutes (300,000ms)
+    
   </script>
 </body>
 </html>
