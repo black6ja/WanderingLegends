@@ -1,1 +1,86 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WanderingLegends Connectivity Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    #output { margin-top: 20px; }
+    #output p { padding: 5px; border-bottom: 1px solid #ddd; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>WanderingLegends Connectivity Test</h1>
+  <div id="output"></div>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  
+  <!-- Photon SDK (your photon.js file hosted on GitHub) -->
+  <script src="photon.js"></script>
+  
+  <script>
+    // ---------- Helper: Log messages to the page ----------
+    function logMessage(message, isError) {
+      console[isError ? "error" : "log"](message);
+      const outputDiv = document.getElementById("output");
+      const p = document.createElement("p");
+      p.textContent = message;
+      if (isError) {
+        p.classList.add("error");
+      }
+      outputDiv.appendChild(p);
+    }
+    
+    // ---------- Firebase Setup ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
+      authDomain: "wanderinglegends-12cc2.firebaseapp.com",
+      projectId: "wanderinglegends-12cc2",
+      storageBucket: "wanderinglegends-12cc2.firebasestorage.app",
+      messagingSenderId: "315537974549",
+      appId: "1:315537974549:web:d9d75f64b453debce7b51c",
+      measurementId: "G-4BY9D34ZW9"
+    };
+    
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const firestore = firebase.firestore();
+    
+    // Sign in anonymously
+    auth.signInAnonymously()
+      .then(() => {
+        logMessage("Firebase: Signed in anonymously.");
+      })
+      .catch(error => {
+        logMessage("Firebase Auth Error: " + error.message, true);
+      });
+    
+    // ---------- Photon Setup ----------
+    // Your Photon App ID
+    const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
+    
+    // Create an instance of Photon Realtime LoadBalancingClient.
+    // "1.0" is the protocol version; "WanderingLegends" is your game name/version.
+    var photonClient = new Photon.Realtime.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
+    
+    // Event listener: When Photon joins the lobby
+    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
+      logMessage("Photon: Connected and joined lobby successfully.");
+    });
+    
+    // Event listener: If Photon disconnects
+    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.Disconnected, function (event) {
+      logMessage("Photon: Disconnected. Details: " + JSON.stringify(event), true);
+    });
+    
+    // Connect to Photon Cloud (using region "us" – change if necessary)
+    photonClient.connectToRegionMaster("us");
+  </script>
+</body>
+</html>
