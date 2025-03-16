@@ -112,7 +112,7 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    // ---------- Helper: Show Messages ----------
+    // ---------- Helper: Show Login Messages ----------
     function showMessage(message, isError = false) {
       const messageBox = document.getElementById("login-message");
       messageBox.textContent = message;
@@ -125,11 +125,25 @@
       firebase.auth().signInWithRedirect(provider);
     }
 
-    // ---------- Check Login State ----------
+    // Handle Redirect Result (after Google sign-in)
+    firebase.auth().getRedirectResult()
+      .then(result => {
+        if (result.user) {
+          console.log("Redirect result received, user signed in:", result.user);
+          showMessage("Google sign-in successful! ✅");
+          showGame();
+        }
+      })
+      .catch(error => {
+        console.error("Redirect sign-in error:", error);
+        showMessage("Sign-in failed: " + error.message, true);
+      });
+
+    // Check Login State
     firebase.auth().onAuthStateChanged(user => {
-      console.log("onAuthStateChanged: ", user);
+      console.log("onAuthStateChanged:", user);
       if (user) {
-        // Log the user object for debugging.
+        // User is signed in
         console.log("User signed in:", user);
         showMessage("Signed in as " + user.displayName);
         showGame();
@@ -144,10 +158,17 @@
       });
     }
 
+    // ---------- Show Game UI (after login) ----------
     function showGame() {
-      document.getElementById("login-container").style.display = "none";
-      document.getElementById("map-container").style.display = "block";
-      initializeGame();
+      const loginContainer = document.getElementById("login-container");
+      const mapContainer = document.getElementById("map-container");
+      if (loginContainer && mapContainer) {
+        loginContainer.style.display = "none";
+        mapContainer.style.display = "block";
+        initializeGame();
+      } else {
+        console.error("Required DOM elements not found");
+      }
     }
 
     // ---------- Initialize Game Logic ----------
@@ -164,15 +185,12 @@
       try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
-
         photonClient.onStateChange = function (state) {
           console.log("Photon: State changed to " + state + " ✅");
         };
-
         photonClient.onError = function (errorCode, errorMsg) {
           console.error("Photon Error: " + errorCode + " / " + errorMsg + " ❌");
         };
-
         console.log("Connecting to Photon...");
         photonClient.connectToRegionMaster("us");
       } catch (error) {
@@ -191,15 +209,24 @@
             }).addTo(map)
               .bindPopup("Spawn Type: " + spawn.type);
 
+            // Only allow joining battle for worldBoss and publicEvent
             if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
               marker.on('click', function() {
                 console.log("Joining battle for " + spawn.type);
-                joinBattleRoom(spawn.docId || change.doc.id);
+                joinBattleRoom(change.doc.id);
               });
             }
           }
         });
       });
+
+      function updatePlayerMarker(lat, lng) {
+        playerMarker.setLatLng([lat, lng]);
+        playerActionZone.setLatLng([lat, lng]);
+        if (autoCenter) {
+          map.setView([lat, lng], 15, { animate: true });
+        }
+      }
 
       // ---------- Player Marker & Action Zone ----------
       let playerMarker = L.marker([0, 0], {
@@ -214,14 +241,6 @@
 
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
-
-      function updatePlayerMarker(lat, lng) {
-        playerMarker.setLatLng([lat, lng]);
-        playerActionZone.setLatLng([lat, lng]);
-        if (autoCenter) {
-          map.setView([lat, lng], 15, { animate: true });
-        }
-      }
 
       // ---------- Multiplayer: Join Battle Room Function ----------
       function joinBattleRoom(spawnId) {
@@ -247,7 +266,6 @@
       // ---------- Dynamic Spawn Points Setup ----------
       const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
       const REGEN_THRESHOLD = 300; // Regenerate if player moves >300m
-
       const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent", "worldBoss"];
 
       async function clearSpawnPoints() {
@@ -310,6 +328,7 @@
         navigator.geolocation.watchPosition(position => {
           const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
           updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
+          // Send player's position update to Photon (event code 1)
           if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
             let eventData = { lat: playerLatLng.lat, lng: playerLatLng.lng };
             photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
