@@ -100,13 +100,6 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // ---------- Helper: Log messages ----------
-    function showMessage(message, isError = false) {
-      const messageBox = document.getElementById("login-message");
-      messageBox.textContent = message;
-      messageBox.style.color = isError ? "red" : "green";
-    }
-
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -119,16 +112,20 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    // ---------- Google Sign-In Function (Using Redirect) ----------
-    function googleLogin() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithRedirect(provider)
-        .catch(error => {
-          showMessage("Google sign-in failed: " + error.message, true);
-        });
+    // ---------- Helper: Show Messages ----------
+    function showMessage(message, isError = false) {
+      const messageBox = document.getElementById("login-message");
+      messageBox.textContent = message;
+      messageBox.style.color = isError ? "red" : "green";
     }
 
-    // Handle redirect result (automatically logs in user after redirect)
+    // ---------- Google Sign-In (Using Redirect) ----------
+    function googleLogin() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithRedirect(provider);
+    }
+
+    // Handle redirect result (Post-Sign-In)
     firebase.auth().getRedirectResult()
       .then(result => {
         if (result.user) {
@@ -140,20 +137,27 @@
         showMessage("Google sign-in failed: " + error.message, true);
       });
 
+    // Detect Login State (Auto Load Game UI)
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        showMessage("Signed in as " + user.displayName);
+        showGame();
+      }
+    });
+
     function logout() {
       firebase.auth().signOut().then(() => {
         location.reload();
       });
     }
 
-    // ---------- Show Game UI ----------
     function showGame() {
       document.getElementById("login-container").style.display = "none";
       document.getElementById("map-container").style.display = "block";
       initializeGame();
     }
 
-    // ---------- Initialize Game Logic After Login ----------
+    // ---------- Initialize Game Logic ----------
     function initializeGame() {
       const firestore = firebase.firestore();
 
