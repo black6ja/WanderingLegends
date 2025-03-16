@@ -125,19 +125,7 @@
       firebase.auth().signInWithRedirect(provider);
     }
 
-    // Handle redirect result (Post-Sign-In)
-    firebase.auth().getRedirectResult()
-      .then(result => {
-        if (result.user) {
-          showMessage("Google sign-in successful! ✅");
-          showGame();
-        }
-      })
-      .catch(error => {
-        showMessage("Google sign-in failed: " + error.message, true);
-      });
-
-    // Detect Login State (Auto Load Game UI)
+    // Check Login State & Load Game If Logged In
     firebase.auth().onAuthStateChanged(user => {
       if (user) {
         showMessage("Signed in as " + user.displayName);
