@@ -3,22 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <title>WanderingLegends - Connectivity, Map & Dynamic Spawns</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Ensure the page scales on any device -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <!-- Include Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    #output { margin-top: 20px; }
-    #output p { padding: 5px; border-bottom: 1px solid #ddd; }
-    .error { color: red; }
-    #map { width: 100%; height: 400px; margin-top: 20px; }
-    #refreshStatus { margin-top: 10px; font-size: 0.9em; color: gray; }
+    /* General styles */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    h1 {
+      text-align: center;
+      padding: 10px;
+      background-color: #333;
+      color: #fff;
+      margin: 0;
+    }
+    #output {
+      padding: 10px;
+      background-color: #f2f2f2;
+      font-size: 0.9em;
+      overflow-y: auto;
+      max-height: 150px;
+    }
+    #output p {
+      margin: 0 0 5px 0;
+      padding: 2px;
+      border-bottom: 1px solid #ddd;
+    }
+    .error {
+      color: red;
+    }
+    /* Map container fills remaining space */
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 60vh; /* Use viewport height to ensure responsiveness */
+    }
+    /* Optional: status message for spawn refresh */
+    #refreshStatus {
+      padding: 10px;
+      text-align: center;
+      font-size: 0.85em;
+      color: #555;
+      background: #eee;
+    }
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Connectivity, Map & Dynamic Spawns</h1>
+  <h1>WanderingLegends</h1>
   <div id="output"></div>
   <div id="map"></div>
   <div id="refreshStatus"></div>
@@ -28,7 +66,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   
-  <!-- Photon SDK: Ensure photon.js is correctly placed in your repository -->
+  <!-- Photon SDK: Ensure photon.js is in your repository root -->
   <script src="photon.js"></script>
   
   <script>
@@ -38,10 +76,10 @@
       const outputDiv = document.getElementById("output");
       const p = document.createElement("p");
       p.textContent = message;
-      if (isError) p.classList.add("error");
+      if (isError) { p.classList.add("error"); }
       outputDiv.appendChild(p);
     }
-
+    
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -56,7 +94,7 @@
     const auth = firebase.auth();
     const firestore = firebase.firestore();
     
-    // Sign in anonymously (ensure Anonymous Auth is enabled in your Firebase Console)
+    // Sign in anonymously (ensure Anonymous Auth is enabled in the Firebase Console)
     auth.signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously."))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
@@ -68,18 +106,26 @@
       } else {
         logMessage("Photon SDK loaded successfully.");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        // Use the namespace based on your SDK build; here we try Photon.LoadBalancing.LoadBalancingClient
+        // Use Photon.LoadBalancing.LoadBalancingClient (adjust if your SDK exposes a different namespace)
         var photonClient = new Photon.LoadBalancing.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
         
-        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
-          logMessage("Photon: Connected and joined lobby successfully.");
-        });
-        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.Disconnected, function (event) {
-          logMessage("Photon: Disconnected. Details: " + JSON.stringify(event), true);
-        });
-        photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.ErrorInfo, function (event) {
-          logMessage("Photon Error: " + JSON.stringify(event), true);
-        });
+        // Use onStateChange to detect connection status
+        photonClient.onStateChange = function (state) {
+          switch (state) {
+            case Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby:
+              logMessage("Photon: Connected and joined lobby successfully.");
+              break;
+            case Photon.LoadBalancing.LoadBalancingClient.State.Disconnected:
+              logMessage("Photon: Disconnected.", true);
+              break;
+            default:
+              logMessage("Photon: State changed to " + state);
+          }
+        };
+        // Handle errors
+        photonClient.onError = function (errorCode, errorMsg) {
+          logMessage("Photon Error: " + errorCode + " / " + errorMsg, true);
+        };
         
         photonClient.connectToRegionMaster("us");
       }
@@ -131,7 +177,7 @@
       }
     }
     
-    // Check if spawn points exist; if not, generate dynamic spawns based on geolocation.
+    // Check if spawn points exist; if not, generate dynamic spawns.
     firestore.collection("spawnPoints").limit(1).get().then(snapshot => {
       if (snapshot.empty) {
         if (navigator.geolocation) {
@@ -169,6 +215,7 @@
             marker.bindPopup("Spawn type: " + spawn.type);
             marker.on('click', function() {
               logMessage("Marker clicked for spawn " + spawnId);
+              // Attempt to join a Photon battle room for this spawn
               photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 5 }, null);
               logMessage("Attempting to join Photon room: battle_" + spawnId);
             });
@@ -179,16 +226,15 @@
       });
     
     // ---------- Client-Side Timer for Spawn Refresh ----------
-    // This timer runs every minute (60000ms) to simulate a spawn refresh.
+    // Runs every 60 seconds to update any spawn point with no monster.
     setInterval(async () => {
       try {
-        // For testing, refresh spawn points that have no current monster.
         const spawnsSnapshot = await firestore.collection("spawnPoints")
           .where("currentMonster", "==", null)
           .get();
           
         if (spawnsSnapshot.empty) {
-          document.getElementById("refreshStatus").textContent = "No spawn points need refresh at this time.";
+          document.getElementById("refreshStatus").textContent = "No spawn points need refresh at " + new Date().toLocaleTimeString();
         } else {
           spawnsSnapshot.forEach(doc => {
             const newMonster = {
@@ -210,7 +256,7 @@
       } catch (error) {
         logMessage("Error during spawn refresh: " + error.message, true);
       }
-    }, 60000);  // Every 60 seconds
+    }, 60000); // 60,000 ms = 1 minute
   </script>
 </body>
 </html>
