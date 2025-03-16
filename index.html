@@ -14,7 +14,6 @@
       flex-direction: column;
       min-height: 100vh;
     }
-    /* Login Screen */
     #login-container {
       display: flex;
       flex-direction: column;
@@ -28,33 +27,26 @@
       margin: 10px;
       width: 80%;
       max-width: 300px;
-      background-color: #4285F4; /* Google Blue */
+      background-color: #4285F4;
       color: white;
       border: none;
       cursor: pointer;
       font-size: 1em;
     }
-    #login-container button:hover {
-      background-color: #357ae8;
-    }
-    #login-message {
-      font-size: 0.9em;
-      margin-top: 10px;
-    }
-    /* Game UI */
     #map-container {
       display: none;
-    }
-    #output, #queueStatus {
-      padding: 10px;
-      background-color: #f2f2f2;
-      font-size: 0.9em;
     }
     #map {
       flex: 1;
       width: 100%;
       height: 100vh;
-      min-height: 400px;
+    }
+    #output {
+      padding: 10px;
+      background-color: #f2f2f2;
+      font-size: 0.9em;
+      overflow-y: auto;
+      max-height: 150px;
     }
   </style>
 </head>
@@ -67,12 +59,11 @@
     <p id="login-message"></p>
   </div>
 
-  <!-- Game UI (Hidden Until Login) -->
+  <!-- Game UI -->
   <div id="map-container">
     <button onclick="logout()">Logout</button>
     <div id="output"></div>
     <div id="map"></div>
-    <div id="queueStatus">Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.</div>
   </div>
 
   <!-- Firebase SDKs -->
@@ -86,6 +77,15 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
+    function logMessage(message, isError = false) {
+      console[isError ? "error" : "log"](message);
+      const outputDiv = document.getElementById("output");
+      const p = document.createElement("p");
+      p.textContent = message;
+      if (isError) p.classList.add("error");
+      outputDiv.appendChild(p);
+    }
+
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -97,38 +97,22 @@
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
+    const firestore = firebase.firestore();
 
-    // ---------- Helper: Show Messages ----------
-    function showMessage(message, isError = false) {
-      const messageBox = document.getElementById("login-message");
-      messageBox.textContent = message;
-      messageBox.style.color = isError ? "red" : "green";
-    }
-
-    // ---------- Google Sign-In (Using Redirect) ----------
+    // ---------- Google Sign-In ----------
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
       firebase.auth().signInWithRedirect(provider);
     }
 
-    // Handle Redirect Result (after Google sign-in)
-    firebase.auth().getRedirectResult()
-      .then(result => {
-        if (result.user) {
-          console.log("Redirect result received, user signed in:", result.user);
-        }
-      })
-      .catch(error => {
-        console.error("Redirect sign-in error:", error);
-        showMessage("Sign-in failed: " + error.message, true);
-      });
-
-    // Check Login State
+    // Detect login state
     firebase.auth().onAuthStateChanged(user => {
-      console.log("onAuthStateChanged:", user);
       if (user) {
-        showMessage("Signed in as " + user.displayName);
+        logMessage("User signed in: " + user.displayName);
         showGame();
+      } else {
+        logMessage("User not signed in, showing login screen.");
+        document.getElementById("login-container").style.display = "flex";
       }
     });
 
@@ -138,20 +122,36 @@
       });
     }
 
-    // ---------- Show Game UI (after login) ----------
     function showGame() {
-      const loginContainer = document.getElementById("login-container");
-      const mapContainer = document.getElementById("map-container");
-      if (loginContainer && mapContainer) {
-        loginContainer.style.display = "none";
-        mapContainer.style.display = "block";
-        initializeGame();
-      } else {
-        console.error("Required DOM elements not found");
-      }
+      document.getElementById("login-container").style.display = "none";
+      document.getElementById("map-container").style.display = "block";
+      initializeGame();
     }
 
-    // ---------- Get Spawn Color Function ----------
+    // ---------- Initialize Map & Spawns ----------
+    function initializeGame() {
+      let map = L.map("map").setView([37.7749, -122.4194], 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+      logMessage("Leaflet: Map loaded. ✅");
+
+      firestore.collection("spawnPoints").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === "added") {
+            const spawn = change.doc.data();
+            L.circleMarker([spawn.location.lat, spawn.location.lng], {
+              color: getSpawnColor(spawn.type),
+              fillColor: getSpawnColor(spawn.type),
+              fillOpacity: 0.8,
+              radius: 8
+            }).addTo(map).bindPopup("Spawn Type: " + spawn.type);
+          }
+        });
+      });
+    }
+
     function getSpawnColor(type) {
       const colors = {
         "creature": "green",
@@ -165,31 +165,6 @@
         "worldBoss": "gold"
       };
       return colors[type] || "gray";
-    }
-
-    // ---------- Initialize Game Logic ----------
-    function initializeGame() {
-      const firestore = firebase.firestore();
-      let map = L.map("map").setView([37.7749, -122.4194], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(map);
-
-      firestore.collection("spawnPoints").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === "added") {
-            const spawn = change.doc.data();
-            let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-              color: getSpawnColor(spawn.type),
-              fillColor: getSpawnColor(spawn.type),
-              fillOpacity: 0.8,
-              radius: 8
-            }).addTo(map)
-              .bindPopup("Spawn Type: " + spawn.type);
-          }
-        });
-      });
     }
   </script>
 </body>
