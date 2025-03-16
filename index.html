@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Debugging Photon</title>
+  <title>WanderingLegends - Spawns & Multiplayer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Debugging Photon</h1>
+  <h1>WanderingLegends - Spawns & Multiplayer</h1>
   <div id="output"></div>
   <div id="map"></div>
 
@@ -37,19 +37,6 @@
       if (isError) p.classList.add("error");
       outputDiv.appendChild(p);
     }
-
-    // ---------- WebSocket Debugging ----------
-    function testWebSocket() {
-      logMessage("Testing WebSocket connection to Photon...");
-      try {
-        let ws = new WebSocket("wss://ns.photonengine.io:19093");
-        ws.onopen = () => logMessage("WebSocket Test: Connection successful ✅");
-        ws.onerror = (err) => logMessage("WebSocket Test: Connection FAILED ❌", true);
-      } catch (error) {
-        logMessage("WebSocket Test Error: " + error.message, true);
-      }
-    }
-    testWebSocket();
 
     // ---------- Firebase Setup ----------
     const firebaseConfig = {
@@ -77,13 +64,7 @@
       } else {
         logMessage("Photon SDK loaded ✅");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-
-        logMessage("Initializing Photon Client...");
-        photonClient = new Photon.LoadBalancing.LoadBalancingClient(
-          Photon.ConnectionProtocol.Wss, 
-          photonAppId, 
-          "1.0"
-        );
+        photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
 
         photonClient.onStateChange = function (state) {
           logMessage(`Photon: State changed to ${state} ✅`);
@@ -91,15 +72,9 @@
 
         photonClient.onError = function (errorCode, errorMsg) {
           logMessage(`Photon Error: ${errorCode} / ${errorMsg} ❌`, true);
-          if (errorCode === 3001) {
-            logMessage("❌ Photon NameServer Connection Failed! Possible Causes:\n" +
-              "- Incorrect App ID?\n" +
-              "- Cloud region misconfigured?\n" +
-              "- WebSockets blocked by firewall?", true);
-          }
         };
 
-        logMessage("Attempting to connect to Photon...");
+        logMessage("Connecting to Photon...");
         photonClient.connectToRegionMaster("us");
       }
     } catch (error) {
@@ -107,8 +82,9 @@
     }
 
     // ---------- Leaflet Map Setup ----------
+    let map;
     try {
-      var map = L.map("map").setView([37.7749, -122.4194], 13);
+      map = L.map("map").setView([37.7749, -122.4194], 13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
@@ -117,6 +93,74 @@
     } catch (error) {
       logMessage("Error initializing Leaflet: " + error.message, true);
     }
+
+    // ---------- Dynamic Spawn Points ----------
+    const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
+    const REGEN_THRESHOLD = 300; // If player moves 300m, regenerate spawns
+
+    // Function to generate spawn points around the player
+    function generateRandomOffset(meters) {
+      const dLat = meters / 111300;
+      const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
+      return {
+        latOffset: (Math.random() * 2 - 1) * dLat,
+        lngOffset: (Math.random() * 2 - 1) * dLng
+      };
+    }
+
+    async function generateDynamicSpawns(center) {
+      let totalSpawns = 0;
+      for (let i = 0; i < 10; i++) { // Generating 10 random spawns
+        let offset = generateRandomOffset(500);
+        await firestore.collection("spawnPoints").add({
+          type: "creature",
+          location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
+          lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        totalSpawns++;
+      }
+      logMessage(`Generated ${totalSpawns} spawn points.`);
+    }
+
+    // Handle player movement and spawn generation
+    let lastPlayerLatLng = null;
+    let lastSpawnCenter = null;
+    
+    function updateSpawns(playerLatLng) {
+      if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > REGEN_THRESHOLD) {
+        lastSpawnCenter = playerLatLng;
+        generateDynamicSpawns(playerLatLng);
+      }
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(position => {
+        const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
+        if (!lastPlayerLatLng) {
+          map.setView([playerLatLng.lat, playerLatLng.lng], 15);
+        }
+        lastPlayerLatLng = playerLatLng;
+        updateSpawns(playerLatLng);
+      }, error => {
+        logMessage("Error retrieving player location: " + error.message, true);
+      }, { enableHighAccuracy: true });
+    } else {
+      logMessage("Geolocation not supported ❌", true);
+    }
+
+    // Real-Time Firestore Listener for Spawns
+    firestore.collection("spawnPoints").onSnapshot(snapshot => {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === "added") {
+          const spawn = change.doc.data();
+          L.marker([spawn.location.lat, spawn.location.lng]).addTo(map)
+            .bindPopup(`Spawn Type: ${spawn.type}`);
+        }
+      });
+    }, error => {
+      logMessage("Error loading spawn data: " + error.message, true);
+    });
+
   </script>
 </body>
 </html>
