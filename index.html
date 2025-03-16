@@ -69,7 +69,7 @@
     // "1.0" is the protocol version; "WanderingLegends" is your game name/version.
     var photonClient = new Photon.Realtime.LoadBalancingClient("1.0", "WanderingLegends", { appId: photonAppId });
     
-    // Event listener: When Photon joins the lobby
+    // Event listener: When Photon joins the lobby successfully
     photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.JoinedLobby, function () {
       logMessage("Photon: Connected and joined lobby successfully.");
     });
@@ -77,6 +77,11 @@
     // Event listener: If Photon disconnects
     photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.Disconnected, function (event) {
       logMessage("Photon: Disconnected. Details: " + JSON.stringify(event), true);
+    });
+    
+    // Additional event listener: Capture and log Photon connection errors
+    photonClient.addEventListener(Photon.LoadBalancing.LoadBalancingClientEvent.ErrorInfo, function (event) {
+      logMessage("Photon Error: " + JSON.stringify(event), true);
     });
     
     // Connect to Photon Cloud (using region "us" – change if necessary)
