@@ -14,6 +14,36 @@
       flex-direction: column;
       min-height: 100vh;
     }
+    /* Login Screen */
+    #login-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #f4f4f4;
+    }
+    #login-container input {
+      padding: 10px;
+      margin: 5px;
+      width: 80%;
+      max-width: 300px;
+    }
+    #login-container button {
+      padding: 10px;
+      width: 80%;
+      max-width: 300px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #login-container button:hover {
+      background-color: #0056b3;
+    }
+    #map-container {
+      display: none; /* Hide until user logs in */
+    }
     #output {
       padding: 10px;
       background-color: #f2f2f2;
@@ -21,16 +51,10 @@
       overflow-y: auto;
       max-height: 150px;
     }
-    #output p {
-      margin: 0 0 5px 0;
-      padding: 2px;
-      border-bottom: 1px solid #ddd;
-    }
-    .error { color: red; }
     #map {
       flex: 1;
       width: 100%;
-      height: 100vh; /* Full height */
+      height: 100vh;
       min-height: 400px;
     }
     #queueStatus {
@@ -43,9 +67,23 @@
   </style>
 </head>
 <body>
-  <div id="output"></div>
-  <div id="map"></div>
-  <div id="queueStatus">Click a **World Boss** or **Public Event** to enter battle.</div>
+
+  <!-- Login Screen -->
+  <div id="login-container">
+    <h2>Login to WanderingLegends</h2>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button onclick="login()">Login</button>
+    <button onclick="signup()">Sign Up</button>
+    <p id="login-message"></p>
+  </div>
+
+  <!-- Map and Game UI (Hidden Until Login) -->
+  <div id="map-container">
+    <div id="output"></div>
+    <div id="map"></div>
+    <div id="queueStatus">Click a **World Boss** or **Public Event** to enter battle.</div>
+  </div>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -58,16 +96,7 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    function logMessage(message, isError = false) {
-      console[isError ? "error" : "log"](message);
-      const outputDiv = document.getElementById("output");
-      const p = document.createElement("p");
-      p.textContent = message;
-      if (isError) p.classList.add("error");
-      outputDiv.appendChild(p);
-    }
-
-    // ---------- Firebase Setup ----------
+    /********** Firebase Setup **********/
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
       authDomain: "wanderinglegends-12cc2.firebaseapp.com",
@@ -78,113 +107,118 @@
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
-    const firestore = firebase.firestore();
 
-    firebase.auth().signInAnonymously()
-      .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
-      .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
-
-    // ---------- Photon Setup ----------
-    let photonClient;
-    try {
-      if (typeof Photon === "undefined") {
-        logMessage("Photon SDK NOT loaded ❌", true);
-      } else {
-        logMessage("Photon SDK loaded ✅");
-        const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
-
-        photonClient.onStateChange = function (state) {
-          logMessage("Photon: State changed to " + state + " ✅");
-        };
-
-        photonClient.onError = function (errorCode, errorMsg) {
-          logMessage("Photon Error: " + errorCode + " / " + errorMsg + " ❌", true);
-        };
-
-        logMessage("Connecting to Photon...");
-        photonClient.connectToRegionMaster("us");
-      }
-    } catch (error) {
-      logMessage("Error initializing Photon: " + error.message, true);
+    function showMessage(message, isError = false) {
+      const messageBox = document.getElementById("login-message");
+      messageBox.textContent = message;
+      messageBox.style.color = isError ? "red" : "green";
     }
 
-    // ---------- Leaflet Map Setup ----------
-    let map;
-    try {
-      map = L.map("map").setView([37.7749, -122.4194], 13);
+    function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      firebase.auth().signInWithEmailAndPassword(email, password)
+        .then(() => {
+          showMessage("Login successful! ✅");
+          showGame();
+        })
+        .catch(error => showMessage("Login Failed: " + error.message, true));
+    }
+
+    function signup() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      firebase.auth().createUserWithEmailAndPassword(email, password)
+        .then(() => {
+          showMessage("Sign-up successful! ✅ Now login.");
+        })
+        .catch(error => showMessage("Sign-up Failed: " + error.message, true));
+    }
+
+    function showGame() {
+      document.getElementById("login-container").style.display = "none";
+      document.getElementById("map-container").style.display = "block";
+      initializeGame();
+    }
+
+    // Auto-login if already signed in
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        showGame();
+      }
+    });
+
+    /********** Initialize Map & Game Logic AFTER Login **********/
+    function initializeGame() {
+      const firestore = firebase.firestore();
+
+      let map = L.map("map").setView([37.7749, -122.4194], 13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
-      logMessage("Leaflet: Map loaded. ✅");
-    } catch (error) {
-      logMessage("Error initializing Leaflet: " + error.message, true);
-    }
 
-    // ---------- Multiplayer: Join a Battle Room ----------
-    function joinBattleRoom(spawnId) {
-      if (photonClient) {
-        let roomName = "battle_" + spawnId;
-        photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
-        logMessage("Attempting to join Photon room: " + roomName);
+      let photonClient;
+      try {
+        if (typeof Photon === "undefined") {
+          console.error("Photon SDK NOT loaded ❌");
+        } else {
+          const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
+          photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
 
-        setTimeout(() => {
-          let room = photonClient.myRoom();
-          if (room) {
-            if (room.playerCount < 2) {
-              document.getElementById("queueStatus").textContent = "Waiting for opponent...";
-            } else {
-              document.getElementById("queueStatus").textContent = "Battle ready!";
-            }
-          } else {
-            document.getElementById("queueStatus").textContent = "Not in a battle room yet.";
-          }
-        }, 3000);
-      }
-    }
+          photonClient.onStateChange = function (state) {
+            console.log("Photon: State changed to " + state + " ✅");
+          };
 
-    // ---------- Real-Time Firestore Listener for Spawns ----------
-    firestore.collection("spawnPoints").onSnapshot(snapshot => {
-      snapshot.docChanges().forEach(change => {
-        if (change.type === "added") {
-          const spawn = change.doc.data();
-          const spawnId = change.doc.id;
+          photonClient.onError = function (errorCode, errorMsg) {
+            console.error("Photon Error: " + errorCode + " / " + errorMsg + " ❌");
+          };
 
-          let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-            color: getSpawnColor(spawn.type),
-            fillColor: getSpawnColor(spawn.type),
-            fillOpacity: 0.8,
-            radius: 8
-          }).addTo(map)
-            .bindPopup("Spawn Type: " + spawn.type);
-
-          // 📌 Only allow battle rooms for World Boss & Public Event
-          if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
-            marker.on('click', function() {
-              logMessage("Joining battle for " + spawn.type);
-              joinBattleRoom(spawnId);
-            });
-          }
+          console.log("Connecting to Photon...");
+          photonClient.connectToRegionMaster("us");
         }
-      });
-    }, error => {
-      logMessage("Error loading spawn data: " + error.message, true);
-    });
+      } catch (error) {
+        console.error("Error initializing Photon: " + error.message);
+      }
 
-    function getSpawnColor(type) {
-      const colors = {
-        "creature": "green",
-        "dungeon": "darkred",
-        "inn": "orange",
-        "shop": "purple",
-        "quest": "blue",
-        "keep": "brown",
-        "lair": "black",
-        "publicEvent": "red",
-        "worldBoss": "gold"
-      };
-      return colors[type] || "gray";
+      firestore.collection("spawnPoints").onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === "added") {
+            const spawn = change.doc.data();
+            const spawnId = change.doc.id;
+
+            let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+              color: getSpawnColor(spawn.type),
+              fillColor: getSpawnColor(spawn.type),
+              fillOpacity: 0.8,
+              radius: 8
+            }).addTo(map)
+              .bindPopup("Spawn Type: " + spawn.type);
+
+            if (spawn.type === "worldBoss" || spawn.type === "publicEvent") {
+              marker.on('click', function() {
+                console.log("Joining battle for " + spawn.type);
+                joinBattleRoom(spawnId);
+              });
+            }
+          }
+        });
+      });
+
+      function getSpawnColor(type) {
+        const colors = {
+          "creature": "green",
+          "dungeon": "darkred",
+          "inn": "orange",
+          "shop": "purple",
+          "quest": "blue",
+          "keep": "brown",
+          "lair": "black",
+          "publicEvent": "red",
+          "worldBoss": "gold"
+        };
+        return colors[type] || "gray";
+      }
     }
   </script>
 </body>
