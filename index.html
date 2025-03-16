@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WanderingLegends - Player, Map & Spawns</title>
+  <title>WanderingLegends - Multiplayer & Spawns</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    /* General responsive layout */
+    /* Responsive layout with flex */
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -35,16 +35,14 @@
       padding: 2px;
       border-bottom: 1px solid #ddd;
     }
-    .error {
-      color: red;
-    }
+    .error { color: red; }
     #map {
       flex: 1;
       width: 100%;
       height: 60vh;
       min-height: 400px;
     }
-    #refreshStatus {
+    #refreshStatus, #queueStatus {
       padding: 10px;
       text-align: center;
       font-size: 0.85em;
@@ -68,23 +66,24 @@
   </style>
 </head>
 <body>
-  <h1>WanderingLegends - Player, Map & Spawns</h1>
+  <h1>WanderingLegends - Multiplayer & Spawns</h1>
   <div id="output"></div>
   <div id="map"></div>
   <div id="refreshStatus"></div>
+  <div id="queueStatus"></div>
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   
-  <!-- Photon SDK (ensure photon.js is correctly placed in your repo) -->
+  <!-- Photon SDK (ensure photon.js is correctly placed in your repository) -->
   <script src="photon.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // ---------- Helper: Log messages to the page ----------
+    /********** Helper Functions **********/
     function logMessage(message, isError = false) {
       console[isError ? "error" : "log"](message);
       const outputDiv = document.getElementById("output");
@@ -105,13 +104,12 @@
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
     const firestore = firebase.firestore();
     
-    auth.signInAnonymously()
+    firebase.auth().signInAnonymously()
       .then(() => logMessage("Firebase: Signed in anonymously. ✅"))
       .catch(error => logMessage("Firebase Auth Error: " + error.message, true));
-
+    
     // ---------- Photon Setup ----------
     let photonClient;
     try {
@@ -120,12 +118,24 @@
       } else {
         logMessage("Photon SDK loaded ✅");
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-        // Using secure WebSocket connection; adjust the namespace as needed.
+        // Use secure WebSocket (Wss) connection
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
         
         photonClient.onStateChange = function (state) {
           logMessage("Photon: State changed to " + state + " ✅");
+          // When joining a room, check if we're queued.
+          if (state === 6) { // Assume state 6 is "joined room" (adjust based on your SDK)
+            let room = photonClient.myRoom();
+            if (room) {
+              if (room.playerCount < 2) {
+                document.getElementById("queueStatus").textContent = "Waiting for opponent...";
+              } else {
+                document.getElementById("queueStatus").textContent = "Battle ready!";
+              }
+            }
+          }
         };
+        
         photonClient.onError = function (errorCode, errorMsg) {
           logMessage("Photon Error: " + errorCode + " / " + errorMsg + " ❌", true);
         };
@@ -137,6 +147,23 @@
       logMessage("Error initializing Photon: " + error.message, true);
     }
     
+    // ---------- Multiplayer: Function to Join a Battle Room **********/
+    function joinBattleRoom(spawnId) {
+      // Change maxPlayers to 2 for testing.
+      photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 2 }, null);
+      // Wait a bit and then update the queue status.
+      setTimeout(() => {
+        let room = photonClient.myRoom();
+        if (room) {
+          if (room.playerCount < 2) {
+            document.getElementById("queueStatus").textContent = "Waiting for opponent...";
+          } else {
+            document.getElementById("queueStatus").textContent = "Battle ready!";
+          }
+        }
+      }, 3000);
+    }
+    
     // ---------- Leaflet Map Setup ----------
     let map;
     try {
@@ -145,7 +172,7 @@
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
-      logMessage("Leaflet: Map loaded ✅");
+      logMessage("Leaflet: Map loaded. ✅");
     } catch (error) {
       logMessage("Error initializing Leaflet: " + error.message, true);
     }
@@ -161,7 +188,7 @@
       radius: 300
     }).addTo(map);
     
-    // Allow user to pan freely by turning off auto-centering if user moves the map.
+    // Allow user to pan freely (disable auto-center on panning)
     let autoCenter = true;
     map.on("movestart", function() {
       autoCenter = false;
@@ -175,8 +202,11 @@
       }
     }
     
-    // ---------- Spawn Generation ----------
-    // Define spawn types and assign distinct colors.
+    // ---------- Dynamic Spawn Points Setup ----------
+    const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
+    const REGEN_THRESHOLD = 300; // Regenerate if player moves >300m
+    
+    // Define spawn types for testing.
     const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent", "worldBoss"];
     
     function getSpawnColor(type) {
@@ -194,7 +224,7 @@
       return colors[type] || "gray";
     }
     
-    // Clear existing spawn points (for testing)
+    // Clear existing spawn points for testing.
     async function clearSpawnPoints() {
       try {
         const snapshot = await firestore.collection("spawnPoints").get();
@@ -205,9 +235,8 @@
       }
     }
     
-    // Generate spawn points (fixed, reduced numbers per type)
+    // Generate fixed spawn counts per type.
     async function generateSpawns(center) {
-      // For testing, fixed spawn counts:
       let spawnGenerationCount = {
         "creature": 2,
         "dungeon": 1,
@@ -223,13 +252,11 @@
       for (let type of spawnTypes) {
         let count = spawnGenerationCount[type] || 1;
         for (let i = 0; i < count; i++) {
-          // Determine a max offset for each type:
-          let maxOffset = 500; // default
+          let maxOffset = 500; // default max offset
           if (type === "dungeon") maxOffset = 1500;
           else if (type === "keep" || type === "lair") maxOffset = 2000;
           else if (type === "publicEvent") maxOffset = 2500;
           else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS;
-          
           let offset = generateRandomOffset(maxOffset);
           let spawnData = {
             type: type,
@@ -261,8 +288,14 @@
       navigator.geolocation.watchPosition(position => {
         const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
         updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
-        // If player moves more than REGEN_THRESHOLD, generate spawns.
-        if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > 300) {
+        // Send our position update to Photon.
+        if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
+          let eventData = { lat: playerLatLng.lat, lng: playerLatLng.lng };
+          // Use event code 1 for position updates.
+          photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
+        }
+        // Regenerate spawns if player moves >REGEN_THRESHOLD from last spawn center.
+        if (!lastSpawnCenter || map.distance(lastSpawnCenter, playerLatLng) > REGEN_THRESHOLD) {
           lastSpawnCenter = playerLatLng;
           generateSpawns(playerLatLng);
         }
@@ -279,21 +312,20 @@
         if (change.type === "added") {
           const spawn = change.doc.data();
           const spawnId = change.doc.id;
-          // Use circle markers with distinct colors for each spawn type.
           L.circleMarker([spawn.location.lat, spawn.location.lng], {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
             fillOpacity: 0.8,
             radius: 8
           }).addTo(map)
-          .bindPopup("Spawn Type: " + spawn.type);
+            .bindPopup("Spawn Type: " + spawn.type);
         }
       });
     }, error => {
       logMessage("Error loading spawn data: " + error.message, true);
     });
     
-    // ---------- Optional: Clear Spawn Points Every 5 Minutes for Testing ----------
+    // ---------- Optional: Clear spawn points every 5 minutes for testing ----------
     setInterval(async () => {
       try {
         const snapshot = await firestore.collection("spawnPoints").get();
@@ -302,7 +334,54 @@
       } catch (error) {
         logMessage("Error clearing spawn points: " + error.message, true);
       }
-    }, 300000); // every 5 minutes (300,000ms)
+    }, 300000); // every 5 minutes
+
+    // ---------- Multiplayer: Join Battle Room on Spawn Click ----------
+    // Updated marker click now calls joinBattleRoom instead of directly calling joinOrCreateRoom.
+    // This function sets maxPlayers to 2 and updates the "queueStatus" div.
+    function joinBattleRoom(spawnId) {
+      if (photonClient) {
+        photonClient.joinOrCreateRoom("battle_" + spawnId, { maxPlayers: 2 }, null);
+        logMessage("Attempting to join Photon room: battle_" + spawnId);
+        // After a short delay, check room status and update queue UI.
+        setTimeout(() => {
+          let room = photonClient.myRoom();
+          if (room) {
+            if (room.playerCount < 2) {
+              document.getElementById("queueStatus").textContent = "Waiting for opponent...";
+            } else {
+              document.getElementById("queueStatus").textContent = "Battle ready!";
+            }
+          } else {
+            document.getElementById("queueStatus").textContent = "Not in a battle room yet.";
+          }
+        }, 3000);
+      }
+    }
+    
+    // Modify the Real-Time Listener for Spawns to use joinBattleRoom on marker click.
+    // (This reuses the earlier listener logic.)
+    firestore.collection("spawnPoints").onSnapshot(snapshot => {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === "added") {
+          const spawn = change.doc.data();
+          const spawnId = change.doc.id;
+          let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.8,
+            radius: 8
+          }).addTo(map)
+            .bindPopup("Spawn Type: " + spawn.type);
+          marker.on('click', function() {
+            logMessage("Marker clicked for spawn " + spawnId);
+            joinBattleRoom(spawnId);
+          });
+        }
+      });
+    }, error => {
+      logMessage("Error loading spawn data: " + error.message, true);
+    });
     
   </script>
 </body>
