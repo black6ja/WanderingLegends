@@ -1,17 +1,13 @@
 {
   "spawnTypes": [
-    { "type": "creatures", "spawnRate": 1.0 },
-    { "type": "dungeons", "spawnRate": 1.0 },
-    { "type": "inns", "spawnRate": 1.0 },
-    { "type": "shops", "spawnRate": 1.0 },
-    { "type": "quests", "spawnRate": 1.0 },
-    { "type": "keeps", "spawnRate": 0.5 },
-    { "type": "lairs", "spawnRate": 1.0 },
-    { "type": "publicEvent", "spawnRate": 1.0,
-      "restrictions": {
-        "minDistanceFrom": { "publicEvent": 800 }
-      }
-    },
-    { "type": "worldBoss", "spawnRate": 1.0 }  // For testing; change to 0.01 in production.
+    { "type": "creature", "respawnTime": 180000, "maxPerArea": 10 },
+    { "type": "dungeon", "respawnTime": 900000, "maxPerArea": 3 },
+    { "type": "inn", "respawnTime": 600000, "maxPerArea": 5 },
+    { "type": "shop", "respawnTime": 600000, "maxPerArea": 5 },
+    { "type": "quest", "respawnTime": 1200000, "maxPerArea": 4 },
+    { "type": "keep", "respawnTime": 1800000, "maxPerArea": 2 },
+    { "type": "lair", "respawnTime": 1500000, "maxPerArea": 3 },
+    { "type": "publicEvent", "respawnTime": 1200000, "maxPerArea": 2 },
+    { "type": "worldBoss", "respawnTime": 3600000, "maxPerArea": 1 }
   ]
 }
