@@ -44,6 +44,7 @@
     /* Game UI */
     #map-container {
       display: none;
+      flex: 1;
     }
     #output, #queueStatus, #debugInfo {
       padding: 10px;
@@ -58,7 +59,11 @@
       height: 100vh;
       min-height: 400px;
     }
-    /* Blinking player marker */
+    /* Debug Panel */
+    #debugInfo {
+      border-top: 2px solid #ccc;
+    }
+    /* Blinking Player Marker */
     .blinking-dot {
       width: 15px;
       height: 15px;
@@ -88,8 +93,10 @@
     <div id="output"></div>
     <div id="map"></div>
     <div id="queueStatus">Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.</div>
-    <div id="debugInfo"></div>
   </div>
+
+  <!-- Debug Panel (Always Visible) -->
+  <div id="debugInfo"></div>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -102,20 +109,19 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // Global flag to prevent multiple calls to showGame()
+    // Global flag to ensure game is shown only once.
     let gameShown = false;
 
-    // ---------- Helper: Log messages to both console and debugInfo div ----------
+    // ---------- Helper: Log Messages to Output and Debug Panel ----------
     function logMessage(message, isError = false) {
       console[isError ? "error" : "log"](message);
       const outputDiv = document.getElementById("output");
       const p = document.createElement("p");
       p.textContent = message;
-      if (isError) p.classList.add("error");
+      if (isError) p.style.color = "red";
       outputDiv.appendChild(p);
     }
 
-    // Additional function for debug info (detailed logs)
     function debugLog(message) {
       const debugDiv = document.getElementById("debugInfo");
       const p = document.createElement("p");
@@ -137,45 +143,25 @@
     firebase.initializeApp(firebaseConfig);
     const firestore = firebase.firestore();
 
-    // ---------- Helper: Show Login Messages ----------
-    function showMessage(message, isError = false) {
-      const messageBox = document.getElementById("login-message");
-      messageBox.textContent = message;
-      messageBox.style.color = isError ? "red" : "green";
-    }
-
     // ---------- Google Sign-In (Using Redirect) ----------
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
       debugLog("Initiating Google sign-in redirect...");
-      firebase.auth().signInWithRedirect(provider);
+      firebase.auth().signInWithRedirect(provider)
+        .catch(error => {
+          debugLog("Sign-in redirect error: " + error.message);
+        });
     }
 
-    // ---------- Handle Redirect Result ----------
-    firebase.auth().getRedirectResult()
-      .then(result => {
-        if (result.user) {
-          debugLog("Redirect result received, user signed in: " + JSON.stringify(result.user));
-          // Do not call showGame() here; let onAuthStateChanged handle it.
-        }
-      })
-      .catch(error => {
-        debugLog("Redirect sign-in error: " + error.message);
-        showMessage("Sign-in failed: " + error.message, true);
-      });
-
-    // ---------- Check Login State ----------
+    // ---------- Authentication State Listener ----------
     firebase.auth().onAuthStateChanged(user => {
-      debugLog("onAuthStateChanged triggered. Current user: " + JSON.stringify(user));
-      if (user) {
-        // Ensure we call showGame() only once.
-        if (!gameShown) {
-          gameShown = true;
-          showMessage("Signed in as " + user.displayName);
-          showGame();
-        }
-      } else {
-        showMessage("Please sign in.");
+      debugLog("onAuthStateChanged: " + JSON.stringify(user));
+      if (user && !gameShown) {
+        gameShown = true;
+        debugLog("User detected: " + user.displayName);
+        showGame();
+      } else if (!user) {
+        debugLog("No user signed in.");
       }
     });
 
@@ -185,16 +171,16 @@
       });
     }
 
-    // ---------- Show Game UI (after login) ----------
     function showGame() {
       const loginContainer = document.getElementById("login-container");
       const mapContainer = document.getElementById("map-container");
       if (loginContainer && mapContainer) {
         loginContainer.style.display = "none";
         mapContainer.style.display = "block";
+        debugLog("Transitioning to game UI...");
         initializeGame();
       } else {
-        debugLog("Required DOM elements not found during showGame().");
+        debugLog("Required DOM elements not found in showGame()", true);
       }
     }
 
@@ -224,7 +210,7 @@
       }).addTo(map);
       debugLog("Leaflet map loaded.");
 
-      // Photon Setup
+      // ---------- Photon Setup ----------
       let photonClient;
       try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
@@ -251,10 +237,8 @@
         fillOpacity: 0.3,
         radius: 300
       }).addTo(map);
-
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
-
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
