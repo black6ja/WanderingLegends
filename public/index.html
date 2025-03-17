@@ -86,7 +86,7 @@
       debugLog("Login Message: " + message);
     }
 
-    // ---------- Load Spawn Configuration from spawnData.json ----------
+    // ---------- Load Spawn Configuration ----------
     async function loadSpawnData() {
       try {
         let response = await fetch("spawnData.json");
@@ -179,7 +179,7 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-
+      
       await loadSpawnData();
 
       // Photon Setup
@@ -212,27 +212,23 @@
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
 
-      // Define updatePlayerMarker and log details.
+      // Define updatePlayerMarker locally and pass it to location tracking.
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
-        debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+        debugLog(`updatePlayerMarker: Updating marker to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+        // For debugging, force recentering
         map.setView([lat, lng], 15, { animate: true });
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
+      
+      // Start tracking player location, pass map, photonClient, and updatePlayerMarker callback.
+      startLocationTracking(map, photonClient, updatePlayerMarker);
 
-      // Start tracking player location and pass generateSpawns as a callback.
-      startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
-
-      // Listen for spawn points from Firebase
+      // Listen for spawn points and add them to the map
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
         const spawnId = snapshot.key;
-        if (!spawn || !spawn.location || isNaN(spawn.location.lat) || isNaN(spawn.location.lng)) {
-          debugLog(`Invalid spawn received: ${JSON.stringify(spawn)}`, true);
-          return;
-        }
-        debugLog(`New spawn detected from Firebase: ${JSON.stringify(spawn)}`);
         L.circleMarker([spawn.location.lat, spawn.location.lng], {
           color: getSpawnColor(spawn.type),
           fillColor: getSpawnColor(spawn.type),
@@ -244,7 +240,6 @@
             debugLog("Joining battle for " + spawn.type);
             joinBattleRoom(spawnId, photonClient);
           });
-        debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
 
       // Optional: Clear spawn points every 5 minutes for testing.
@@ -277,7 +272,7 @@
           }, 3000);
         }
       }
-
+      
       // Dynamic Spawn Generation
       async function clearSpawnPoints() {
         try {
@@ -294,7 +289,7 @@
           return;
         }
         let totalSpawns = 0;
-        debugLog(`Generating spawns at center: [${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}]`);
+        // Loop through each spawn type defined in spawnConfig.
         for (let type in spawnConfig) {
           let config = spawnConfig[type];
           let count = config.maxPerArea;
@@ -303,9 +298,9 @@
             if (type === "dungeon") maxOffset = 1500;
             else if (type === "keep" || type === "lair") maxOffset = 2000;
             else if (type === "publicEvent") maxOffset = 2500;
-            else if (type === "worldBoss") maxOffset = 4827;
+            else if (type === "worldBoss") maxOffset = 4827; // SPAWN_AREA_RADIUS
             let offset = generateRandomOffset(maxOffset, center.lat);
-            debugLog(`For spawn type "${type}", generated offset: latOffset=${offset.latOffset.toFixed(6)}, lngOffset=${offset.lngOffset.toFixed(6)}`);
+            debugLog(`Generated offset for ${type}: latOffset=${offset.latOffset.toFixed(6)}, lngOffset=${offset.lngOffset.toFixed(6)}`);
             let newSpawn = {
               type: type,
               location: {
@@ -316,7 +311,6 @@
               respawnTime: config.respawnTime
             };
             if (type === "worldBoss") newSpawn.roaming = true;
-            debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
               await database.ref("spawnPoints").push(newSpawn);
               totalSpawns++;
@@ -333,14 +327,12 @@
         const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
         let latOffset = (Math.random() * 2 - 1) * dLat;
         let lngOffset = (Math.random() * 2 - 1) * dLng;
-        debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
         return { latOffset, lngOffset };
       }
     }
 
     // ---------- Start Location Tracking Function ----------
-    // Now accepts a fourth parameter: spawnGenerator.
-    function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
+    function startLocationTracking(map, photonClient, updatePlayerMarker) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
         return;
@@ -371,7 +363,7 @@
           if (distanceMoved > REGEN_THRESHOLD) {
             debugLog("Player moved significantly; regenerating spawns...");
             clearSpawnPoints().then(() => {
-              spawnGenerator(lastPlayerPosition);
+              generateSpawns(lastPlayerPosition);
               lastSpawnCenter = { lat, lng };
             });
           }
@@ -391,7 +383,7 @@
           map.setView([lat, lng], 15);
           lastPlayerPosition = { lat, lng };
           lastSpawnCenter = { lat, lng };
-          spawnGenerator(lastPlayerPosition);
+          generateSpawns(lastPlayerPosition);
         },
         function(error) {
           debugLog("Error retrieving initial position: " + error.message, true);
