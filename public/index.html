@@ -56,7 +56,7 @@
     let lastSpawnCenter = null;
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
-    let spawnMarkers = {}; // to track spawn markers on the map
+    let spawnMarkers = {}; // track spawn markers on the map
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -167,7 +167,6 @@
     }
 
     // ---------- Spawn Manager Functions ----------
-    // Check if a spawn manager already exists.
     async function checkSpawnManager() {
       const snapshot = await database.ref("spawnManager").once("value");
       if (snapshot.exists() && snapshot.val().uid) {
@@ -177,7 +176,6 @@
       return true;
     }
 
-    // Elect this client as spawn manager if none exists.
     async function electSpawnManager() {
       const canBecomeLeader = await checkSpawnManager();
       if (!canBecomeLeader) return;
@@ -188,7 +186,6 @@
       startMovingSpawns();
     }
 
-    // Only the spawn manager moves spawns.
     async function moveSpawnsIfManager() {
       const managerSnapshot = await database.ref("spawnManager").once("value");
       if (!managerSnapshot.exists() || managerSnapshot.val().uid !== firebase.auth().currentUser.uid) {
@@ -215,13 +212,11 @@
       }
     }
 
-    // Begin moving spawns every 10 minutes if this client is the manager.
     function startMovingSpawns() {
       moveSpawnsIfManager();
       setInterval(moveSpawnsIfManager, 600000);
     }
 
-    // Listen for changes on the spawnManager node.
     database.ref("spawnManager").on("value", async snapshot => {
       if (!snapshot.exists() || !snapshot.val().uid) {
         debugLog("No spawn manager detected. Electing a new one...");
@@ -256,6 +251,23 @@
       return colors[type] || "gray";
     }
 
+    // ---------- Utility: Random Creature Subtype Selection ----------
+    // Uses rarity weights to build a weighted array of creature subtypes.
+    function getRandomCreatureSubtype() {
+      const subtypes = spawnConfig["creature"].subtypes;
+      const rarityWeights = { "Common": 80, "Uncommon": 15, "Rare": 4, "Legendary": 1 };
+      let weightedCreatures = [];
+      for (let category in subtypes) {
+        subtypes[category].forEach(creature => {
+          let weight = rarityWeights[creature.rarity] || 1;
+          for (let i = 0; i < weight; i++) {
+            weightedCreatures.push({ type: category, name: creature.name, rarity: creature.rarity, imageUrl: creature.imageUrl });
+          }
+        });
+      }
+      return weightedCreatures[Math.floor(Math.random() * weightedCreatures.length)];
+    }
+
     // ---------- Initialize Game Logic ----------
     async function initializeGame() {
       debugLog("Initializing game logic...");
@@ -267,7 +279,7 @@
       debugLog("Leaflet map loaded.");
 
       await loadSpawnData();
-      await electSpawnManager();  // Try to elect this client as the spawn manager
+      await electSpawnManager();  // Try to elect this client as spawn manager
 
       // Photon Setup
       let photonClient;
@@ -311,7 +323,7 @@
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
 
-      // Listen for spawn points from Firebase
+      // ---------- Listen for Spawn Points from Firebase ----------
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
         const spawnId = snapshot.key;
@@ -320,17 +332,53 @@
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-        let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-          color: getSpawnColor(spawn.type),
-          fillColor: getSpawnColor(spawn.type),
-          fillOpacity: 0.8,
-          radius: 8
-        }).addTo(map)
-          .bindPopup("Spawn Type: " + spawn.type)
-          .on("click", function() {
-            debugLog("Joining battle for " + spawn.type);
-            joinBattleRoom(spawnId, photonClient);
-          });
+
+        let marker;
+        if (spawn.type === "creature") {
+          // For creature spawns, use image if available; otherwise, fall back to a default circle marker.
+          if (spawn.imageUrl && spawn.imageUrl !== "") {
+            marker = L.marker([spawn.location.lat, spawn.location.lng], {
+              icon: L.icon({
+                iconUrl: spawn.imageUrl,
+                iconSize: [48, 48],
+                iconAnchor: [24, 24]
+              })
+            });
+          } else {
+            marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+              color: getSpawnColor(spawn.type),
+              fillColor: getSpawnColor(spawn.type),
+              fillOpacity: 0.8,
+              radius: 8
+            });
+          }
+          marker.addTo(map)
+            .bindPopup(`
+              <div style="text-align:center;">
+                <strong>${spawn.subtypeName || "Creature"}</strong><br/>
+                <em>${spawn.subtype || ""}</em><br/>
+                Rarity: ${spawn.rarity || "Unknown"}<br/>
+                <button onclick="battleCreature('${spawnId}')">Battle</button>
+              </div>
+            `)
+            .on("click", function() {
+              debugLog("Joining battle for creature " + spawn.subtypeName);
+              joinBattleRoom(spawnId, photonClient);
+            });
+        } else {
+          // For non-creature spawns, use the default circle marker.
+          marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.8,
+            radius: 8
+          }).addTo(map)
+            .bindPopup("Spawn Type: " + spawn.type)
+            .on("click", function() {
+              debugLog("Joining battle for " + spawn.type);
+              joinBattleRoom(spawnId, photonClient);
+            });
+        }
         spawnMarkers[snapshot.key] = marker;
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
@@ -345,7 +393,7 @@
         }
       }, 300000);
 
-      // Multiplayer: Join Battle Room Function
+      // ---------- Multiplayer: Join Battle Room Function ----------
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
@@ -366,7 +414,7 @@
         }
       }
 
-      // Dynamic Spawn Generation with extra debugging
+      // ---------- Dynamic Spawn Generation with Rarity & ImageURL ----------
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -396,6 +444,14 @@
               respawnTime: config.respawnTime,
               lastMovedAt: Date.now() // initialize movement timer
             };
+            // For creature spawns, choose a random subtype with rarity
+            if (type === "creature") {
+              let creature = getRandomCreatureSubtype();
+              newSpawn.subtype = creature.type;         // e.g., "Beast"
+              newSpawn.subtypeName = creature.name;       // e.g., "Wolf"
+              newSpawn.rarity = creature.rarity;          // e.g., "Common"
+              newSpawn.imageUrl = creature.imageUrl || ""; // may be blank for now
+            }
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
@@ -421,7 +477,6 @@
     }
 
     // ---------- Start Location Tracking Function ----------
-    // Now accepts a fourth parameter: spawnGenerator.
     function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
