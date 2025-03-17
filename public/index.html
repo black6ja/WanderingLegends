@@ -56,7 +56,7 @@
     let lastSpawnCenter = null;
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
-    let spawnMarkers = {}; // track spawn markers on the map
+    let spawnMarkers = {}; // to track spawn markers on the map
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -251,8 +251,7 @@
       return colors[type] || "gray";
     }
 
-    // ---------- Utility: Random Creature Subtype Selection ----------
-    // Uses rarity weights to build a weighted array of creature subtypes.
+    // ---------- Utility: Random Creature Subtype Selection using Rarity Weights ----------
     function getRandomCreatureSubtype() {
       const subtypes = spawnConfig["creature"].subtypes;
       const rarityWeights = { "Common": 80, "Uncommon": 15, "Rare": 4, "Legendary": 1 };
@@ -265,7 +264,44 @@
           }
         });
       }
+      if (weightedCreatures.length === 0) {
+        debugLog("No creature subtypes found; defaulting to generic Creature.");
+        return { type: "Creature", name: "Creature", rarity: "Common", imageUrl: "" };
+      }
       return weightedCreatures[Math.floor(Math.random() * weightedCreatures.length)];
+    }
+
+    // ---------- Stub Battle Creature Function ----------
+    function battleCreature(spawnId) {
+      debugLog("Battle function triggered for spawn: " + spawnId);
+      // TODO: Implement battle logic here.
+    }
+
+    // ---------- Photon Battle Room Joining ----------
+    function joinBattleRoom(spawnId, photonClient) {
+      if (photonClient) {
+        let roomName = "battle_" + spawnId;
+        if (typeof photonClient.joinOrCreateRoom === "function") {
+          photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+        } else if (typeof photonClient.joinRoom === "function") {
+          photonClient.joinRoom(roomName);
+        } else {
+          debugLog("Photon SDK does not support room joining methods as expected.");
+        }
+        debugLog("Attempting to join Photon room: " + roomName);
+        setTimeout(() => {
+          let room = photonClient.myRoom();
+          if (room) {
+            if (room.playerCount < 2) {
+              document.getElementById("queueStatus").textContent = "Waiting for opponent...";
+            } else {
+              document.getElementById("queueStatus").textContent = "Battle ready!";
+            }
+          } else {
+            document.getElementById("queueStatus").textContent = "Not in a battle room yet.";
+          }
+        }, 3000);
+      }
     }
 
     // ---------- Initialize Game Logic ----------
@@ -279,7 +315,7 @@
       debugLog("Leaflet map loaded.");
 
       await loadSpawnData();
-      await electSpawnManager();  // Try to elect this client as spawn manager
+      await electSpawnManager();  // Attempt to elect this client as spawn manager
 
       // Photon Setup
       let photonClient;
@@ -311,7 +347,7 @@
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
 
-      // Define updatePlayerMarker and log details.
+      // Define updatePlayerMarker
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
@@ -320,7 +356,7 @@
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
 
-      // Start tracking player location and pass generateSpawns as a callback.
+      // Start tracking player location and pass generateSpawns as callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
 
       // ---------- Listen for Spawn Points from Firebase ----------
@@ -332,10 +368,9 @@
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-
         let marker;
         if (spawn.type === "creature") {
-          // For creature spawns, use image if available; otherwise, fall back to a default circle marker.
+          // For creature spawns, use image if available; otherwise, use default circle marker.
           if (spawn.imageUrl && spawn.imageUrl !== "") {
             marker = L.marker([spawn.location.lat, spawn.location.lng], {
               icon: L.icon({
@@ -366,7 +401,7 @@
               joinBattleRoom(spawnId, photonClient);
             });
         } else {
-          // For non-creature spawns, use the default circle marker.
+          // For non-creature spawns, use a default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
@@ -392,88 +427,6 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
-
-      // ---------- Multiplayer: Join Battle Room Function ----------
-      function joinBattleRoom(spawnId, photonClient) {
-        if (photonClient) {
-          let roomName = "battle_" + spawnId;
-          photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
-          debugLog("Attempting to join Photon room: " + roomName);
-          setTimeout(() => {
-            let room = photonClient.myRoom();
-            if (room) {
-              if (room.playerCount < 2) {
-                document.getElementById("queueStatus").textContent = "Waiting for opponent...";
-              } else {
-                document.getElementById("queueStatus").textContent = "Battle ready!";
-              }
-            } else {
-              document.getElementById("queueStatus").textContent = "Not in a battle room yet.";
-            }
-          }, 3000);
-        }
-      }
-
-      // ---------- Dynamic Spawn Generation with Rarity & ImageURL ----------
-      async function generateSpawns(center) {
-        if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
-          debugLog("Spawn configuration not loaded; cannot generate spawns.");
-          return;
-        }
-        let totalSpawns = 0;
-        debugLog(`Generating spawns at center: [${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}]`);
-        for (let type in spawnConfig) {
-          let config = spawnConfig[type];
-          let count = config.maxPerArea;
-          debugLog(`Processing spawn type: "${type}" with maxPerArea: ${count}`);
-          for (let i = 0; i < count; i++) {
-            let maxOffset = 500;
-            if (type === "dungeon") maxOffset = 1500;
-            else if (type === "keep" || type === "lair") maxOffset = 2000;
-            else if (type === "publicEvent") maxOffset = 2500;
-            else if (type === "worldBoss") maxOffset = 4827;
-            let offset = generateRandomOffset(maxOffset, center.lat);
-            debugLog(`For spawn type "${type}", generated offset: latOffset=${offset.latOffset.toFixed(6)}, lngOffset=${offset.lngOffset.toFixed(6)}`);
-            let newSpawn = {
-              type: type,
-              location: {
-                lat: center.lat + offset.latOffset,
-                lng: center.lng + offset.lngOffset
-              },
-              lastSpawnTime: Date.now(),
-              respawnTime: config.respawnTime,
-              lastMovedAt: Date.now() // initialize movement timer
-            };
-            // For creature spawns, choose a random subtype with rarity
-            if (type === "creature") {
-              let creature = getRandomCreatureSubtype();
-              newSpawn.subtype = creature.type;         // e.g., "Beast"
-              newSpawn.subtypeName = creature.name;       // e.g., "Wolf"
-              newSpawn.rarity = creature.rarity;          // e.g., "Common"
-              newSpawn.imageUrl = creature.imageUrl || ""; // may be blank for now
-            }
-            if (type === "worldBoss") newSpawn.roaming = true;
-            debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
-            try {
-              let spawnRef = await database.ref("spawnPoints").push(newSpawn);
-              debugLog(`Spawn successfully pushed with key: ${spawnRef.key}`);
-              totalSpawns++;
-            } catch (error) {
-              debugLog("Error creating spawn for type " + type + ": " + error.message, true);
-            }
-          }
-        }
-        debugLog(`Generated ${totalSpawns} spawn points.`);
-      }
-
-      function generateRandomOffset(meters, centerLat) {
-        const dLat = meters / 111300;
-        const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
-        let latOffset = (Math.random() * 2 - 1) * dLat;
-        let lngOffset = (Math.random() * 2 - 1) * dLng;
-        debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
-        return { latOffset, lngOffset };
-      }
     }
 
     // ---------- Start Location Tracking Function ----------
