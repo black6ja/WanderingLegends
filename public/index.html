@@ -357,7 +357,7 @@
             else if (type === "publicEvent") maxOffset = 2500;
             else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS;
             
-            let offset = generateRandomOffset(maxOffset);
+            let offset = generateRandomOffset(maxOffset, center.lat);
             let newSpawn = {
               type: type,
               location: {
@@ -381,14 +381,15 @@
         debugLog(`Generated ${totalSpawns} spawn points.`);
       }
       
-      function generateRandomOffset(meters) {
-        const dLat = meters / 111300;
-        const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
-        return {
-          latOffset: (Math.random() * 2 - 1) * dLat,
-          lngOffset: (Math.random() * 2 - 1) * dLng
-        };
-      }
+      function generateRandomOffset(meters, centerLat) {
+  const dLat = meters / 111300;
+  const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
+  return {
+    latOffset: (Math.random() * 2 - 1) * dLat,
+    lngOffset: (Math.random() * 2 - 1) * dLng
+  };
+}
+
       
       // Listen for spawn points being added and update the map in real time.
       database.ref("spawnPoints").on("child_added", snapshot => {
