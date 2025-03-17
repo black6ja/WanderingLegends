@@ -56,10 +56,6 @@
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
 
-    // Global objects to track markers and spawn data.
-    let spawnMarkers = {};
-    let spawnDataById = {};
-
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -160,30 +156,6 @@
       firebase.auth().signOut().then(() => location.reload());
     }
 
-    // ---------- Global function to defeat a creature ----------
-    function defeatCreature(spawnId) {
-      if (!lastPlayerPosition) {
-        alert("Player position unknown.");
-        return;
-      }
-      const spawn = spawnDataById[spawnId];
-      if (!spawn) {
-        debugLog("Spawn data not found for spawnId " + spawnId);
-        return;
-      }
-      const dist = calculateDistance(lastPlayerPosition, spawn.location);
-      if (dist > 300) {
-        alert("You are too far away to defeat this creature!");
-        return;
-      }
-      // Remove spawn from Firebase.
-      database.ref("spawnPoints/" + spawnId).remove().then(() => {
-        debugLog("Creature " + spawnId + " defeated and removed.");
-      }).catch(error => {
-        debugLog("Error removing creature spawn: " + error.message, true);
-      });
-    }
-
     // ---------- Show Game UI ----------
     function showGame() {
       document.getElementById("login-container").style.display = "none";
@@ -259,67 +231,30 @@
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
 
-      // Listen for spawn points from Firebase.
-      // Also, store each marker and its spawn data for removal/updating.
+      // Start tracking player location and pass generateSpawns as a callback.
+      startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
+
+      // Listen for spawn points from Firebase
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
         const spawnId = snapshot.key;
-        // Validate spawn.
         if (!spawn || !spawn.location || isNaN(spawn.location.lat) || isNaN(spawn.location.lng)) {
           debugLog(`Invalid spawn received: ${JSON.stringify(spawn)}`, true);
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-        // Save spawn data so that we can later verify distance.
-        spawnDataById[spawnId] = spawn;
-
-        // Create the marker.
-        let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+        L.circleMarker([spawn.location.lat, spawn.location.lng], {
           color: getSpawnColor(spawn.type),
           fillColor: getSpawnColor(spawn.type),
           fillOpacity: 0.8,
           radius: 8
-        }).addTo(map);
-        // Save marker reference.
-        spawnMarkers[spawnId] = marker;
-
-        // Set up different interactions for creature spawns.
-        if (spawn.type === "creature") {
-          marker.on("click", function() {
-            // Check if player position is available.
-            if (!lastPlayerPosition) {
-              debugLog("Player position unknown.");
-              return;
-            }
-            // Calculate distance between player and spawn.
-            let dist = calculateDistance(lastPlayerPosition, spawn.location);
-            if (dist > 300) {
-              debugLog("Creature is out of range: " + dist.toFixed(2) + " meters.");
-              marker.bindPopup("Creature is out of range.").openPopup();
-            } else {
-              // Show a popup with a defeat button.
-              marker.bindPopup('<div><p>Creature encountered!</p><button onclick="defeatCreature(\'' + spawnId + '\')">Defeat</button></div>').openPopup();
-            }
-          });
-        } else {
-          // For other spawn types, use existing battle-joining logic.
-          marker.bindPopup("Spawn Type: " + spawn.type).on("click", function() {
+        }).addTo(map)
+          .bindPopup("Spawn Type: " + spawn.type)
+          .on("click", function() {
             debugLog("Joining battle for " + spawn.type);
             joinBattleRoom(spawnId, photonClient);
           });
-        }
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
-      });
-
-      // Listen for removed spawn points so that markers are removed from the map.
-      database.ref("spawnPoints").on("child_removed", snapshot => {
-        const removedKey = snapshot.key;
-        debugLog("Spawn removed: " + removedKey);
-        if (spawnMarkers[removedKey]) {
-          map.removeLayer(spawnMarkers[removedKey]);
-          delete spawnMarkers[removedKey];
-        }
-        delete spawnDataById[removedKey];
       });
 
       // Optional: Clear spawn points every 5 minutes for testing.
@@ -353,7 +288,7 @@
         }
       }
 
-      // Dynamic Spawn Generation with extra debugging.
+      // Dynamic Spawn Generation with extra debugging
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
