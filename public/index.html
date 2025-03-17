@@ -47,20 +47,13 @@
       display: none;
       flex: 1;
     }
-    #output, #queueStatus, #debugPanel {
-      padding: 10px;
-      background-color: #f2f2f2;
-      font-size: 0.9em;
-      overflow-y: auto;
-      max-height: 150px;
-    }
     #map {
       flex: 1;
       width: 100%;
       height: 100vh;
       min-height: 400px;
     }
-    /* Debug Panel (fixed at bottom) */
+    /* Debug Panel */
     #debugPanel {
       position: fixed;
       bottom: 0;
@@ -99,23 +92,21 @@
     <p id="login-message"></p>
   </div>
 
-  <!-- Game UI (Hidden Until Login) -->
+  <!-- Game UI -->
   <div id="map-container">
     <button onclick="logout()">Logout</button>
-    <div id="output"></div>
     <div id="map"></div>
     <div id="queueStatus">
       Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.
     </div>
   </div>
 
-  <!-- Debug Panel (always visible) -->
+  <!-- Debug Panel -->
   <div id="debugPanel"></div>
 
   <!-- Firebase SDKs (using compat scripts for static hosting) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <!-- Using Realtime Database -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   
   <!-- Photon SDK -->
@@ -124,12 +115,13 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // Global flag to ensure the game UI loads only once.
     let gameShown = false;
-    // Global object for spawn configuration loaded from spawnData.json.
     let spawnConfig = {};
+    let lastSpawnCenter = null;  // Used to decide when to regenerate spawns
+    let lastPlayerPosition = null; // Latest player coordinates
+    const REGEN_THRESHOLD = 300;   // Meters
 
-    // Initialize Firebase with your Hosting domain.
+    // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
       authDomain: "wanderinglegends-12cc2.web.app",
@@ -142,7 +134,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // ---------- Debug Logging (printed on screen) ----------
+    // ---------- Debug Logging ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
       const p = document.createElement("p");
@@ -169,11 +161,11 @@
         });
         debugLog("Loaded spawn configuration: " + JSON.stringify(spawnConfig));
       } catch (error) {
-        debugLog("Error loading spawnData.json: " + error.message, true);
+        debugLog("Error loading spawn data: " + error.message, true);
       }
     }
 
-    // ---------- Google Sign-In (Using Redirect) ----------
+    // ---------- Authentication Functions ----------
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
       debugLog("Initiating Google sign-in redirect...");
@@ -184,7 +176,6 @@
         });
     }
 
-    // ---------- Anonymous Sign-In ----------
     function anonymousLogin() {
       debugLog("Attempting anonymous sign-in...");
       firebase.auth().signInAnonymously()
@@ -197,7 +188,6 @@
         });
     }
 
-    // ---------- Handle Redirect Result ----------
     firebase.auth().getRedirectResult()
       .then(result => {
         if (result.user) {
@@ -211,7 +201,6 @@
         showMessage("Sign-in failed: " + error.message, true);
       });
 
-    // ---------- Authentication State Listener ----------
     firebase.auth().onAuthStateChanged(user => {
       debugLog("onAuthStateChanged triggered: " + JSON.stringify(user));
       if (user && !gameShown) {
@@ -224,9 +213,7 @@
     });
 
     function logout() {
-      firebase.auth().signOut().then(() => {
-        location.reload();
-      });
+      firebase.auth().signOut().then(() => location.reload());
     }
 
     // ---------- Show Game UI ----------
@@ -262,11 +249,11 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-      
+
       // Load spawn configuration from spawnData.json
       await loadSpawnData();
-      
-      // ---------- Photon Setup ----------
+
+      // Setup Photon
       let photonClient;
       try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
@@ -282,8 +269,8 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-      
-      // ---------- Player Marker & Action Zone ----------
+
+      // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
       }).addTo(map);
@@ -302,9 +289,39 @@
           map.setView([lat, lng], 15, { animate: true });
         }
       }
-      
-      // ---------- Multiplayer: Join Battle Room Function ----------
-      function joinBattleRoom(spawnId) {
+
+      // ---------- Start Location Tracking ----------
+      startLocationTracking(map, photonClient);
+
+      // Setup Spawn Listeners
+      database.ref("spawnPoints").on("child_added", snapshot => {
+        const spawn = snapshot.val();
+        const spawnId = snapshot.key;
+        L.circleMarker([spawn.location.lat, spawn.location.lng], {
+          color: getSpawnColor(spawn.type),
+          fillColor: getSpawnColor(spawn.type),
+          fillOpacity: 0.8,
+          radius: 8
+        }).addTo(map)
+          .bindPopup("Spawn Type: " + spawn.type)
+          .on("click", function() {
+            debugLog("Joining battle for " + spawn.type);
+            joinBattleRoom(spawnId, photonClient);
+          });
+      });
+
+      // Optional: Clear spawn points every 5 minutes for testing.
+      setInterval(async () => {
+        try {
+          await database.ref("spawnPoints").remove();
+          debugLog("Cleared all spawn points at " + new Date().toLocaleTimeString());
+        } catch (error) {
+          debugLog("Error clearing spawn points: " + error.message, true);
+        }
+      }, 300000);
+
+      // Multiplayer: Join Battle Room Function
+      function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
           photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
@@ -323,16 +340,11 @@
           }, 3000);
         }
       }
-      
-      // ---------- Dynamic Spawn Points Setup using Realtime Database ----------
-      const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
-      const REGEN_THRESHOLD = 300;    // Regenerate if player moves >300m
-      const spawnTypes = Object.keys(spawnConfig);
-      
+
+      // Dynamic Spawn Generation using Realtime Database
       async function clearSpawnPoints() {
         try {
-          const ref = database.ref("spawnPoints");
-          await ref.remove();
+          await database.ref("spawnPoints").remove();
           debugLog("Cleared all spawn points.");
         } catch (error) {
           debugLog("Error clearing spawn points: " + error.message, true);
@@ -345,18 +357,17 @@
           return;
         }
         let totalSpawns = 0;
-        // Loop through each spawn type based on our config.
+        // Loop through each spawn type in our configuration.
         for (let type in spawnConfig) {
           let config = spawnConfig[type];
           let count = config.maxPerArea;
           for (let i = 0; i < count; i++) {
-            // Determine a max offset (you might later choose different radii per type)
+            // Choose max offset based on spawn type.
             let maxOffset = 500;
             if (type === "dungeon") maxOffset = 1500;
             else if (type === "keep" || type === "lair") maxOffset = 2000;
             else if (type === "publicEvent") maxOffset = 2500;
-            else if (type === "worldBoss") maxOffset = SPAWN_AREA_RADIUS;
-            
+            else if (type === "worldBoss") maxOffset = 4827; // SPAWN_AREA_RADIUS
             let offset = generateRandomOffset(maxOffset, center.lat);
             let newSpawn = {
               type: type,
@@ -367,9 +378,7 @@
               lastSpawnTime: Date.now(),
               respawnTime: config.respawnTime
             };
-            // For types like worldBoss, you might set additional flags.
             if (type === "worldBoss") newSpawn.roaming = true;
-            
             try {
               await database.ref("spawnPoints").push(newSpawn);
               totalSpawns++;
@@ -382,43 +391,86 @@
       }
       
       function generateRandomOffset(meters, centerLat) {
-  const dLat = meters / 111300;
-  const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
-  return {
-    latOffset: (Math.random() * 2 - 1) * dLat,
-    lngOffset: (Math.random() * 2 - 1) * dLng
-  };
-}
+        const dLat = meters / 111300;
+        const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
+        return {
+          latOffset: (Math.random() * 2 - 1) * dLat,
+          lngOffset: (Math.random() * 2 - 1) * dLng
+        };
+      }
+    }
 
+    // ---------- Start Location Tracking Function ----------
+    // Accepts the map and photonClient as parameters.
+    function startLocationTracking(map, photonClient) {
+      if (!navigator.geolocation) {
+        debugLog("Geolocation not supported by this browser.");
+        return;
+      }
       
-      // Listen for spawn points being added and update the map in real time.
-      database.ref("spawnPoints").on("child_added", snapshot => {
-        const spawn = snapshot.val();
-        const spawnId = snapshot.key;
-        L.circleMarker([spawn.location.lat, spawn.location.lng], {
-          color: getSpawnColor(spawn.type),
-          fillColor: getSpawnColor(spawn.type),
-          fillOpacity: 0.8,
-          radius: 8
-        }).addTo(map)
-          .bindPopup("Spawn Type: " + spawn.type)
-          .on("click", function() {
-            debugLog("Joining battle for " + spawn.type);
-            joinBattleRoom(spawnId);
-          });
-      });
+      navigator.geolocation.watchPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          debugLog(`Player position updated: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          
+          updatePlayerMarker(lat, lng);
+          
+          // Broadcast to Photon if connected.
+          if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
+            let eventData = { lat: lat, lng: lng };
+            photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
+          }
+          
+          // Store the player's current position.
+          lastPlayerPosition = { lat, lng };
+          
+          // Check if the player has moved more than the regeneration threshold.
+          if (!lastSpawnCenter || calculateDistance(lastSpawnCenter, lastPlayerPosition) > REGEN_THRESHOLD) {
+            debugLog("Player moved significantly; regenerating spawns...");
+            clearSpawnPoints().then(() => {
+              generateSpawns(lastPlayerPosition);
+              lastSpawnCenter = { lat, lng };
+            });
+          }
+        },
+        function(error) {
+          debugLog("Error retrieving player location: " + error.message, true);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      );
       
-      // Optional: Clear spawn points every 5 minutes for testing.
-      setInterval(async () => {
-        try {
-          await database.ref("spawnPoints").remove();
-          debugLog("Cleared all spawn points at " + new Date().toLocaleTimeString());
-        } catch (error) {
-          debugLog("Error clearing spawn points: " + error.message, true);
-        }
-      }, 300000);
-      
-      // Optionally, you could call clearSpawnPoints() here to reset on initialization.
+      // Also, immediately get the initial position to center the map.
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          debugLog(`Initial player position: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          updatePlayerMarker(lat, lng);
+          map.setView([lat, lng], 15);
+          lastPlayerPosition = { lat, lng };
+          lastSpawnCenter = { lat, lng };
+          generateSpawns(lastPlayerPosition);
+        },
+        function(error) {
+          debugLog("Error retrieving initial position: " + error.message, true);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    }
+
+    // Helper: Calculate distance between two points using the Haversine formula.
+    function calculateDistance(point1, point2) {
+      const R = 6371e3; // Earth radius in meters.
+      const φ1 = point1.lat * Math.PI / 180;
+      const φ2 = point2.lat * Math.PI / 180;
+      const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
+      const Δλ = (point2.lng - point1.lng) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     }
   </script>
 </body>
