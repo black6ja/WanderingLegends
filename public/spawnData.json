@@ -1,6 +1,68 @@
 {
   "spawnTypes": [
-    { "type": "creature", "respawnTime": 180000, "maxPerArea": 10 },
+    { 
+      "type": "creature", 
+      "respawnTime": 180000, 
+      "maxPerArea": 10,
+      "subtypes": {
+        "Aberration": [
+          { "name": "Aboleth", "rarity": "Legendary", "imageUrl": "" },
+          { "name": "Chuul", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Cloaker", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Gibbering Mouther", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Grick", "rarity": "Common", "imageUrl": "" }
+        ],
+        "Beast": [
+          { "name": "Owlbear", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Wolf", "rarity": "Common", "imageUrl": "" },
+          { "name": "Basilisk", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Griffon", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Hippogriff", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Bulette", "rarity": "Rare", "imageUrl": "" }
+        ],
+        "Celestial": [
+          { "name": "Deva", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Planetar", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Solar", "rarity": "Legendary", "imageUrl": "" },
+          { "name": "Couatl", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Unicorn", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Pegasus", "rarity": "Uncommon", "imageUrl": "" }
+        ],
+        "Construct": [
+          { "name": "Animated Object", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Clay Golem", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Flesh Golem", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Iron Golem", "rarity": "Legendary", "imageUrl": "" },
+          { "name": "Shield Guardian", "rarity": "Rare", "imageUrl": "" }
+        ],
+        "Dragon": [
+          { "name": "Black Dragon", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Blue Dragon", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Green Dragon", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Red Dragon", "rarity": "Legendary", "imageUrl": "" },
+          { "name": "White Dragon", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Wyvern", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Pseudodragon", "rarity": "Common", "imageUrl": "" }
+        ],
+        "Elemental": [
+          { "name": "Air Elemental", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Earth Elemental", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Fire Elemental", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Water Elemental", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Salamander", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Azer", "rarity": "Uncommon", "imageUrl": "" }
+        ],
+        "Undead": [
+          { "name": "Lich", "rarity": "Legendary", "imageUrl": "" },
+          { "name": "Vampire", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Wight", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Wraith", "rarity": "Rare", "imageUrl": "" },
+          { "name": "Zombie", "rarity": "Common", "imageUrl": "" },
+          { "name": "Skeleton", "rarity": "Common", "imageUrl": "" },
+          { "name": "Spectre", "rarity": "Rare", "imageUrl": "" }
+        ]
+      }
+    },
     { "type": "dungeon", "respawnTime": 900000, "maxPerArea": 3 },
     { "type": "inn", "respawnTime": 600000, "maxPerArea": 5 },
     { "type": "shop", "respawnTime": 600000, "maxPerArea": 5 },
