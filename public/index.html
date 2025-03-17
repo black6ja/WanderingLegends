@@ -55,6 +55,7 @@
     let lastSpawnCenter = null;
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
+    let spawnMarkers = {}; // to keep track of spawn markers on the map
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -156,13 +157,79 @@
       firebase.auth().signOut().then(() => location.reload());
     }
 
-    // ---------- Show Game UI ----------
-    function showGame() {
-      document.getElementById("login-container").style.display = "none";
-      document.getElementById("map-container").style.display = "block";
-      debugLog("Transitioning to game UI...");
-      initializeGame();
+    // ---------- Spawn Manager Functions ----------
+    // Check if a spawn manager already exists
+    async function checkSpawnManager() {
+      const snapshot = await database.ref("spawnManager").once("value");
+      if (snapshot.exists() && snapshot.val().uid) {
+        debugLog("Spawn manager exists: " + snapshot.val().uid);
+        return false;
+      }
+      return true;
     }
+
+    // Elect this client as spawn manager if none exists
+    async function electSpawnManager() {
+      const canBecomeLeader = await checkSpawnManager();
+      if (!canBecomeLeader) return;
+      const currentUser = firebase.auth().currentUser;
+      if (!currentUser) return;
+      await database.ref("spawnManager").set({ uid: currentUser.uid });
+      debugLog(`Elected new spawn manager: ${currentUser.uid}`);
+      startMovingSpawns();
+    }
+
+    // Move spawns only if this client is the leader
+    async function moveSpawnsIfManager() {
+      const managerRef = await database.ref("spawnManager").once("value");
+      if (!managerRef.exists() || managerRef.val().uid !== firebase.auth().currentUser.uid) {
+        debugLog("Not the spawn manager. Skipping movement.");
+        return;
+      }
+      debugLog("Spawn manager moving spawns...");
+      const now = Date.now();
+      const spawnsSnapshot = await database.ref("spawnPoints").once("value");
+      let updates = {};
+      spawnsSnapshot.forEach(snapshot => {
+        let spawn = snapshot.val();
+        if (!spawn || !spawn.lastMovedAt || !spawn.respawnTime) return;
+        if (now - spawn.lastMovedAt < spawn.respawnTime) return;
+        let offset = generateRandomOffset(10, spawn.location.lat);
+        let newLat = spawn.location.lat + offset.latOffset;
+        let newLng = spawn.location.lng + offset.lngOffset;
+        updates[snapshot.key + "/location"] = { lat: newLat, lng: newLng };
+        updates[snapshot.key + "/lastMovedAt"] = now;
+      });
+      if (Object.keys(updates).length > 0) {
+        await database.ref("spawnPoints").update(updates);
+        debugLog(`Moved spawns: ${Object.keys(updates).length} spawns updated.`);
+      }
+    }
+
+    // Begin moving spawns every 10 minutes if this client is the leader
+    function startMovingSpawns() {
+      moveSpawnsIfManager();
+      setInterval(moveSpawnsIfManager, 600000);
+    }
+
+    // Listen for changes to the spawnManager node so that if no leader is present, we elect one
+    database.ref("spawnManager").on("value", async snapshot => {
+      if (!snapshot.exists() || !snapshot.val().uid) {
+        debugLog("No spawn manager detected. Electing a new one...");
+        electSpawnManager();
+      }
+    });
+
+    // ---------- Clients Listen for Spawn Movement ----------
+    database.ref("spawnPoints").on("child_changed", snapshot => {
+      const spawn = snapshot.val();
+      if (!spawn || !spawn.location) return;
+      debugLog(`Spawn ${snapshot.key} moved to [${spawn.location.lat}, ${spawn.location.lng}]`);
+      let marker = spawnMarkers[snapshot.key];
+      if (marker) {
+        marker.setLatLng([spawn.location.lat, spawn.location.lng]);
+      }
+    });
 
     // ---------- Get Spawn Color Function ----------
     function getSpawnColor(type) {
@@ -189,9 +256,10 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-
+      
       await loadSpawnData();
-
+      await electSpawnManager();  // Attempt to elect this client as spawn manager
+      
       // Photon Setup
       let photonClient;
       try {
@@ -208,7 +276,7 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-
+      
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -221,7 +289,7 @@
       }).addTo(map);
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
-
+      
       // Define updatePlayerMarker and log details.
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
@@ -230,10 +298,10 @@
         map.setView([lat, lng], 15, { animate: true });
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
-
+      
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
-
+      
       // Listen for spawn points from Firebase
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
@@ -243,7 +311,7 @@
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-        L.circleMarker([spawn.location.lat, spawn.location.lng], {
+        let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
           color: getSpawnColor(spawn.type),
           fillColor: getSpawnColor(spawn.type),
           fillOpacity: 0.8,
@@ -254,9 +322,10 @@
             debugLog("Joining battle for " + spawn.type);
             joinBattleRoom(spawnId, photonClient);
           });
+        spawnMarkers[snapshot.key] = marker;
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
-
+      
       // Optional: Clear spawn points every 5 minutes for testing.
       setInterval(async () => {
         try {
@@ -266,7 +335,7 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
-
+      
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
@@ -287,7 +356,7 @@
           }, 3000);
         }
       }
-
+      
       // Dynamic Spawn Generation with extra debugging
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
@@ -315,7 +384,8 @@
                 lng: center.lng + offset.lngOffset
               },
               lastSpawnTime: Date.now(),
-              respawnTime: config.respawnTime
+              respawnTime: config.respawnTime,
+              lastMovedAt: Date.now()  // initialize movement timer
             };
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
@@ -354,23 +424,18 @@
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           debugLog(`Player position updated: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-          
           updatePlayerMarker(lat, lng);
-          
           if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
             let eventData = { lat: lat, lng: lng };
             photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
           }
-          
           lastPlayerPosition = { lat, lng };
           if (!lastSpawnCenter) {
             lastSpawnCenter = { lat, lng };
             debugLog("Initialized lastSpawnCenter.");
           }
-          
           let distanceMoved = calculateDistance(lastSpawnCenter, lastPlayerPosition);
           debugLog(`Distance moved since last spawn generation: ${distanceMoved.toFixed(2)} meters`);
-          
           if (distanceMoved > REGEN_THRESHOLD) {
             debugLog("Player moved significantly; regenerating spawns...");
             clearSpawnPoints().then(() => {
