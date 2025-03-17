@@ -47,7 +47,7 @@
       display: none;
       flex: 1;
     }
-    #output, #queueStatus {
+    #output, #queueStatus, #debugPanel {
       padding: 10px;
       background-color: #f2f2f2;
       font-size: 0.9em;
@@ -60,18 +60,18 @@
       height: 100vh;
       min-height: 400px;
     }
-    /* Debug Panel (Fixed at bottom) */
+    /* Debug Panel (fixed at bottom) */
     #debugPanel {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      max-height: 150px;
-      overflow-y: auto;
       background: #333;
       color: #fff;
       font-size: 0.8em;
       padding: 5px;
+      max-height: 150px;
+      overflow-y: auto;
       z-index: 1000;
     }
     /* Blinking player marker */
@@ -91,7 +91,6 @@
   </style>
 </head>
 <body>
-
   <!-- Login Screen -->
   <div id="login-container">
     <h2>Login to WanderingLegends</h2>
@@ -124,7 +123,7 @@
     // Global flag to ensure the game UI loads only once.
     let gameShown = false;
 
-    // ---------- Debug Logging (Print to debugPanel) ----------
+    // ---------- Debug Logging ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
       const p = document.createElement("p");
@@ -169,9 +168,9 @@
     firebase.auth().getRedirectResult()
       .then(result => {
         if (result.user) {
-          debugLog("Redirect result: User signed in: " + JSON.stringify(result.user));
+          debugLog("getRedirectResult: User signed in: " + JSON.stringify(result.user));
         } else {
-          debugLog("Redirect result: No user.");
+          debugLog("getRedirectResult: No user found.");
         }
       })
       .catch(error => {
@@ -181,7 +180,7 @@
 
     // ---------- Authentication State Listener ----------
     firebase.auth().onAuthStateChanged(user => {
-      debugLog("onAuthStateChanged: " + JSON.stringify(user));
+      debugLog("onAuthStateChanged triggered: " + JSON.stringify(user));
       if (user && !gameShown) {
         gameShown = true;
         debugLog("User detected: " + user.displayName);
