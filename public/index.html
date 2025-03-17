@@ -74,7 +74,7 @@
       overflow-y: auto;
       z-index: 1000;
     }
-    /* Blinking player marker */
+    /* Blinking Player Marker */
     .blinking-dot {
       width: 15px;
       height: 15px;
@@ -91,7 +91,6 @@
   </style>
 </head>
 <body>
-
   <!-- Login Screen -->
   <div id="login-container">
     <h2>Login to WanderingLegends</h2>
@@ -108,13 +107,14 @@
     <div id="queueStatus">Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.</div>
   </div>
 
-  <!-- Debug Panel -->
+  <!-- Debug Panel (always visible) -->
   <div id="debugPanel"></div>
 
-  <!-- Firebase SDKs (Using compat scripts for static hosting) -->
+  <!-- Firebase SDKs (using compat scripts for static hosting) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <!-- We now use the Realtime Database instead of Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   
   <!-- Photon SDK -->
   <script src="photon.js"></script>
@@ -124,8 +124,8 @@
   <script>
     // Global flag to ensure game UI loads only once.
     let gameShown = false;
-
-    // ---------- Debug Logging (visible on screen) ----------
+    
+    // ---------- Debug Logging (printed on screen) ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
       const p = document.createElement("p");
@@ -133,7 +133,7 @@
       debugDiv.appendChild(p);
       console.log("DEBUG:", message);
     }
-
+    
     // ---------- Helper: Show Login Messages ----------
     function showMessage(message, isError = false) {
       const messageBox = document.getElementById("login-message");
@@ -141,21 +141,20 @@
       messageBox.style.color = isError ? "red" : "green";
       debugLog("Login Message: " + message);
     }
-
-    // ---------- Firebase Setup ----------
-    // For GitHub Pages, set authDomain to your domain:
+    
+    // ---------- Firebase Configuration (Updated for Firebase Hosting) ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
-      authDomain: "black6ja.github.io", // Use GitHub Pages domain
+      authDomain: "wanderinglegends-12cc2.web.app", // Using Firebase Hosting domain
       projectId: "wanderinglegends-12cc2",
-      storageBucket: "wanderinglegends-12cc2.firebasestorage.app",
+      storageBucket: "wanderinglegends-12cc2.appspot.com",
       messagingSenderId: "315537974549",
       appId: "1:315537974549:web:d9d75f64b453debce7b51c",
       measurementId: "G-4BY9D34ZW9"
     };
     firebase.initializeApp(firebaseConfig);
-    const firestore = firebase.firestore();
-
+    const database = firebase.database();
+    
     // ---------- Google Sign-In (Using Redirect) ----------
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -166,7 +165,7 @@
           showMessage("Sign-in failed: " + error.message, true);
         });
     }
-
+    
     // ---------- Anonymous Sign-In ----------
     function anonymousLogin() {
       debugLog("Attempting anonymous sign-in...");
@@ -179,7 +178,7 @@
           showMessage("Anonymous sign-in failed: " + error.message, true);
         });
     }
-
+    
     // ---------- Handle Redirect Result ----------
     firebase.auth().getRedirectResult()
       .then(result => {
@@ -193,7 +192,7 @@
         debugLog("getRedirectResult error: " + error.message);
         showMessage("Sign-in failed: " + error.message, true);
       });
-
+    
     // ---------- Authentication State Listener ----------
     firebase.auth().onAuthStateChanged(user => {
       debugLog("onAuthStateChanged triggered: " + JSON.stringify(user));
@@ -205,13 +204,13 @@
         debugLog("No user signed in.");
       }
     });
-
+    
     function logout() {
       firebase.auth().signOut().then(() => {
         location.reload();
       });
     }
-
+    
     // ---------- Show Game UI ----------
     function showGame() {
       const loginContainer = document.getElementById("login-container");
@@ -225,7 +224,7 @@
         debugLog("Required DOM elements not found in showGame()", true);
       }
     }
-
+    
     // ---------- Get Spawn Color Function ----------
     function getSpawnColor(type) {
       const colors = {
@@ -241,7 +240,7 @@
       };
       return colors[type] || "gray";
     }
-
+    
     // ---------- Initialize Game Logic ----------
     function initializeGame() {
       debugLog("Initializing game logic...");
@@ -251,7 +250,7 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-
+      
       // ---------- Photon Setup ----------
       let photonClient;
       try {
@@ -268,7 +267,7 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-
+      
       // ---------- Player Marker & Action Zone ----------
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -288,7 +287,7 @@
           map.setView([lat, lng], 15, { animate: true });
         }
       }
-
+      
       // ---------- Multiplayer: Join Battle Room Function ----------
       function joinBattleRoom(spawnId) {
         if (photonClient) {
@@ -309,22 +308,22 @@
           }, 3000);
         }
       }
-
-      // ---------- Dynamic Spawn Points Setup ----------
+      
+      // ---------- Dynamic Spawn Points Setup using Realtime Database ----------
       const SPAWN_AREA_RADIUS = 4827; // 3 miles in meters
       const REGEN_THRESHOLD = 300; // Regenerate if player moves >300m
       const spawnTypes = ["creature", "dungeon", "inn", "shop", "quest", "keep", "lair", "publicEvent", "worldBoss"];
-
+      
       async function clearSpawnPoints() {
         try {
-          const snapshot = await firestore.collection("spawnPoints").get();
-          snapshot.forEach(doc => doc.ref.delete());
+          const ref = database.ref("spawnPoints");
+          await ref.remove();
           debugLog("Cleared all spawn points.");
         } catch (error) {
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }
-
+      
       async function generateSpawns(center) {
         let spawnGenerationCount = {
           "creature": 2,
@@ -349,12 +348,15 @@
             let offset = generateRandomOffset(maxOffset);
             let spawnData = {
               type: type,
-              location: { lat: center.lat + offset.latOffset, lng: center.lng + offset.lngOffset },
-              lastSpawnTime: firebase.firestore.FieldValue.serverTimestamp()
+              location: {
+                lat: center.lat + offset.latOffset,
+                lng: center.lng + offset.lngOffset
+              },
+              lastSpawnTime: Date.now()
             };
             if (type === "worldBoss") spawnData.roaming = true;
             try {
-              await firestore.collection("spawnPoints").add(spawnData);
+              await database.ref("spawnPoints").push(spawnData);
               totalSpawns++;
             } catch (error) {
               debugLog("Error creating spawn for type " + type + ": " + error.message, true);
@@ -363,17 +365,23 @@
         }
         debugLog(`Generated ${totalSpawns} spawn points.`);
       }
-
+      
       function generateRandomOffset(meters) {
         const dLat = meters / 111300;
         const dLng = dLat / Math.cos(map.getCenter().lat * Math.PI / 180);
-        return { latOffset: (Math.random() * 2 - 1) * dLat, lngOffset: (Math.random() * 2 - 1) * dLng };
+        return {
+          latOffset: (Math.random() * 2 - 1) * dLat,
+          lngOffset: (Math.random() * 2 - 1) * dLng
+        };
       }
-
+      
       let lastSpawnCenter = null;
       if (navigator.geolocation) {
         navigator.geolocation.watchPosition(position => {
-          const playerLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
+          const playerLatLng = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
           updatePlayerMarker(playerLatLng.lat, playerLatLng.lng);
           // Send player's position update to Photon (event code 1)
           if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
@@ -390,28 +398,27 @@
       } else {
         debugLog("Geolocation not supported.", true);
       }
-
-      firestore.collection("spawnPoints").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === "added") {
-            const spawn = change.doc.data();
-            const spawnId = change.doc.id;
-            L.circleMarker([spawn.location.lat, spawn.location.lng], {
-              color: getSpawnColor(spawn.type),
-              fillColor: getSpawnColor(spawn.type),
-              fillOpacity: 0.8,
-              radius: 8
-            }).addTo(map)
-              .bindPopup("Spawn Type: " + spawn.type);
-          }
-        });
+      
+      database.ref("spawnPoints").on("child_added", snapshot => {
+        const spawn = snapshot.val();
+        const spawnId = snapshot.key;
+        L.circleMarker([spawn.location.lat, spawn.location.lng], {
+          color: getSpawnColor(spawn.type),
+          fillColor: getSpawnColor(spawn.type),
+          fillOpacity: 0.8,
+          radius: 8
+        }).addTo(map)
+          .bindPopup("Spawn Type: " + spawn.type)
+          .on("click", function() {
+            debugLog("Joining battle for " + spawn.type);
+            joinBattleRoom(spawnId);
+          });
       });
-
+      
       // Optional: Clear spawn points every 5 minutes for testing.
       setInterval(async () => {
         try {
-          const snapshot = await firestore.collection("spawnPoints").get();
-          snapshot.forEach(doc => doc.ref.delete());
+          await database.ref("spawnPoints").remove();
           debugLog("Cleared all spawn points at " + new Date().toLocaleTimeString());
         } catch (error) {
           debugLog("Error clearing spawn points: " + error.message, true);
