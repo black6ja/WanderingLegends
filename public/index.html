@@ -40,6 +40,7 @@
   </div>
   <!-- Debug Panel -->
   <div id="debugPanel"></div>
+  
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -55,7 +56,7 @@
     let lastSpawnCenter = null;
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
-    let spawnMarkers = {}; // to keep track of spawn markers on the map
+    let spawnMarkers = {}; // to track spawn markers on the map
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -157,8 +158,16 @@
       firebase.auth().signOut().then(() => location.reload());
     }
 
+    // ---------- Show Game UI ----------
+    function showGame() {
+      document.getElementById("login-container").style.display = "none";
+      document.getElementById("map-container").style.display = "block";
+      debugLog("Transitioning to game UI...");
+      initializeGame();
+    }
+
     // ---------- Spawn Manager Functions ----------
-    // Check if a spawn manager already exists
+    // Check if a spawn manager already exists.
     async function checkSpawnManager() {
       const snapshot = await database.ref("spawnManager").once("value");
       if (snapshot.exists() && snapshot.val().uid) {
@@ -168,7 +177,7 @@
       return true;
     }
 
-    // Elect this client as spawn manager if none exists
+    // Elect this client as spawn manager if none exists.
     async function electSpawnManager() {
       const canBecomeLeader = await checkSpawnManager();
       if (!canBecomeLeader) return;
@@ -179,10 +188,10 @@
       startMovingSpawns();
     }
 
-    // Move spawns only if this client is the leader
+    // Only the spawn manager moves spawns.
     async function moveSpawnsIfManager() {
-      const managerRef = await database.ref("spawnManager").once("value");
-      if (!managerRef.exists() || managerRef.val().uid !== firebase.auth().currentUser.uid) {
+      const managerSnapshot = await database.ref("spawnManager").once("value");
+      if (!managerSnapshot.exists() || managerSnapshot.val().uid !== firebase.auth().currentUser.uid) {
         debugLog("Not the spawn manager. Skipping movement.");
         return;
       }
@@ -206,13 +215,13 @@
       }
     }
 
-    // Begin moving spawns every 10 minutes if this client is the leader
+    // Begin moving spawns every 10 minutes if this client is the manager.
     function startMovingSpawns() {
       moveSpawnsIfManager();
       setInterval(moveSpawnsIfManager, 600000);
     }
 
-    // Listen for changes to the spawnManager node so that if no leader is present, we elect one
+    // Listen for changes on the spawnManager node.
     database.ref("spawnManager").on("value", async snapshot => {
       if (!snapshot.exists() || !snapshot.val().uid) {
         debugLog("No spawn manager detected. Electing a new one...");
@@ -256,10 +265,10 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-      
+
       await loadSpawnData();
-      await electSpawnManager();  // Attempt to elect this client as spawn manager
-      
+      await electSpawnManager();  // Try to elect this client as the spawn manager
+
       // Photon Setup
       let photonClient;
       try {
@@ -276,7 +285,7 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-      
+
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -289,7 +298,7 @@
       }).addTo(map);
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
-      
+
       // Define updatePlayerMarker and log details.
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
@@ -298,10 +307,10 @@
         map.setView([lat, lng], 15, { animate: true });
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
-      
+
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
-      
+
       // Listen for spawn points from Firebase
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
@@ -325,7 +334,7 @@
         spawnMarkers[snapshot.key] = marker;
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
-      
+
       // Optional: Clear spawn points every 5 minutes for testing.
       setInterval(async () => {
         try {
@@ -335,7 +344,7 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
-      
+
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
@@ -356,7 +365,7 @@
           }, 3000);
         }
       }
-      
+
       // Dynamic Spawn Generation with extra debugging
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
@@ -385,7 +394,7 @@
               },
               lastSpawnTime: Date.now(),
               respawnTime: config.respawnTime,
-              lastMovedAt: Date.now()  // initialize movement timer
+              lastMovedAt: Date.now() // initialize movement timer
             };
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
@@ -400,7 +409,7 @@
         }
         debugLog(`Generated ${totalSpawns} spawn points.`);
       }
-      
+
       function generateRandomOffset(meters, centerLat) {
         const dLat = meters / 111300;
         const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
