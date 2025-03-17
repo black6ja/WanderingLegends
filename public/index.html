@@ -51,7 +51,16 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // Utility: Random Creature Subtype Selection using Rarity Weights
+    // --- Define debugLog FIRST so it's available everywhere ---
+    function debugLog(message) {
+      const debugDiv = document.getElementById("debugPanel");
+      const p = document.createElement("p");
+      p.textContent = message;
+      debugDiv.appendChild(p);
+      console.log("DEBUG:", message);
+    }
+    
+    // --- Utility: Random Creature Subtype Selection using Rarity Weights ---
     function getRandomCreatureSubtype() {
       const subtypes = spawnConfig["creature"].subtypes;
       const rarityWeights = { "Common": 80, "Uncommon": 15, "Rare": 4, "Legendary": 1 };
@@ -70,8 +79,8 @@
       }
       return weightedCreatures[Math.floor(Math.random() * weightedCreatures.length)];
     }
-
-    // Utility: Generate a Random Offset
+    
+    // --- Utility: Generate a Random Offset ---
     function generateRandomOffset(meters, centerLat) {
       const dLat = meters / 111300;
       const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
@@ -80,8 +89,8 @@
       debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
       return { latOffset, lngOffset };
     }
-
-    // Utility: Generate Spawns (uses rarity and imageUrl for creature spawns)
+    
+    // --- Utility: Generate Spawns (uses rarity and imageUrl for creature spawns) ---
     async function generateSpawns(center) {
       if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
         debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -132,8 +141,8 @@
       }
       debugLog(`Generated ${totalSpawns} spawn points.`);
     }
-
-    // Global variables for game state
+    
+    // --- Global Variables for Game State ---
     let gameShown = false;
     let spawnConfig = {};
     let lastSpawnCenter = null;
@@ -153,8 +162,6 @@
     };
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-
-    // ---------- Debug Logging Function (already defined above, used in utilities) ----------
 
     // ---------- Authentication Functions ----------
     function googleLogin() {
