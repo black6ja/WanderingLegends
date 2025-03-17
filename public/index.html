@@ -104,7 +104,7 @@
   <!-- Debug Panel -->
   <div id="debugPanel"></div>
 
-  <!-- Firebase SDKs (using compat scripts for static hosting) -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -117,9 +117,9 @@
   <script>
     let gameShown = false;
     let spawnConfig = {};
-    let lastSpawnCenter = null;  // Used to decide when to regenerate spawns
-    let lastPlayerPosition = null; // Latest player coordinates
-    const REGEN_THRESHOLD = 300;   // Meters
+    let lastSpawnCenter = null;
+    let lastPlayerPosition = null;
+    const REGEN_THRESHOLD = 300; // in meters
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -249,11 +249,11 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-
-      // Load spawn configuration from spawnData.json
+      
+      // Load spawn configuration
       await loadSpawnData();
-
-      // Setup Photon
+      
+      // Photon Setup
       let photonClient;
       try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
@@ -269,7 +269,7 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-
+      
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -289,11 +289,11 @@
           map.setView([lat, lng], 15, { animate: true });
         }
       }
-
+      
       // ---------- Start Location Tracking ----------
       startLocationTracking(map, photonClient);
-
-      // Setup Spawn Listeners
+      
+      // Listen for spawn points and update map
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
         const spawnId = snapshot.key;
@@ -309,7 +309,7 @@
             joinBattleRoom(spawnId, photonClient);
           });
       });
-
+      
       // Optional: Clear spawn points every 5 minutes for testing.
       setInterval(async () => {
         try {
@@ -319,7 +319,7 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
-
+      
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
@@ -340,7 +340,7 @@
           }, 3000);
         }
       }
-
+      
       // Dynamic Spawn Generation using Realtime Database
       async function clearSpawnPoints() {
         try {
@@ -357,18 +357,18 @@
           return;
         }
         let totalSpawns = 0;
-        // Loop through each spawn type in our configuration.
+        // Loop through each spawn type defined in spawnConfig.
         for (let type in spawnConfig) {
           let config = spawnConfig[type];
           let count = config.maxPerArea;
           for (let i = 0; i < count; i++) {
-            // Choose max offset based on spawn type.
             let maxOffset = 500;
             if (type === "dungeon") maxOffset = 1500;
             else if (type === "keep" || type === "lair") maxOffset = 2000;
             else if (type === "publicEvent") maxOffset = 2500;
-            else if (type === "worldBoss") maxOffset = 4827; // SPAWN_AREA_RADIUS
+            else if (type === "worldBoss") maxOffset = 4827; // Using SPAWN_AREA_RADIUS
             let offset = generateRandomOffset(maxOffset, center.lat);
+            debugLog(`Generated offset for ${type}: latOffset=${offset.latOffset.toFixed(6)}, lngOffset=${offset.lngOffset.toFixed(6)}`);
             let newSpawn = {
               type: type,
               location: {
@@ -393,15 +393,13 @@
       function generateRandomOffset(meters, centerLat) {
         const dLat = meters / 111300;
         const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
-        return {
-          latOffset: (Math.random() * 2 - 1) * dLat,
-          lngOffset: (Math.random() * 2 - 1) * dLng
-        };
+        let latOffset = (Math.random() * 2 - 1) * dLat;
+        let lngOffset = (Math.random() * 2 - 1) * dLng;
+        return { latOffset, lngOffset };
       }
     }
 
     // ---------- Start Location Tracking Function ----------
-    // Accepts the map and photonClient as parameters.
     function startLocationTracking(map, photonClient) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
@@ -416,17 +414,21 @@
           
           updatePlayerMarker(lat, lng);
           
-          // Broadcast to Photon if connected.
           if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
             let eventData = { lat: lat, lng: lng };
             photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
           }
           
-          // Store the player's current position.
           lastPlayerPosition = { lat, lng };
+          if (!lastSpawnCenter) {
+            lastSpawnCenter = { lat, lng };
+            debugLog("Initialized lastSpawnCenter.");
+          }
           
-          // Check if the player has moved more than the regeneration threshold.
-          if (!lastSpawnCenter || calculateDistance(lastSpawnCenter, lastPlayerPosition) > REGEN_THRESHOLD) {
+          let distanceMoved = calculateDistance(lastSpawnCenter, lastPlayerPosition);
+          debugLog(`Distance moved since last spawn generation: ${distanceMoved.toFixed(2)} meters`);
+          
+          if (distanceMoved > REGEN_THRESHOLD) {
             debugLog("Player moved significantly; regenerating spawns...");
             clearSpawnPoints().then(() => {
               generateSpawns(lastPlayerPosition);
@@ -440,7 +442,6 @@
         { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
       
-      // Also, immediately get the initial position to center the map.
       navigator.geolocation.getCurrentPosition(
         function(position) {
           const lat = position.coords.latitude;
@@ -459,16 +460,16 @@
       );
     }
 
-    // Helper: Calculate distance between two points using the Haversine formula.
+    // ---------- Helper: Calculate Distance (Haversine Formula) ----------
     function calculateDistance(point1, point2) {
-      const R = 6371e3; // Earth radius in meters.
+      const R = 6371e3;
       const φ1 = point1.lat * Math.PI / 180;
       const φ2 = point2.lat * Math.PI / 180;
       const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
       const Δλ = (point2.lng - point1.lng) * Math.PI / 180;
-      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                 Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
