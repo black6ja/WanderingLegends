@@ -11,7 +11,7 @@
     #login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; }
     #login-container button { padding: 10px; margin: 10px; width: 80%; max-width: 300px; background-color: #4285F4; color: white; border: none; cursor: pointer; font-size: 1em; }
     #login-container button:hover { background-color: #357ae8; }
-    #login-message { font-size: 0.9em; margin-top: 10px; }
+    #login-container p { font-size: 0.9em; margin-top: 10px; }
     /* Game UI */
     #map-container { display: none; flex: 1; }
     #map { flex: 1; width: 100%; height: 100vh; min-height: 400px; }
@@ -167,7 +167,6 @@
     }
 
     // ---------- Spawn Manager Functions ----------
-    // Check if a spawn manager already exists.
     async function checkSpawnManager() {
       const snapshot = await database.ref("spawnManager").once("value");
       if (snapshot.exists() && snapshot.val().uid) {
@@ -177,7 +176,6 @@
       return true;
     }
 
-    // Elect this client as spawn manager if none exists.
     async function electSpawnManager() {
       const canBecomeLeader = await checkSpawnManager();
       if (!canBecomeLeader) return;
@@ -188,7 +186,6 @@
       startMovingSpawns();
     }
 
-    // Only the spawn manager moves spawns.
     async function moveSpawnsIfManager() {
       const managerSnapshot = await database.ref("spawnManager").once("value");
       if (!managerSnapshot.exists() || managerSnapshot.val().uid !== firebase.auth().currentUser.uid) {
@@ -215,13 +212,11 @@
       }
     }
 
-    // Begin moving spawns every 10 minutes if this client is the manager.
     function startMovingSpawns() {
       moveSpawnsIfManager();
       setInterval(moveSpawnsIfManager, 600000);
     }
 
-    // Listen for changes on the spawnManager node.
     database.ref("spawnManager").on("value", async snapshot => {
       if (!snapshot.exists() || !snapshot.val().uid) {
         debugLog("No spawn manager detected. Electing a new one...");
@@ -267,7 +262,7 @@
       debugLog("Leaflet map loaded.");
 
       await loadSpawnData();
-      await electSpawnManager();  // Try to elect this client as the spawn manager
+      await electSpawnManager();
 
       // Photon Setup
       let photonClient;
@@ -299,7 +294,6 @@
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
 
-      // Define updatePlayerMarker and log details.
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
@@ -320,17 +314,47 @@
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-        let marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-          color: getSpawnColor(spawn.type),
-          fillColor: getSpawnColor(spawn.type),
-          fillOpacity: 0.8,
-          radius: 8
-        }).addTo(map)
-          .bindPopup("Spawn Type: " + spawn.type)
-          .on("click", function() {
-            debugLog("Joining battle for " + spawn.type);
-            joinBattleRoom(spawnId, photonClient);
-          });
+
+        let marker;
+        // For creature spawns, use a custom icon (if available) and popup with name/rarity.
+        if (spawn.type === "creature") {
+          let popupText = "Name: " + spawn.creatureName + "<br>Rarity: " + spawn.creatureRarity;
+          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+            let icon = L.icon({
+              iconUrl: spawn.imageUrl,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16],
+              popupAnchor: [0, -16]
+            });
+            marker = L.marker([spawn.location.lat, spawn.location.lng], { icon: icon });
+          } else {
+            marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+              color: getSpawnColor(spawn.type),
+              fillColor: getSpawnColor(spawn.type),
+              fillOpacity: 0.8,
+              radius: 8
+            });
+          }
+          marker.addTo(map)
+            .bindPopup(popupText)
+            .on("click", function() {
+              debugLog("Joining battle for " + spawn.type);
+              joinBattleRoom(spawnId, photonClient);
+            });
+        } else {
+          // Non-creature spawns use the default circle marker.
+          marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+            color: getSpawnColor(spawn.type),
+            fillColor: getSpawnColor(spawn.type),
+            fillOpacity: 0.8,
+            radius: 8
+          }).addTo(map)
+            .bindPopup("Spawn Type: " + spawn.type)
+            .on("click", function() {
+              debugLog("Joining battle for " + spawn.type);
+              joinBattleRoom(spawnId, photonClient);
+            });
+        }
         spawnMarkers[snapshot.key] = marker;
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
@@ -366,7 +390,7 @@
         }
       }
 
-      // Dynamic Spawn Generation with extra debugging
+      // Dynamic Spawn Generation
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -394,8 +418,18 @@
               },
               lastSpawnTime: Date.now(),
               respawnTime: config.respawnTime,
-              lastMovedAt: Date.now() // initialize movement timer
+              lastMovedAt: Date.now()
             };
+            // For creature spawns, select a random creature from a random subtype
+            if (type === "creature" && config.subtypes) {
+              let categories = Object.keys(config.subtypes);
+              let randomCategory = categories[Math.floor(Math.random() * categories.length)];
+              let creatures = config.subtypes[randomCategory];
+              let creature = creatures[Math.floor(Math.random() * creatures.length)];
+              newSpawn.creatureName = creature.name;
+              newSpawn.creatureRarity = creature.rarity;
+              newSpawn.imageUrl = creature.imageUrl;
+            }
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
@@ -421,7 +455,6 @@
     }
 
     // ---------- Start Location Tracking Function ----------
-    // Now accepts a fourth parameter: spawnGenerator.
     function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
@@ -479,7 +512,7 @@
 
     // ---------- Helper: Calculate Distance using Haversine Formula ----------
     function calculateDistance(point1, point2) {
-      const R = 6371e3; // Earth radius in meters.
+      const R = 6371e3;
       const φ1 = point1.lat * Math.PI / 180;
       const φ2 = point2.lat * Math.PI / 180;
       const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
