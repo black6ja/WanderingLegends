@@ -13,6 +13,7 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      position: relative;
     }
     /* Login Screen */
     #login-container {
@@ -46,7 +47,7 @@
       display: none;
       flex: 1;
     }
-    #output, #queueStatus, #debugInfo {
+    #output, #queueStatus {
       padding: 10px;
       background-color: #f2f2f2;
       font-size: 0.9em;
@@ -59,11 +60,21 @@
       height: 100vh;
       min-height: 400px;
     }
-    /* Debug Panel */
-    #debugInfo {
-      border-top: 2px solid #ccc;
+    /* Debug Panel (Fixed at bottom) */
+    #debugPanel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-height: 150px;
+      overflow-y: auto;
+      background: #333;
+      color: #fff;
+      font-size: 0.8em;
+      padding: 5px;
+      z-index: 1000;
     }
-    /* Blinking Player Marker */
+    /* Blinking player marker */
     .blinking-dot {
       width: 15px;
       height: 15px;
@@ -80,6 +91,7 @@
   </style>
 </head>
 <body>
+
   <!-- Login Screen -->
   <div id="login-container">
     <h2>Login to WanderingLegends</h2>
@@ -95,8 +107,8 @@
     <div id="queueStatus">Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.</div>
   </div>
 
-  <!-- Debug Panel (Always Visible) -->
-  <div id="debugInfo"></div>
+  <!-- Debug Panel -->
+  <div id="debugPanel"></div>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -109,25 +121,24 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
-    // Global flag to ensure game is shown only once.
+    // Global flag to ensure the game UI loads only once.
     let gameShown = false;
 
-    // ---------- Helper: Log Messages to Output and Debug Panel ----------
-    function logMessage(message, isError = false) {
-      console[isError ? "error" : "log"](message);
-      const outputDiv = document.getElementById("output");
-      const p = document.createElement("p");
-      p.textContent = message;
-      if (isError) p.style.color = "red";
-      outputDiv.appendChild(p);
-    }
-
+    // ---------- Debug Logging (Print to debugPanel) ----------
     function debugLog(message) {
-      const debugDiv = document.getElementById("debugInfo");
+      const debugDiv = document.getElementById("debugPanel");
       const p = document.createElement("p");
       p.textContent = message;
       debugDiv.appendChild(p);
       console.log("DEBUG:", message);
+    }
+
+    // ---------- Helper: Show Login Messages ----------
+    function showMessage(message, isError = false) {
+      const messageBox = document.getElementById("login-message");
+      messageBox.textContent = message;
+      messageBox.style.color = isError ? "red" : "green";
+      debugLog("Login Message: " + message);
     }
 
     // ---------- Firebase Setup ----------
@@ -149,9 +160,24 @@
       debugLog("Initiating Google sign-in redirect...");
       firebase.auth().signInWithRedirect(provider)
         .catch(error => {
-          debugLog("Sign-in redirect error: " + error.message);
+          debugLog("Google sign-in error: " + error.message);
+          showMessage("Sign-in failed: " + error.message, true);
         });
     }
+
+    // ---------- Handle Redirect Result ----------
+    firebase.auth().getRedirectResult()
+      .then(result => {
+        if (result.user) {
+          debugLog("Redirect result: User signed in: " + JSON.stringify(result.user));
+        } else {
+          debugLog("Redirect result: No user.");
+        }
+      })
+      .catch(error => {
+        debugLog("getRedirectResult error: " + error.message);
+        showMessage("Sign-in failed: " + error.message, true);
+      });
 
     // ---------- Authentication State Listener ----------
     firebase.auth().onAuthStateChanged(user => {
@@ -171,6 +197,7 @@
       });
     }
 
+    // ---------- Show Game UI ----------
     function showGame() {
       const loginContainer = document.getElementById("login-container");
       const mapContainer = document.getElementById("map-container");
