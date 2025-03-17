@@ -51,14 +51,97 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   
   <script>
+    // Utility: Random Creature Subtype Selection using Rarity Weights
+    function getRandomCreatureSubtype() {
+      const subtypes = spawnConfig["creature"].subtypes;
+      const rarityWeights = { "Common": 80, "Uncommon": 15, "Rare": 4, "Legendary": 1 };
+      let weightedCreatures = [];
+      for (let category in subtypes) {
+        subtypes[category].forEach(creature => {
+          let weight = rarityWeights[creature.rarity] || 1;
+          for (let i = 0; i < weight; i++) {
+            weightedCreatures.push({ type: category, name: creature.name, rarity: creature.rarity, imageUrl: creature.imageUrl });
+          }
+        });
+      }
+      if (weightedCreatures.length === 0) {
+        debugLog("No creature subtypes found; defaulting to generic Creature.");
+        return { type: "Creature", name: "Creature", rarity: "Common", imageUrl: "" };
+      }
+      return weightedCreatures[Math.floor(Math.random() * weightedCreatures.length)];
+    }
+
+    // Utility: Generate a Random Offset
+    function generateRandomOffset(meters, centerLat) {
+      const dLat = meters / 111300;
+      const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
+      let latOffset = (Math.random() * 2 - 1) * dLat;
+      let lngOffset = (Math.random() * 2 - 1) * dLng;
+      debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
+      return { latOffset, lngOffset };
+    }
+
+    // Utility: Generate Spawns (uses rarity and imageUrl for creature spawns)
+    async function generateSpawns(center) {
+      if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
+        debugLog("Spawn configuration not loaded; cannot generate spawns.");
+        return;
+      }
+      let totalSpawns = 0;
+      debugLog(`Generating spawns at center: [${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}]`);
+      for (let type in spawnConfig) {
+        let config = spawnConfig[type];
+        let count = config.maxPerArea;
+        debugLog(`Processing spawn type: "${type}" with maxPerArea: ${count}`);
+        for (let i = 0; i < count; i++) {
+          let maxOffset = 500;
+          if (type === "dungeon") maxOffset = 1500;
+          else if (type === "keep" || type === "lair") maxOffset = 2000;
+          else if (type === "publicEvent") maxOffset = 2500;
+          else if (type === "worldBoss") maxOffset = 4827;
+          let offset = generateRandomOffset(maxOffset, center.lat);
+          debugLog(`For spawn type "${type}", generated offset: latOffset=${offset.latOffset.toFixed(6)}, lngOffset=${offset.lngOffset.toFixed(6)}`);
+          let newSpawn = {
+            type: type,
+            location: {
+              lat: center.lat + offset.latOffset,
+              lng: center.lng + offset.lngOffset
+            },
+            lastSpawnTime: Date.now(),
+            respawnTime: config.respawnTime,
+            lastMovedAt: Date.now() // initialize movement timer
+          };
+          // For creature spawns, choose a random subtype with rarity info.
+          if (type === "creature") {
+            let creature = getRandomCreatureSubtype();
+            newSpawn.subtype = creature.type;         // e.g., "Beast"
+            newSpawn.subtypeName = creature.name;       // e.g., "Wolf"
+            newSpawn.rarity = creature.rarity;          // e.g., "Common"
+            newSpawn.imageUrl = creature.imageUrl || ""; // may be blank for now
+          }
+          if (type === "worldBoss") newSpawn.roaming = true;
+          debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
+          try {
+            let spawnRef = await database.ref("spawnPoints").push(newSpawn);
+            debugLog(`Spawn successfully pushed with key: ${spawnRef.key}`);
+            totalSpawns++;
+          } catch (error) {
+            debugLog("Error creating spawn for type " + type + ": " + error.message, true);
+          }
+        }
+      }
+      debugLog(`Generated ${totalSpawns} spawn points.`);
+    }
+
+    // Global variables for game state
     let gameShown = false;
     let spawnConfig = {};
     let lastSpawnCenter = null;
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
-    let spawnMarkers = {}; // to track spawn markers on the map
+    let spawnMarkers = {}; // track spawn markers on the map
 
-    // Initialize Firebase
+    // ---------- Firebase Initialization ----------
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
       authDomain: "wanderinglegends-12cc2.web.app",
@@ -71,46 +154,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // ---------- Debug Logging ----------
-    function debugLog(message) {
-      const debugDiv = document.getElementById("debugPanel");
-      const p = document.createElement("p");
-      p.textContent = message;
-      debugDiv.appendChild(p);
-      console.log("DEBUG:", message);
-    }
-
-    // ---------- Show Login Messages ----------
-    function showMessage(message, isError = false) {
-      const messageBox = document.getElementById("login-message");
-      messageBox.textContent = message;
-      messageBox.style.color = isError ? "red" : "green";
-      debugLog("Login Message: " + message);
-    }
-
-    // ---------- Load Spawn Configuration from spawnData.json ----------
-    async function loadSpawnData() {
-      try {
-        let response = await fetch("spawnData.json");
-        let data = await response.json();
-        data.spawnTypes.forEach(spawn => {
-          spawnConfig[spawn.type] = spawn;
-        });
-        debugLog("Loaded spawn configuration: " + JSON.stringify(spawnConfig));
-      } catch (error) {
-        debugLog("Error loading spawn data: " + error.message, true);
-      }
-    }
-
-    // ---------- Global Clear Spawn Points Function ----------
-    async function clearSpawnPoints() {
-      try {
-        await database.ref("spawnPoints").remove();
-        debugLog("Cleared all spawn points.");
-      } catch (error) {
-        debugLog("Error clearing spawn points: " + error.message, true);
-      }
-    }
+    // ---------- Debug Logging Function (already defined above, used in utilities) ----------
 
     // ---------- Authentication Functions ----------
     function googleLogin() {
@@ -251,26 +295,6 @@
       return colors[type] || "gray";
     }
 
-    // ---------- Utility: Random Creature Subtype Selection using Rarity Weights ----------
-    function getRandomCreatureSubtype() {
-      const subtypes = spawnConfig["creature"].subtypes;
-      const rarityWeights = { "Common": 80, "Uncommon": 15, "Rare": 4, "Legendary": 1 };
-      let weightedCreatures = [];
-      for (let category in subtypes) {
-        subtypes[category].forEach(creature => {
-          let weight = rarityWeights[creature.rarity] || 1;
-          for (let i = 0; i < weight; i++) {
-            weightedCreatures.push({ type: category, name: creature.name, rarity: creature.rarity, imageUrl: creature.imageUrl });
-          }
-        });
-      }
-      if (weightedCreatures.length === 0) {
-        debugLog("No creature subtypes found; defaulting to generic Creature.");
-        return { type: "Creature", name: "Creature", rarity: "Common", imageUrl: "" };
-      }
-      return weightedCreatures[Math.floor(Math.random() * weightedCreatures.length)];
-    }
-
     // ---------- Stub Battle Creature Function ----------
     function battleCreature(spawnId) {
       debugLog("Battle function triggered for spawn: " + spawnId);
@@ -315,7 +339,7 @@
       debugLog("Leaflet map loaded.");
 
       await loadSpawnData();
-      await electSpawnManager();  // Attempt to elect this client as spawn manager
+      await electSpawnManager();  // Try to elect this client as spawn manager
 
       // Photon Setup
       let photonClient;
@@ -401,7 +425,6 @@
               joinBattleRoom(spawnId, photonClient);
             });
         } else {
-          // For non-creature spawns, use a default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
