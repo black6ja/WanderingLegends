@@ -242,7 +242,7 @@
           debugLog(`Invalid spawn received: ${JSON.stringify(spawn)}`, true);
           return;
         }
-        debugLog(`New spawn detected from Firebase: ${JSON.stringify(spawn)}`);
+        debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
         L.circleMarker([spawn.location.lat, spawn.location.lng], {
           color: getSpawnColor(spawn.type),
           fillColor: getSpawnColor(spawn.type),
@@ -288,7 +288,7 @@
         }
       }
 
-      // Dynamic Spawn Generation
+      // Dynamic Spawn Generation with extra debugging
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -299,6 +299,7 @@
         for (let type in spawnConfig) {
           let config = spawnConfig[type];
           let count = config.maxPerArea;
+          debugLog(`Processing spawn type: "${type}" with maxPerArea: ${count}`);
           for (let i = 0; i < count; i++) {
             let maxOffset = 500;
             if (type === "dungeon") maxOffset = 1500;
@@ -319,7 +320,8 @@
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
-              await database.ref("spawnPoints").push(newSpawn);
+              let spawnRef = await database.ref("spawnPoints").push(newSpawn);
+              debugLog(`Spawn successfully pushed with key: ${spawnRef.key}`);
               totalSpawns++;
             } catch (error) {
               debugLog("Error creating spawn for type " + type + ": " + error.message, true);
