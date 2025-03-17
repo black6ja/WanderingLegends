@@ -104,11 +104,10 @@
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
       debugLog("Initiating Google sign-in redirect...");
-      firebase.auth().signInWithRedirect(provider)
-        .catch(error => {
-          debugLog("Google sign-in error: " + error.message);
-          showMessage("Sign-in failed: " + error.message, true);
-        });
+      firebase.auth().signInWithRedirect(provider).catch(error => {
+        debugLog("Google sign-in error: " + error.message);
+        showMessage("Sign-in failed: " + error.message, true);
+      });
     }
 
     function anonymousLogin() {
@@ -213,7 +212,7 @@
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
 
-      // Define updatePlayerMarker locally and log updates.
+      // Define updatePlayerMarker and log details.
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
@@ -222,8 +221,8 @@
         debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
 
-      // Start location tracking; pass map, photonClient, and updatePlayerMarker callback.
-      startLocationTracking(map, photonClient, updatePlayerMarker);
+      // Start tracking player location and pass generateSpawns as a callback.
+      startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
 
       // Listen for spawn points from Firebase
       database.ref("spawnPoints").on("child_added", snapshot => {
@@ -279,7 +278,7 @@
         }
       }
 
-      // Dynamic Spawn Generation using Firebase Realtime Database
+      // Dynamic Spawn Generation
       async function clearSpawnPoints() {
         try {
           await database.ref("spawnPoints").remove();
@@ -288,7 +287,7 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }
-
+      
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -328,7 +327,7 @@
         }
         debugLog(`Generated ${totalSpawns} spawn points.`);
       }
-
+      
       function generateRandomOffset(meters, centerLat) {
         const dLat = meters / 111300;
         const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
@@ -340,7 +339,8 @@
     }
 
     // ---------- Start Location Tracking Function ----------
-    function startLocationTracking(map, photonClient, updatePlayerMarker) {
+    // Now accepts a fourth parameter: spawnGenerator.
+    function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
         return;
@@ -371,7 +371,7 @@
           if (distanceMoved > REGEN_THRESHOLD) {
             debugLog("Player moved significantly; regenerating spawns...");
             clearSpawnPoints().then(() => {
-              generateSpawns(lastPlayerPosition);
+              spawnGenerator(lastPlayerPosition);
               lastSpawnCenter = { lat, lng };
             });
           }
@@ -391,7 +391,7 @@
           map.setView([lat, lng], 15);
           lastPlayerPosition = { lat, lng };
           lastSpawnCenter = { lat, lng };
-          generateSpawns(lastPlayerPosition);
+          spawnGenerator(lastPlayerPosition);
         },
         function(error) {
           debugLog("Error retrieving initial position: " + error.message, true);
