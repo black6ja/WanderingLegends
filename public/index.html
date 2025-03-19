@@ -533,8 +533,10 @@
             let key = statLabels[label];
             let value = stats[key];
             if (typeof value === "object" && value !== null && value.amount !== undefined) {
-              value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
+              let types = Array.isArray(value.types) ? value.types : [];
+              value = value.amount + " (" + (types.length > 0 ? types.join(", ") : "none") + ")";
             }
+
             if (Array.isArray(value)) {
               value = value.join(", ");
             }
