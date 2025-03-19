@@ -22,20 +22,21 @@
     .blinking-dot { width: 15px; height: 15px; background: rgba(0,0,255,0.8); border: 2px solid white; border-radius: 50%; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
   
-      /* Creature Card Overlay Styles */
-      .creature-card {
+  /* Creature Card Overlay Styles */
+  .creature-card {
   position: fixed;
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
   width: 320px;
-  /* Semi-transparent gradient from white to black */
+  /* Use your requested gradient: */
   background: linear-gradient(135deg, rgba(255,255,255,0.85), rgb(0,0,0));
   color: #f8f8f2;
   border-radius: 15px;
   box-shadow: 0 0 20px gold;
   z-index: 2000;
-  overflow: hidden; /* Ensures corners remain rounded for overhanging elements */
+  /* Remove overflow: hidden; so circles can hang over the edges */
+  /* overflow: hidden; */
 }
 
 .creature-card.hidden {
@@ -545,9 +546,6 @@
           cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
                           ? spawn.imageUrl
                           : "https://via.placeholder.com/100";
-
-          // Debug: Temporarily set a bright background to verify the card is rendered
-          card.style.background = "#444";
 
           // Update card border & glow based on rarity and EXP
           if (spawn.stats && spawn.stats.exp) {
