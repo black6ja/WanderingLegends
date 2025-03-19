@@ -7,149 +7,217 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; position: relative; }
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      display: flex; 
+      flex-direction: column; 
+      min-height: 100vh; 
+      position: relative; 
+    }
     /* Login Screen */
-    #login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; }
-    #login-container button { padding: 10px; margin: 10px; width: 80%; max-width: 300px; background-color: #4285F4; color: white; border: none; cursor: pointer; font-size: 1em; }
+    #login-container { 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center; 
+      height: 100vh; 
+      background-color: #f4f4f4; 
+    }
+    #login-container button { 
+      padding: 10px; 
+      margin: 10px; 
+      width: 80%; 
+      max-width: 300px; 
+      background-color: #4285F4; 
+      color: white; 
+      border: none; 
+      cursor: pointer; 
+      font-size: 1em; 
+    }
     #login-container button:hover { background-color: #357ae8; }
     #login-container p { font-size: 0.9em; margin-top: 10px; }
+
+    /* Character Selection/Creation Screens */
+    .screen {
+      display: none;
+      padding: 20px;
+      text-align: center;
+      background: #fff;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .screen.visible { display: block; }
+    .class-options {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin: 20px 0;
+    }
+    .class-option {
+      width: 140px;
+      padding: 10px;
+      margin: 10px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .class-option:hover { transform: scale(1.05); }
+    .class-option.selected { border-color: #FFD700; }
+    .class-option img {
+      width: 100%;
+      height: auto;
+      border-radius: 5px;
+    }
+    input[type="text"] {
+      padding: 8px;
+      margin: 10px 0;
+      width: 80%;
+      max-width: 300px;
+    }
+
     /* Game UI */
-    #map-container { display: none; flex: 1; }
-    #map { flex: 1; width: 100%; height: 100vh; min-height: 400px; }
+    #map-container { 
+      display: none; 
+      flex: 1; 
+    }
+    #map { 
+      flex: 1; 
+      width: 100%; 
+      height: 100vh; 
+      min-height: 400px; 
+    }
+
     /* Debug Panel */
-    #debugPanel { position: fixed; bottom: 0; left: 0; right: 0; background: #333; color: #fff; font-size: 0.8em; padding: 5px; max-height: 150px; overflow-y: auto; z-index: 1000; }
+    #debugPanel { 
+      position: fixed; 
+      bottom: 0; 
+      left: 0; 
+      right: 0; 
+      background: #333; 
+      color: #fff; 
+      font-size: 0.8em; 
+      padding: 5px; 
+      max-height: 150px; 
+      overflow-y: auto; 
+      z-index: 1000; 
+    }
+
     /* Blinking Player Marker */
-    .blinking-dot { width: 15px; height: 15px; background: rgba(0,0,255,0.8); border: 2px solid white; border-radius: 50%; animation: pulse 2s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
-  
-  /* Creature Card Overlay Styles */
- /* Creature Card: gradient background, rounded corners, no overflow clipping */
-.creature-card {
-  position: fixed;
-  top: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 320px;
-  /* Semi-transparent gradient from white to black */
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgb(0, 0, 0));
-  color: #f8f8f2;
-  border-radius: 15px;
-  box-shadow: 0 0 20px gold;
-  z-index: 2000;
-  /* Removed overflow: hidden; so CR/EXP can overhang */
-}
+    .blinking-dot { 
+      width: 15px; 
+      height: 15px; 
+      background: rgba(0,0,255,0.8); 
+      border: 2px solid white; 
+      border-radius: 50%; 
+      animation: pulse 2s infinite; 
+    }
+    @keyframes pulse { 
+      0% { transform: scale(1); opacity: 1; } 
+      50% { transform: scale(1.5); opacity: 0.5; } 
+      100% { transform: scale(1); opacity: 1; } 
+    }
 
-/* Hide/show utility */
-.creature-card.hidden {
-  display: none;
-}
-
-/* Top corners container for CR/EXP overhang */
-.card-top-corners {
-  position: relative;
-  width: 100%;
-  height: 0; /* No extra vertical space; just a positioning context */
-}
-
-/* CR & EXP circles pinned to top corners */
-.card-cr,
-.card-exp {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  line-height: 60px;
-  text-align: center;
-  border-radius: 50%;
-  font-family: 'Cinzel', serif;
-  font-size: 1.5em;
-  color: #fff;
-  background: radial-gradient(circle, #444 0%, #222 100%);
-}
-
-/* CR pinned to top-left corner */
-.card-cr {
-  border: 2px solid #FFD700;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -50%);
-}
-
-/* EXP pinned to top-right corner */
-.card-exp {
-  border: 2px solid #C0C0C0;
-  top: 0;
-  right: 0;
-  transform: translate(50%, -50%);
-}
-
-/* Title row */
-.card-top {
-  background: rgba(0, 0, 0, 0.7);
-  width: 100%;
-  padding: 10px;
-  text-align: center;
-  box-sizing: border-box;
-  border-top-left-radius: 15px;
-  border-top-right-radius: 15px;
-}
-
-#card-name {
-  margin: 0;
-  font-size: 1.8em;
-  color: #FFD700;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-  font-family: 'Cinzel', serif;
-}
-
-/* Image row: full width */
-.card-image-container {
-  width: 100%;
-}
-
-#card-image {
-  width: 100%;
-  height: auto;
-  object-fit: cover;
-}
-
-/* Bottom row: Attack & Run buttons spanning entire width */
-.card-bottom {
-  display: flex;
-  width: 100%;
-  border-bottom-left-radius: 15px;
-  border-bottom-right-radius: 8px;
-  overflow: hidden; /* Ensures buttons match the card's rounded corners */
-  margin-top: 10px; /* Optional spacing above the buttons */
-}
-
-.card-bottom button {
-  flex: 1;
-  font-size: 1.2em;
-  border: none;
-  cursor: pointer;
-  margin: 0;
-  padding: 10px;
-}
-
-/* Attack button: red theme */
-#attack-button {
-  background-color: #cc0000;
-  color: #fff;
-}
-#attack-button:hover {
-  background-color: #b30000;
-}
-
-/* Run button: fantasy RPG blue */
-#run-button {
-  background-color: #1E90FF;
-  color: #fff;
-}
-#run-button:hover {
-  background-color: #187bcd;
-}
-
-
+    /* Creature Card Overlay Styles */
+    .creature-card {
+      position: fixed;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 320px;
+      /* Semi-transparent gradient from white to black */
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgb(0, 0, 0));
+      color: #f8f8f2;
+      border-radius: 15px;
+      box-shadow: 0 0 20px gold;
+      z-index: 2000;
+      /* Removed overflow: hidden; so CR/EXP can overhang */
+    }
+    .creature-card.hidden { display: none; }
+    /* Top corners container for CR/EXP overhang */
+    .card-top-corners {
+      position: relative;
+      width: 100%;
+      height: 0;
+    }
+    .card-cr,
+    .card-exp {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      line-height: 60px;
+      text-align: center;
+      border-radius: 50%;
+      font-family: 'Cinzel', serif;
+      font-size: 1.5em;
+      color: #fff;
+      background: radial-gradient(circle, #444 0%, #222 100%);
+    }
+    .card-cr {
+      border: 2px solid #FFD700;
+      top: 0;
+      left: 0;
+      transform: translate(-50%, -50%);
+    }
+    .card-exp {
+      border: 2px solid #C0C0C0;
+      top: 0;
+      right: 0;
+      transform: translate(50%, -50%);
+    }
+    /* Title row */
+    .card-top {
+      background: rgba(0, 0, 0, 0.7);
+      width: 100%;
+      padding: 10px;
+      text-align: center;
+      box-sizing: border-box;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+    }
+    #card-name {
+      margin: 0;
+      font-size: 1.8em;
+      color: #FFD700;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+      font-family: 'Cinzel', serif;
+    }
+    /* Image row: full width */
+    .card-image-container { width: 100%; }
+    #card-image {
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+    }
+    /* Bottom row: Attack & Run buttons spanning entire width */
+    .card-bottom {
+      display: flex;
+      width: 100%;
+      border-bottom-left-radius: 15px;
+      border-bottom-right-radius: 15px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .card-bottom button {
+      flex: 1;
+      font-size: 1.2em;
+      border: none;
+      cursor: pointer;
+      margin: 0;
+      padding: 10px;
+    }
+    #attack-button {
+      background-color: #cc0000;
+      color: #fff;
+    }
+    #attack-button:hover { background-color: #b30000; }
+    #run-button {
+      background-color: #1E90FF;
+      color: #fff;
+    }
+    #run-button:hover { background-color: #187bcd; }
   </style>
 </head>
 <body>
@@ -160,6 +228,47 @@
     <button onclick="anonymousLogin()">Continue Anonymously</button>
     <p id="login-message"></p>
   </div>
+
+  <!-- Character Selection Screen -->
+  <div id="character-selection" class="screen hidden">
+    <h2>Select Your Character</h2>
+    <div id="existing-characters">
+      <!-- For now, assume none exist -->
+      <p>No character found. Create a new one:</p>
+    </div>
+    <button id="create-new-character">Create New Character</button>
+  </div>
+
+  <!-- Character Creation Screen -->
+  <div id="character-creation" class="screen hidden">
+    <h2>Create Your Character</h2>
+    <div class="class-options">
+      <div class="class-option" data-class="Warrior">
+        <img src="/images/classes/warrior.png" alt="Warrior">
+        <h3>Warrior</h3>
+        <p>A strong melee fighter with high HP and defense.</p>
+      </div>
+      <div class="class-option" data-class="Wizard">
+        <img src="/images/classes/wizard.png" alt="Wizard">
+        <h3>Wizard</h3>
+        <p>A master of arcane arts, using spells to control the battlefield.</p>
+      </div>
+      <div class="class-option" data-class="Rogue">
+        <img src="/images/classes/rogue.png" alt="Rogue">
+        <h3>Rogue</h3>
+        <p>An agile fighter who excels in stealth and quick attacks.</p>
+      </div>
+      <div class="class-option" data-class="Cleric">
+        <img src="/images/classes/cleric.png" alt="Cleric">
+        <h3>Cleric</h3>
+        <p>A divine healer and protector, blending offense and support.</p>
+      </div>
+    </div>
+    <label for="characterName">Character Name:</label>
+    <input type="text" id="characterName" name="characterName" maxlength="20" pattern="^[a-zA-Z0-9\s\-']{3,20}$" required>
+    <button id="confirm-character">Confirm</button>
+  </div>
+
   <!-- Game UI -->
   <div id="map-container">
     <button onclick="logout()">Logout</button>
@@ -168,6 +277,7 @@
       Click a <strong>World Boss</strong> or <strong>Public Event</strong> to enter battle.
     </div>
   </div>
+
   <!-- Debug Panel -->
   <div id="debugPanel"></div>
   
@@ -187,6 +297,7 @@
     let lastPlayerPosition = null;
     const REGEN_THRESHOLD = 300; // meters
     let spawnMarkers = {}; // to track spawn markers on the map
+    let selectedClass = null;  // for character creation
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -278,7 +389,7 @@
       if (user && !gameShown) {
         gameShown = true;
         debugLog("User detected: " + (user.displayName || "Anonymous"));
-        showGame();
+        postLoginFlow();
       } else if (!user) {
         debugLog("No user signed in.");
       }
@@ -288,13 +399,103 @@
       firebase.auth().signOut().then(() => location.reload());
     }
 
-    // ---------- Show Game UI ----------
-    function showGame() {
-      document.getElementById("login-container").style.display = "none";
-      document.getElementById("map-container").style.display = "block";
-      debugLog("Transitioning to game UI...");
-      initializeGame();
+    // ---------- Screen Utility Functions ----------
+    function showScreen(screenId) {
+      // Hide all screens
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('visible'));
+      document.getElementById(screenId).classList.add('visible');
     }
+
+    // ---------- Post Login Flow ----------
+    function postLoginFlow() {
+      // Hide login container
+      document.getElementById("login-container").style.display = "none";
+      const uid = firebase.auth().currentUser.uid;
+      // Check if player character exists
+      database.ref('players/' + uid).once('value').then(snapshot => {
+        if (snapshot.exists()) {
+          // Character exists: proceed to game
+          document.getElementById("map-container").style.display = "block";
+          initializeGame();
+        } else {
+          // No character: show character selection screen
+          showScreen('character-selection');
+        }
+      });
+    }
+
+    // ---------- Character Selection & Creation Event Listeners ----------
+    document.getElementById('create-new-character').addEventListener('click', function() {
+      showScreen('character-creation');
+    });
+
+    // Listen for clicks on class options
+    document.querySelectorAll('.class-option').forEach(option => {
+      option.addEventListener('click', function() {
+        // Remove "selected" class from all
+        document.querySelectorAll('.class-option').forEach(opt => opt.classList.remove('selected'));
+        option.classList.add('selected');
+        selectedClass = option.getAttribute('data-class');
+      });
+    });
+
+    // Confirm character creation
+    document.getElementById('confirm-character').addEventListener('click', function() {
+      const characterName = document.getElementById('characterName').value.trim();
+      if (!characterName) {
+        alert("Please enter a valid character name.");
+        return;
+      }
+      if (!selectedClass) {
+        alert("Please select a class.");
+        return;
+      }
+      const uid = firebase.auth().currentUser.uid;
+      // Retrieve class defaults for the selected class
+      database.ref('classDefaults/' + selectedClass).once('value')
+        .then(snapshot => {
+          if (!snapshot.exists()) {
+            alert("Error: Class defaults not found.");
+            return;
+          }
+          const classData = snapshot.val();
+          const newPlayer = {
+            class: selectedClass,
+            name: characterName,
+            stats: classData.stats,
+            inventory: [],
+            equipment: {
+              mainHand: null,
+              offHand: null,
+              armor: null,
+              accessory: null
+            },
+            abilities: {
+              passive: [],
+              action: [],
+              bonusAction: [],
+              reaction: [],
+              recharge: []
+            }
+          };
+          // Save player data tied to the UID
+          database.ref('players/' + uid).set(newPlayer)
+            .then(() => {
+              debugLog("Character created successfully!");
+              // Hide character screens and show map
+              document.getElementById("character-selection").classList.remove('visible');
+              document.getElementById("character-creation").classList.remove('visible');
+              document.getElementById("map-container").style.display = "block";
+              initializeGame();
+            })
+            .catch(error => {
+              debugLog("Error creating character: " + error.message);
+            });
+        })
+        .catch(error => {
+          debugLog("Error retrieving class defaults: " + error.message);
+        });
+    });
 
     // ---------- Spawn Manager Functions ----------
     async function checkSpawnManager() {
@@ -360,7 +561,6 @@
         card.classList.add('hidden');
       }
     });
-
 
     // ---------- Clients Listen for Spawn Movement ----------
     database.ref("spawnPoints").on("child_changed", snapshot => {
@@ -438,7 +638,6 @@
         debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
       }
 
-
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
 
@@ -453,7 +652,6 @@
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
 
         let marker;
-        // For creature spawns, use a custom icon (if available) and popup with name/rarity.
         if (spawn.type === "creature") {
           if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
             let icon = L.icon({
@@ -480,7 +678,6 @@
             showCreatureCard(spawn);
           });
         } else {
-          // Non-creature spawns use the default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
             color: getSpawnColor(spawn.type),
             fillColor: getSpawnColor(spawn.type),
@@ -497,7 +694,6 @@
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
 
-      // Optional: Clear spawn points every 5 minutes for testing.
       setInterval(async () => {
         try {
           await database.ref("spawnPoints").remove();
@@ -507,75 +703,62 @@
         }
       }, 300000);
 
-      document.getElementById('card-close').addEventListener('click', function() {
-      document.getElementById('creature-card').classList.add('hidden');
-    });
+      document.getElementById('card-close')?.addEventListener('click', function() {
+        document.getElementById('creature-card').classList.add('hidden');
+      });
 
-        function getBorderColor(rarity, exp) {
-          let color = "";
-          switch(rarity.toLowerCase()){
-            case "legendary":
-              color = "#8A2BE2"; break; // Blue Violet
-            case "rare":
-              color = "#1E90FF"; break; // Dodger Blue
-            case "uncommon":
-              color = "#32CD32"; break; // Lime Green
-            default:
-              color = "#A9A9A9"; break; // Dark Gray for common
-          }
-          let thickness = 4; // default
-          if(exp > 1000) thickness = 6;
-          if(exp > 3000) thickness = 8;
-          return { color: color, thickness: thickness };
+      function getBorderColor(rarity, exp) {
+        let color = "";
+        switch(rarity.toLowerCase()){
+          case "legendary":
+            color = "#8A2BE2"; break;
+          case "rare":
+            color = "#1E90FF"; break;
+          case "uncommon":
+            color = "#32CD32"; break;
+          default:
+            color = "#A9A9A9"; break;
+        }
+        let thickness = 4;
+        if(exp > 1000) thickness = 6;
+        if(exp > 3000) thickness = 8;
+        return { color: color, thickness: thickness };
+      }
+
+      function showCreatureCard(spawn) {
+        const card = document.getElementById('creature-card');
+        const cardImage = document.getElementById('card-image');
+        const cardName = document.getElementById('card-name');
+        const cardCR = document.getElementById('card-cr');
+        const cardEXP = document.getElementById('card-exp');
+
+        cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
+                        ? spawn.imageUrl 
+                        : "https://via.placeholder.com/100";
+
+        if (spawn.stats && spawn.stats.exp) {
+          const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
+          card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+          card.style.boxShadow = "0 0 20px " + borderInfo.color;
+        } else {
+          card.style.border = "5px solid gold";
+          card.style.boxShadow = "0 0 20px gold";
         }
 
-        function showCreatureCard(spawn) {
-          const card = document.getElementById('creature-card');
-          const cardImage = document.getElementById('card-image');
-          const cardName = document.getElementById('card-name');
-          // Removed: const cardRarity = document.getElementById('card-rarity');
-          const cardCR = document.getElementById('card-cr');
-          const cardEXP = document.getElementById('card-exp');
-
-          // Set a known placeholder image if imageUrl is missing
-          cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
-                          ? spawn.imageUrl
-                          : "https://via.placeholder.com/100";
-
-          // Update card border & glow based on rarity and EXP
-          if (spawn.stats && spawn.stats.exp) {
-            const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
-            card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
-            card.style.boxShadow = "0 0 20px " + borderInfo.color;
-          } else {
-            card.style.border = "5px solid gold";
-            card.style.boxShadow = "0 0 20px gold";
-          }
-
-          // Set name (removed rarity display)
-          cardName.textContent = spawn.creatureName || spawn.type;
-          
-          // Set CR badge (ensure it is populated)
-          if (spawn.stats && spawn.stats.cr) {
-            cardCR.textContent = spawn.stats.cr;
-          } else {
-            cardCR.textContent = "-";
-          }
-          
-          // Set EXP badge (new)
-          if (spawn.stats && spawn.stats.exp) {
-            cardEXP.textContent = spawn.stats.exp;
-          } else {
-            cardEXP.textContent = "-";
-          }
-          
-          card.classList.remove('hidden');
+        cardName.textContent = spawn.creatureName || spawn.type;
+        if (spawn.stats && spawn.stats.cr) {
+          cardCR.textContent = spawn.stats.cr;
+        } else {
+          cardCR.textContent = "-";
         }
+        if (spawn.stats && spawn.stats.exp) {
+          cardEXP.textContent = spawn.stats.exp;
+        } else {
+          cardEXP.textContent = "-";
+        }
+        card.classList.remove('hidden');
+      }
 
-
-
-
-      // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
@@ -596,7 +779,6 @@
         }
       }
 
-      // Dynamic Spawn Generation
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -626,7 +808,6 @@
               respawnTime: config.respawnTime,
               lastMovedAt: Date.now()
             };
-            // For creature spawns, select a random creature from a random subtype
             if (type === "creature" && config.subtypes) {
               let categories = Object.keys(config.subtypes);
               let randomCategory = categories[Math.floor(Math.random() * categories.length)];
@@ -635,10 +816,8 @@
               newSpawn.creatureName = creature.name;
               newSpawn.creatureRarity = creature.rarity;
               newSpawn.imageUrl = creature.imageUrl;
-              newSpawn.stats = creature.stats;  // <-- Ensure stats are included
+              newSpawn.stats = creature.stats;
             }
-
-
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
@@ -663,13 +842,11 @@
       }
     }
 
-    // ---------- Start Location Tracking Function ----------
     function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
       if (!navigator.geolocation) {
         debugLog("Geolocation not supported by this browser.");
         return;
       }
-      
       navigator.geolocation.watchPosition(
         function(position) {
           const lat = position.coords.latitude;
@@ -700,7 +877,6 @@
         },
         { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
-      
       navigator.geolocation.getCurrentPosition(
         function(position) {
           const lat = position.coords.latitude;
@@ -719,7 +895,6 @@
       );
     }
 
-    // ---------- Helper: Calculate Distance using Haversine Formula ----------
     function calculateDistance(point1, point2) {
       const R = 6371e3;
       const φ1 = point1.lat * Math.PI / 180;
@@ -734,32 +909,22 @@
     }
   </script>
 
-<!-- Creature Card Overlay -->
-<div id="creature-card" class="creature-card hidden">
-  <!-- CR and EXP pinned to top corners (overhang) -->
-  <div class="card-top-corners">
-    <div id="card-cr" class="card-cr"></div>
-    <div id="card-exp" class="card-exp"></div>
+  <!-- Creature Card Overlay -->
+  <div id="creature-card" class="creature-card hidden">
+    <div class="card-top-corners">
+      <div id="card-cr" class="card-cr"></div>
+      <div id="card-exp" class="card-exp"></div>
+    </div>
+    <div class="card-top">
+      <h2 id="card-name"></h2>
+    </div>
+    <div class="card-image-container">
+      <img id="card-image" src="" alt="Creature Image" />
+    </div>
+    <div class="card-bottom">
+      <button id="attack-button">Attack!</button>
+      <button id="run-button">Run!</button>
+    </div>
   </div>
-
-  <!-- Title row -->
-  <div class="card-top">
-    <h2 id="card-name"></h2>
-  </div>
-
-  <!-- Image row -->
-  <div class="card-image-container">
-    <img id="card-image" src="" alt="Creature Image" />
-  </div>
-
-  <!-- Bottom row: Attack & Run Buttons -->
-  <div class="card-bottom">
-    <button id="attack-button">Attack!</button>
-    <button id="run-button">Run!</button>
-  </div>
-</div>
-
-
-
 </body>
 </html>
