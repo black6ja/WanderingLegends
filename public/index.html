@@ -24,16 +24,15 @@
       /* Creature Card Overlay Styles */
       .creature-card {
         position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 300px;
-        background-color: rgba(0, 0, 0, 0.95);
+        top: 20px;
+        right: 20px;
+        width: 280px;
+        background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
         color: #f8f8f2;
         padding: 15px;
         border-radius: 15px;
-        border: 4px solid gold; /* default border; will be updated dynamically */
-        box-shadow: 0 0 15px gold; /* slight glow */
+        border: 5px solid gold; /* this border will be updated dynamically */
+        box-shadow: 0 0 20px gold;
         z-index: 2000;
       }
       .creature-card.hidden {
@@ -53,19 +52,25 @@
       font-size: 1.2em;
       cursor: pointer;
     }
-    /* Card Header styles */
     .card-header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-    }
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+    /* Remove border from image and refine styling */
     #card-image {
       width: 80px;
       height: 80px;
       margin-right: 10px;
-      border: 4px solid gold; /* default, will be updated dynamically */
+      border: none;  /* remove the border from the creature image */
       border-radius: 10px;
       object-fit: cover;
+    }
+
+    /* Optionally, if you want a subtle shadow around the image: */
+    #card-image {
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
     .card-info {
       flex-grow: 1;
@@ -84,7 +89,7 @@
       height: 50px;
       line-height: 50px;
       text-align: center;
-      border: 3px solid #ccc; /* will be set dynamically */
+      border: 3px solid #ccc;
       border-radius: 50%;
       font-family: 'Cinzel', serif;
       font-size: 1.2em;
@@ -470,73 +475,77 @@
         }
 
         function showCreatureCard(spawn) {
-          const card = document.getElementById('creature-card');
-          const cardImage = document.getElementById('card-image');
-          const cardName = document.getElementById('card-name');
-          const cardRarity = document.getElementById('card-rarity');
-          const cardCR = document.getElementById('card-cr');
-          const cardStats = document.getElementById('card-stats');
+        const card = document.getElementById('creature-card');
+        const cardImage = document.getElementById('card-image');
+        const cardName = document.getElementById('card-name');
+        const cardRarity = document.getElementById('card-rarity');
+        const cardCR = document.getElementById('card-cr');
+        const cardStats = document.getElementById('card-stats');
 
-          // Set the image (fallback to default if needed)
-          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
-            cardImage.src = spawn.imageUrl;
-          } else {
-            cardImage.src = "default-image.png"; // change as desired
-          }
-          // Update card border & glow based on rarity and EXP
-          if (spawn.stats && spawn.stats.exp) {
-            const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
-            card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
-            card.style.boxShadow = "0 0 15px " + borderInfo.color;
-          } else {
-            card.style.border = "4px solid gold";
-            card.style.boxShadow = "0 0 15px gold";
-          }
-
-          // Set name and rarity
-          cardName.textContent = spawn.creatureName || spawn.type;
-          cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
-          
-          // Set CR badge with fantasy styling
-          if (spawn.stats && spawn.stats.cr) {
-            cardCR.textContent = spawn.stats.cr;
-            cardCR.style.borderColor = "#FFD700"; // gold border for CR badge
-          } else {
-            cardCR.textContent = "-";
-          }
-
-          // Populate additional stats (if any)
-          cardStats.innerHTML = "";
-          if (spawn.stats) {
-            const stats = spawn.stats;
-            const statLabels = {
-              "HP": "hp",
-              "AC": "ac",
-              "Save": "save",
-              "Physical DR": "physicalDR",
-              "Magical DR": "magicalDR",
-              "Attack Bonus": "attackBonus",
-              "Attack Damage": "attackDamage",
-              "Initiative": "initiative",
-              "Special Abilities": "specialAbilities",
-              "Exp": "exp"
-            };
-            for (let label in statLabels) {
-              let key = statLabels[label];
-              let value = stats[key];
-              if (typeof value === "object" && value !== null && value.amount !== undefined) {
-                value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
-              }
-              if (Array.isArray(value)) {
-                value = value.join(", ");
-              }
-              let li = document.createElement("li");
-              li.textContent = label + ": " + value;
-              cardStats.appendChild(li);
-            }
-          }
-          card.classList.remove('hidden');
+        // Set the image (fallback to default if needed)
+        if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+          cardImage.src = spawn.imageUrl;
+        } else {
+          cardImage.src = "default-image.png"; // change as desired
         }
+        // Remove image border change (we're now styling the card overall)
+        // cardImage.style.border = ...  <-- Remove or comment out this line
+
+        // Update card border & glow based on rarity and EXP
+        if (spawn.stats && spawn.stats.exp) {
+          const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
+          card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+          card.style.boxShadow = "0 0 20px " + borderInfo.color;
+        } else {
+          card.style.border = "5px solid gold";
+          card.style.boxShadow = "0 0 20px gold";
+        }
+
+        // Set name and rarity
+        cardName.textContent = spawn.creatureName || spawn.type;
+        cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
+        
+        // Set CR badge with fantasy styling
+        if (spawn.stats && spawn.stats.cr) {
+          cardCR.textContent = spawn.stats.cr;
+          cardCR.style.borderColor = "#FFD700";
+        } else {
+          cardCR.textContent = "-";
+        }
+
+        // Populate additional stats (if any)
+        cardStats.innerHTML = "";
+        if (spawn.stats) {
+          const stats = spawn.stats;
+          const statLabels = {
+            "HP": "hp",
+            "AC": "ac",
+            "Save": "save",
+            "Physical DR": "physicalDR",
+            "Magical DR": "magicalDR",
+            "Attack Bonus": "attackBonus",
+            "Attack Damage": "attackDamage",
+            "Initiative": "initiative",
+            "Special Abilities": "specialAbilities",
+            "Exp": "exp"
+          };
+          for (let label in statLabels) {
+            let key = statLabels[label];
+            let value = stats[key];
+            if (typeof value === "object" && value !== null && value.amount !== undefined) {
+              value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
+            }
+            if (Array.isArray(value)) {
+              value = value.join(", ");
+            }
+            let li = document.createElement("li");
+            li.textContent = label + ": " + value;
+            cardStats.appendChild(li);
+          }
+        }
+        card.classList.remove('hidden');
+      }
+
 
 
       // Multiplayer: Join Battle Room Function
@@ -599,7 +608,9 @@
               newSpawn.creatureName = creature.name;
               newSpawn.creatureRarity = creature.rarity;
               newSpawn.imageUrl = creature.imageUrl;
+              newSpawn.stats = creature.stats;  // <-- ADD THIS LINE
             }
+
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
