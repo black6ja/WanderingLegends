@@ -23,21 +23,23 @@
   
       /* Creature Card Overlay Styles */
       .creature-card {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background-color: rgba(0, 0, 0, 0.9);
-      color: #f8f8f2;
-      padding: 15px;
-      border-top: 3px solid gold;
-      max-height: 50%;
-      overflow-y: auto;
-      z-index: 2000;
-    }
-    .creature-card.hidden {
-      display: none;
-    }
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 300px;
+        background-color: rgba(0, 0, 0, 0.95);
+        color: #f8f8f2;
+        padding: 15px;
+        border-radius: 15px;
+        border: 4px solid gold; /* default border; will be updated dynamically */
+        box-shadow: 0 0 15px gold; /* slight glow */
+        z-index: 2000;
+      }
+      .creature-card.hidden {
+        display: none;
+      }
+
     .creature-card .card-content {
       position: relative;
     }
@@ -481,12 +483,14 @@
           } else {
             cardImage.src = "default-image.png"; // change as desired
           }
-          // Update image border based on rarity & EXP
+          // Update card border & glow based on rarity and EXP
           if (spawn.stats && spawn.stats.exp) {
             const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
-            cardImage.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+            card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+            card.style.boxShadow = "0 0 15px " + borderInfo.color;
           } else {
-            cardImage.style.border = "4px solid gold";
+            card.style.border = "4px solid gold";
+            card.style.boxShadow = "0 0 15px gold";
           }
 
           // Set name and rarity
@@ -534,7 +538,7 @@
           card.classList.remove('hidden');
         }
 
-        
+
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
