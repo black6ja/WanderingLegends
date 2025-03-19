@@ -1,65 +1,779 @@
 {
   "spawnTypes": [
-    { 
-      "type": "creature", 
-      "respawnTime": 180000, 
+    {
+      "type": "creature",
+      "respawnTime": 180000,
       "maxPerArea": 10,
       "subtypes": {
         "Aberration": [
-          { "name": "Aboleth", "rarity": "Legendary", "imageUrl": "" },
-          { "name": "Chuul", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Cloaker", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Gibbering Mouther", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Grick", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" }
+          {
+            "name": "Aboleth",
+            "rarity": "Legendary",
+            "imageUrl": "",
+            "stats": {
+              "hp": 100,
+              "ac": 18,
+              "save": 5,
+              "physicalDR": { "amount": 5, "types": ["slashing", "piercing", "bludgeoning"] },
+              "magicalDR": { "amount": 5, "types": ["fire", "cold", "acid"] },
+              "attackBonus": 10,
+              "attackDamage": "2d12+5",
+              "initiative": 5,
+              "specialAbilities": ["Legendary Resistance"],
+              "cr": "20",
+              "exp": 5000
+            }
+          },
+          {
+            "name": "Chuul",
+            "rarity": "Uncommon",
+            "imageUrl": "",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Cloaker",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Gibbering Mouther",
+            "rarity": "Uncommon",
+            "imageUrl": "",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Grick",
+            "rarity": "Common",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 15,
+              "ac": 12,
+              "save": 1,
+              "physicalDR": { "amount": 1, "types": [] },
+              "magicalDR": { "amount": 1, "types": [] },
+              "attackBonus": 2,
+              "attackDamage": "1d6+1",
+              "initiative": 1,
+              "specialAbilities": [],
+              "cr": "1/4",
+              "exp": 50
+            }
+          }
         ],
         "Beast": [
-          { "name": "Owlbear", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Wolf", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Basilisk", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Griffon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Hippogriff", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Bulette", "rarity": "Rare", "imageUrl": "" }
+          {
+            "name": "Owlbear",
+            "rarity": "Uncommon",
+            "imageUrl": "",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Wolf",
+            "rarity": "Common",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 15,
+              "ac": 12,
+              "save": 1,
+              "physicalDR": { "amount": 1, "types": [] },
+              "magicalDR": { "amount": 1, "types": [] },
+              "attackBonus": 2,
+              "attackDamage": "1d6+1",
+              "initiative": 1,
+              "specialAbilities": [],
+              "cr": "1/4",
+              "exp": 50
+            }
+          },
+          {
+            "name": "Basilisk",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Griffon",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Hippogriff",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Bulette",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          }
         ],
         "Celestial": [
-          { "name": "Deva", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Planetar", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Solar", "rarity": "Legendary", "imageUrl": "" },
-          { "name": "Couatl", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Unicorn", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Pegasus", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" }
+          {
+            "name": "Deva",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Planetar",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Solar",
+            "rarity": "Legendary",
+            "imageUrl": "",
+            "stats": {
+              "hp": 100,
+              "ac": 18,
+              "save": 5,
+              "physicalDR": { "amount": 5, "types": ["slashing", "piercing", "bludgeoning"] },
+              "magicalDR": { "amount": 5, "types": ["fire", "cold", "acid"] },
+              "attackBonus": 10,
+              "attackDamage": "2d12+5",
+              "initiative": 5,
+              "specialAbilities": ["Legendary Resistance"],
+              "cr": "20",
+              "exp": 5000
+            }
+          },
+          {
+            "name": "Couatl",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Unicorn",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Pegasus",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          }
         ],
         "Construct": [
-          { "name": "Animated Object", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Clay Golem", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Flesh Golem", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Iron Golem", "rarity": "Legendary", "imageUrl": "" },
-          { "name": "Shield Guardian", "rarity": "Rare", "imageUrl": "" }
+          {
+            "name": "Animated Object",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Clay Golem",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Flesh Golem",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Iron Golem",
+            "rarity": "Legendary",
+            "imageUrl": "",
+            "stats": {
+              "hp": 100,
+              "ac": 18,
+              "save": 5,
+              "physicalDR": { "amount": 5, "types": ["slashing", "piercing", "bludgeoning"] },
+              "magicalDR": { "amount": 5, "types": ["fire", "cold", "acid"] },
+              "attackBonus": 10,
+              "attackDamage": "2d12+5",
+              "initiative": 5,
+              "specialAbilities": ["Legendary Resistance"],
+              "cr": "20",
+              "exp": 5000
+            }
+          },
+          {
+            "name": "Shield Guardian",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          }
         ],
         "Dragon": [
-          { "name": "Black Dragon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Blue Dragon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Green Dragon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Red Dragon", "rarity": "Legendary", "imageUrl": "" },
-          { "name": "White Dragon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Wyvern", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Pseudodragon", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" }
+          {
+            "name": "Black Dragon",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Blue Dragon",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Green Dragon",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Red Dragon",
+            "rarity": "Legendary",
+            "imageUrl": "",
+            "stats": {
+              "hp": 100,
+              "ac": 18,
+              "save": 5,
+              "physicalDR": { "amount": 5, "types": ["slashing", "piercing", "bludgeoning"] },
+              "magicalDR": { "amount": 5, "types": ["fire", "cold", "acid"] },
+              "attackBonus": 10,
+              "attackDamage": "2d12+5",
+              "initiative": 5,
+              "specialAbilities": ["Legendary Resistance"],
+              "cr": "20",
+              "exp": 5000
+            }
+          },
+          {
+            "name": "White Dragon",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Wyvern",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Pseudodragon",
+            "rarity": "Common",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 15,
+              "ac": 12,
+              "save": 1,
+              "physicalDR": { "amount": 1, "types": [] },
+              "magicalDR": { "amount": 1, "types": [] },
+              "attackBonus": 2,
+              "attackDamage": "1d6+1",
+              "initiative": 1,
+              "specialAbilities": [],
+              "cr": "1/4",
+              "exp": 50
+            }
+          }
         ],
         "Elemental": [
-          { "name": "Air Elemental", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Earth Elemental", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Fire Elemental", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Water Elemental", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Salamander", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Azer", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" }
+          {
+            "name": "Air Elemental",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Earth Elemental",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Fire Elemental",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Water Elemental",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Salamander",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Azer",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          }
         ],
         "Undead": [
-          { "name": "Lich", "rarity": "Legendary", "imageUrl": "" },
-          { "name": "Vampire", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Wight", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Wraith", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Zombie", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Skeleton", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
-          { "name": "Spectre", "rarity": "Rare", "imageUrl": "" }
+          {
+            "name": "Lich",
+            "rarity": "Legendary",
+            "imageUrl": "",
+            "stats": {
+              "hp": 100,
+              "ac": 18,
+              "save": 5,
+              "physicalDR": { "amount": 5, "types": ["slashing", "piercing", "bludgeoning"] },
+              "magicalDR": { "amount": 5, "types": ["fire", "cold", "acid"] },
+              "attackBonus": 10,
+              "attackDamage": "2d12+5",
+              "initiative": 5,
+              "specialAbilities": ["Legendary Resistance"],
+              "cr": "20",
+              "exp": 5000
+            }
+          },
+          {
+            "name": "Vampire",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Wight",
+            "rarity": "Uncommon",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 30,
+              "ac": 14,
+              "save": 2,
+              "physicalDR": { "amount": 2, "types": ["slashing"] },
+              "magicalDR": { "amount": 2, "types": [] },
+              "attackBonus": 4,
+              "attackDamage": "1d8+2",
+              "initiative": 2,
+              "specialAbilities": [],
+              "cr": "1",
+              "exp": 200
+            }
+          },
+          {
+            "name": "Wraith",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          },
+          {
+            "name": "Zombie",
+            "rarity": "Common",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 15,
+              "ac": 12,
+              "save": 1,
+              "physicalDR": { "amount": 1, "types": [] },
+              "magicalDR": { "amount": 1, "types": [] },
+              "attackBonus": 2,
+              "attackDamage": "1d6+1",
+              "initiative": 1,
+              "specialAbilities": [],
+              "cr": "1/4",
+              "exp": 50
+            }
+          },
+          {
+            "name": "Skeleton",
+            "rarity": "Common",
+            "imageUrl": "/images/creatures/zombie.png",
+            "stats": {
+              "hp": 15,
+              "ac": 12,
+              "save": 1,
+              "physicalDR": { "amount": 1, "types": [] },
+              "magicalDR": { "amount": 1, "types": [] },
+              "attackBonus": 2,
+              "attackDamage": "1d6+1",
+              "initiative": 1,
+              "specialAbilities": [],
+              "cr": "1/4",
+              "exp": 50
+            }
+          },
+          {
+            "name": "Spectre",
+            "rarity": "Rare",
+            "imageUrl": "",
+            "stats": {
+              "hp": 50,
+              "ac": 16,
+              "save": 3,
+              "physicalDR": { "amount": 3, "types": ["slashing", "piercing"] },
+              "magicalDR": { "amount": 3, "types": ["fire", "cold"] },
+              "attackBonus": 6,
+              "attackDamage": "2d6+3",
+              "initiative": 3,
+              "specialAbilities": [],
+              "cr": "5",
+              "exp": 1800
+            }
+          }
         ]
       }
     },
