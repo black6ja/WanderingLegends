@@ -10,11 +10,11 @@
           { "name": "Chuul", "rarity": "Uncommon", "imageUrl": "" },
           { "name": "Cloaker", "rarity": "Rare", "imageUrl": "" },
           { "name": "Gibbering Mouther", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Grick", "rarity": "Common", "imageUrl": "" }
+          { "name": "Grick", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" }
         ],
         "Beast": [
           { "name": "Owlbear", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Wolf", "rarity": "Common", "imageUrl": "" },
+          { "name": "Wolf", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Basilisk", "rarity": "Rare", "imageUrl": "" },
           { "name": "Griffon", "rarity": "Rare", "imageUrl": "" },
           { "name": "Hippogriff", "rarity": "Uncommon", "imageUrl": "" },
@@ -26,12 +26,12 @@
           { "name": "Solar", "rarity": "Legendary", "imageUrl": "" },
           { "name": "Couatl", "rarity": "Rare", "imageUrl": "" },
           { "name": "Unicorn", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Pegasus", "rarity": "Uncommon", "imageUrl": "" }
+          { "name": "Pegasus", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" }
         ],
         "Construct": [
-          { "name": "Animated Object", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Animated Object", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Clay Golem", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Flesh Golem", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Flesh Golem", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Iron Golem", "rarity": "Legendary", "imageUrl": "" },
           { "name": "Shield Guardian", "rarity": "Rare", "imageUrl": "" }
         ],
@@ -41,24 +41,24 @@
           { "name": "Green Dragon", "rarity": "Rare", "imageUrl": "" },
           { "name": "Red Dragon", "rarity": "Legendary", "imageUrl": "" },
           { "name": "White Dragon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Wyvern", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Pseudodragon", "rarity": "Common", "imageUrl": "" }
+          { "name": "Wyvern", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
+          { "name": "Pseudodragon", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" }
         ],
         "Elemental": [
           { "name": "Air Elemental", "rarity": "Rare", "imageUrl": "" },
           { "name": "Earth Elemental", "rarity": "Rare", "imageUrl": "" },
           { "name": "Fire Elemental", "rarity": "Rare", "imageUrl": "" },
           { "name": "Water Elemental", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Salamander", "rarity": "Uncommon", "imageUrl": "" },
-          { "name": "Azer", "rarity": "Uncommon", "imageUrl": "" }
+          { "name": "Salamander", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
+          { "name": "Azer", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" }
         ],
         "Undead": [
           { "name": "Lich", "rarity": "Legendary", "imageUrl": "" },
           { "name": "Vampire", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Wight", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Wight", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Wraith", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Zombie", "rarity": "Common", "imageUrl": "" },
-          { "name": "Skeleton", "rarity": "Common", "imageUrl": "" },
+          { "name": "Zombie", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
+          { "name": "Skeleton", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Spectre", "rarity": "Rare", "imageUrl": "" }
         ]
       }
