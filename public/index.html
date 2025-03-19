@@ -443,7 +443,9 @@
           }
           marker.addTo(map)
           .on("click", function(event) {
-            event.stopPropagation();
+            if (event.originalEvent && typeof event.originalEvent.stopPropagation === "function") {
+              event.originalEvent.stopPropagation();
+            }
             debugLog("Displaying creature card for " + spawn.creatureName);
             showCreatureCard(spawn);
           });
