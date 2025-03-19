@@ -504,13 +504,14 @@
           const cardCR = document.getElementById('card-cr');
           const cardEXP = document.getElementById('card-exp');
 
-          // Set the image (fallback to default if needed)
-          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
-            cardImage.src = spawn.imageUrl;
-          } else {
-            cardImage.src = "default-image.png"; // change as desired
-          }
-          
+          // Set a known placeholder image if imageUrl is missing
+          cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "") 
+                          ? spawn.imageUrl 
+                          : "https://via.placeholder.com/100";
+
+          // Debug: Temporarily set a bright background to verify the card is rendered
+          card.style.background = "#444";
+
           // Update card border & glow based on rarity and EXP
           if (spawn.stats && spawn.stats.exp) {
             const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
@@ -520,7 +521,7 @@
             card.style.border = "5px solid gold";
             card.style.boxShadow = "0 0 20px gold";
           }
-          
+
           // Set name and rarity
           cardName.textContent = spawn.creatureName || spawn.type;
           cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
@@ -541,6 +542,7 @@
           
           card.classList.remove('hidden');
         }
+
 
 
       // Multiplayer: Join Battle Room Function
