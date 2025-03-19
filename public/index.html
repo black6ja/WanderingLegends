@@ -24,102 +24,116 @@
   
       /* Creature Card Overlay Styles */
       .creature-card {
-        position: fixed;
-        top: 20px; /* Snap to top of the screen */
-        left: 50%;
-        transform: translateX(-50%);
-        width: 320px;
-        background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
-        color: #f8f8f2;
-        padding: 20px;
-        border-radius: 15px;
-        border: 5px solid gold; /* default; will be updated dynamically */
-        box-shadow: 0 0 20px gold;
-        z-index: 2000;
-      }
-      .creature-card.hidden {
-        display: none;
-      }
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
+  color: #f8f8f2;
+  padding: 20px;
+  border-radius: 15px;
+  border: 5px solid gold;
+  box-shadow: 0 0 20px gold;
+  z-index: 2000;
+}
 
-    .creature-card .card-content {
-      position: relative;
-    }
-    #card-close {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: transparent;
-      color: gold;
-      border: none;
-      font-size: 1.5em;
-      cursor: pointer;
-    }
-    .card-header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-    #card-image {
-      width: 100px;  /* increased size */
-      height: 100px;
-      margin-right: 10px;
-      border: none;  /* no individual image border */
-      border-radius: 10px;
-      object-fit: cover;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-    }
-    .card-info {
-      flex-grow: 1;
-    }
+.creature-card.hidden {
+  display: none;
+}
 
-    .card-info {
-      flex-grow: 1;
-    }
-    #card-name {
-      margin: 0;
-      font-size: 1.5em;
-    }
-    #card-rarity {
-      margin: 0 0 10px 0;
-      font-style: italic;
-    }
-    .card-stats {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 15px;
-      }
-      .card-cr, .card-exp {
-        width: 60px;
-        height: 60px;
-        line-height: 60px;
-        text-align: center;
-        border: 2px solid; /* border color will be set dynamically (for CR) */
-        border-radius: 50%;
-        font-family: 'Cinzel', serif;
-        font-size: 1.5em;
-        color: #fff;
-        background: radial-gradient(circle, #444 0%, #222 100%);
-      }
-      .card-cr {
-        border-color: #FFD700; /* gold border for CR badge */
-      }
-      .card-exp {
-        border-color: #C0C0C0; /* silver border for EXP badge */
-      }
-      #attack-button {
-        display: block;
-        width: 100%;
-        padding: 10px;
-        background-color: #cc0000;
-        color: #fff;
-        border: none;
-        border-radius: 5px;
-        font-size: 1.2em;
-        cursor: pointer;
-      }
-      #attack-button:hover {
-        background-color: #b30000;
-      }
+/* Close (X) button in the top-right */
+#card-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  color: gold;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+}
+
+.card-top {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+#card-name {
+  margin: 0;
+  font-size: 1.5em;
+}
+
+/* Full-width image row */
+.card-image-container {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+#card-image {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+/* Full-width Attack button */
+#attack-button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  background-color: #cc0000;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.2em;
+  cursor: pointer;
+  margin: 10px 0;
+}
+
+#attack-button:hover {
+  background-color: #b30000;
+}
+
+/* Bottom row: CR and EXP pinned to the corners */
+.card-bottom {
+  position: relative;
+  width: 100%;
+  height: 0;  /* We'll rely on absolutely positioned circles */
+  margin-top: 10px;
+}
+
+.card-cr,
+.card-exp {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  line-height: 60px;
+  text-align: center;
+  border-radius: 50%;
+  font-family: 'Cinzel', serif;
+  font-size: 1.5em;
+  color: #fff;
+  background: radial-gradient(circle, #444 0%, #222 100%);
+}
+
+/* CR pinned to bottom-left corner (center of circle at the corner) */
+.card-cr {
+  border: 2px solid #FFD700;
+  bottom: 0;
+  left: 0;
+  transform: translate(-50%, 50%);
+}
+
+/* EXP pinned to bottom-right corner */
+.card-exp {
+  border: 2px solid #C0C0C0;
+  bottom: 0;
+  right: 0;
+  transform: translate(50%, 50%);
+}
+
   </style>
 </head>
 <body>
@@ -709,20 +723,26 @@
 
 <!-- Creature Card Overlay -->
 <div id="creature-card" class="creature-card hidden">
-  <div class="card-content">
-    <button id="card-close">×</button>
-    <div class="card-header">
-      <img id="card-image" src="" alt="Creature Image" />
-      <div class="card-info">
-        <h2 id="card-name"></h2>
-        <p id="card-rarity"></p>
-      </div>
-    </div>
-    <div class="card-stats">
-      <div id="card-cr" class="card-cr"></div>
-      <div id="card-exp" class="card-exp"></div>
-    </div>
-    <button id="attack-button">Attack!</button>
+  <!-- Close (X) button in the top-right corner -->
+  <button id="card-close">×</button>
+  
+  <!-- Top row: Name only -->
+  <div class="card-top">
+    <h2 id="card-name"></h2>
+  </div>
+  
+  <!-- Second row: Image full width -->
+  <div class="card-image-container">
+    <img id="card-image" src="" alt="Creature Image" />
+  </div>
+  
+  <!-- Third row: Full-width Attack button -->
+  <button id="attack-button">Attack!</button>
+  
+  <!-- Bottom: CR and EXP pinned to corners -->
+  <div class="card-bottom">
+    <div id="card-cr" class="card-cr"></div>
+    <div id="card-exp" class="card-exp"></div>
   </div>
 </div>
 
