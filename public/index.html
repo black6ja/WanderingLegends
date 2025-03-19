@@ -517,13 +517,13 @@
           const card = document.getElementById('creature-card');
           const cardImage = document.getElementById('card-image');
           const cardName = document.getElementById('card-name');
-          const cardRarity = document.getElementById('card-rarity');
+          // Removed: const cardRarity = document.getElementById('card-rarity');
           const cardCR = document.getElementById('card-cr');
           const cardEXP = document.getElementById('card-exp');
 
           // Set a known placeholder image if imageUrl is missing
-          cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "") 
-                          ? spawn.imageUrl 
+          cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
+                          ? spawn.imageUrl
                           : "https://via.placeholder.com/100";
 
           // Debug: Temporarily set a bright background to verify the card is rendered
@@ -539,9 +539,8 @@
             card.style.boxShadow = "0 0 20px gold";
           }
 
-          // Set name and rarity
+          // Set name (removed rarity display)
           cardName.textContent = spawn.creatureName || spawn.type;
-          cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
           
           // Set CR badge (ensure it is populated)
           if (spawn.stats && spawn.stats.cr) {
@@ -559,6 +558,7 @@
           
           card.classList.remove('hidden');
         }
+
 
 
 
