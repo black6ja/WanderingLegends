@@ -17,7 +17,7 @@
           { "name": "Wolf", "rarity": "Common", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Basilisk", "rarity": "Rare", "imageUrl": "" },
           { "name": "Griffon", "rarity": "Rare", "imageUrl": "" },
-          { "name": "Hippogriff", "rarity": "Uncommon", "imageUrl": "" },
+          { "name": "Hippogriff", "rarity": "Uncommon", "imageUrl": "/images/creatures/zombie.png" },
           { "name": "Bulette", "rarity": "Rare", "imageUrl": "" }
         ],
         "Celestial": [
