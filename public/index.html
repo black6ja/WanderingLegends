@@ -442,10 +442,11 @@
             });
           }
           marker.addTo(map)
-            .on("click", function() {
-              debugLog("Displaying creature card for " + spawn.creatureName);
-              showCreatureCard(spawn);
-            });
+          .on("click", function(event) {
+            event.stopPropagation();
+            debugLog("Displaying creature card for " + spawn.creatureName);
+            showCreatureCard(spawn);
+          });
         } else {
           // Non-creature spawns use the default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
