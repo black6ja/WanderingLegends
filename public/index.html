@@ -188,6 +188,82 @@
     const REGEN_THRESHOLD = 300; // meters
     let spawnMarkers = {}; // to track spawn markers on the map
 
+    //One time Class Default Load
+    // Define the default classes with updated stats
+const classDefaults = {
+  "Warrior": {
+    description: "A strong melee fighter with high HP and defense.",
+    imageUrl: "/images/classes/warrior.png",
+    stats: {
+      hp: 120,
+      ac: 18,
+      xp: 0,
+      save: 0,            // Warrior gets 0 to saves
+      physicalDR: 1,      // 1 DR to physical attacks
+      magicalDR: 0,       // 0 DR to magical attacks
+      attacksPerRound: {
+        mainHand: 1,
+        offHand: 1
+      }
+    }
+  },
+  "Wizard": {
+    description: "A master of arcane arts, using spells to control the battlefield.",
+    imageUrl: "/images/classes/wizard.png",
+    stats: {
+      hp: 80,
+      ac: 12,
+      xp: 0,
+      save: 0,            // 0 to saves
+      physicalDR: 0,      // No physical DR
+      magicalDR: 0,       // No magical DR
+      attacksPerRound: {
+        mainHand: 1,
+        offHand: 0
+      }
+    }
+  },
+  "Rogue": {
+    description: "An agile fighter who excels in stealth and quick attacks.",
+    imageUrl: "/images/classes/rogue.png",
+    stats: {
+      hp: 90,
+      ac: 15,
+      xp: 0,
+      save: 0,            // 0 to saves
+      physicalDR: 0,      // No physical DR
+      magicalDR: 1,       // 1 DR to magical attacks
+      attacksPerRound: {
+        mainHand: 1,
+        offHand: 1
+      }
+    }
+  },
+  "Cleric": {
+    description: "A divine healer and protector, blending offense and support.",
+    imageUrl: "/images/classes/cleric.png",
+    stats: {
+      hp: 100,
+      ac: 16,
+      xp: 0,
+      save: 1,            // Cleric gets 1 to saves
+      physicalDR: 1,      // 1 DR to physical attacks
+      magicalDR: 1,       // 1 DR to magical attacks
+      attacksPerRound: {
+        mainHand: 1,
+        offHand: 0
+      }
+    }
+  }
+};
+
+// Assuming 'database' is your initialized Firebase Realtime Database reference,
+// run the one-time script to set the 'classDefaults' node.
+database.ref('classDefaults').set(classDefaults)
+  .then(() => console.log("Default classes set successfully."))
+  .catch(error => console.error("Error setting default classes:", error));
+
+
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
