@@ -29,16 +29,57 @@
   left: 50%;
   transform: translateX(-50%);
   width: 320px;
-  background: linear-gradient(135deg, rgba(44,44,44,0.85), rgba(26,26,26,0.85));
+  /* Semi-transparent gradient from white to black */
+  background: linear-gradient(135deg, rgba(255,255,255,0.85), rgb(0,0,0));
   color: #f8f8f2;
   border-radius: 15px;
   box-shadow: 0 0 20px gold;
   z-index: 2000;
-  overflow: hidden;
-  padding-bottom: 20px;
+  overflow: hidden; /* Ensures corners remain rounded for overhanging elements */
 }
 
-/* Title row integrated with the card */
+.creature-card.hidden {
+  display: none;
+}
+
+/* CR and EXP pinned to the top corners */
+.card-top-corners {
+  position: relative;
+  width: 100%;
+  height: 0; /* We only use this container for positioning */
+}
+
+.card-cr,
+.card-exp {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  line-height: 60px;
+  text-align: center;
+  border-radius: 50%;
+  font-family: 'Cinzel', serif;
+  font-size: 1.5em;
+  color: #fff;
+  background: radial-gradient(circle, #444 0%, #222 100%);
+}
+
+/* CR pinned to top-left corner (center of circle at the corner) */
+.card-cr {
+  border: 2px solid #FFD700;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* EXP pinned to top-right corner (center of circle at the corner) */
+.card-exp {
+  border: 2px solid #C0C0C0;
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+/* Title row, full width, integrated with the card */
 .card-top {
   background: rgba(0, 0, 0, 0.7);
   width: 100%;
@@ -60,21 +101,28 @@
 /* Full-width image row */
 .card-image-container {
   width: 100%;
-  margin-bottom: 10px;
 }
 
 #card-image {
   width: 100%;
   height: auto;
-  border-radius: 0; /* No rounding here; the card's rounded top already applies to the title */
   object-fit: cover;
 }
 
-/* Action Row: Two equal buttons spanning the card's width */
+/* Bottom container for Attack & Run buttons */
+.card-bottom {
+  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  border-bottom-left-radius: 15px;
+  border-bottom-right-radius: 15px;
+  box-sizing: border-box;
+  padding: 10px;
+  margin-top: 10px;
+}
+
 .card-action-row {
   display: flex;
   width: 100%;
-  margin: 10px 0;
 }
 
 .card-action-row button {
@@ -103,44 +151,6 @@
 
 #run-button:hover {
   background-color: #187bcd;
-}
-
-/* Bottom row: CR and EXP pinned to corners */
-.card-bottom {
-  position: relative;
-  width: 100%;
-  height: 0;
-  margin-top: 10px;
-}
-
-.card-cr,
-.card-exp {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  line-height: 60px;
-  text-align: center;
-  border-radius: 50%;
-  font-family: 'Cinzel', serif;
-  font-size: 1.5em;
-  color: #fff;
-  background: radial-gradient(circle, #444 0%, #222 100%);
-}
-
-/* CR pinned to bottom-left corner (center of circle at the corner) */
-.card-cr {
-  border: 2px solid #FFD700;
-  bottom: 0;
-  left: 0;
-  transform: translate(-50%, 50%);
-}
-
-/* EXP pinned to bottom-right corner */
-.card-exp {
-  border: 2px solid #C0C0C0;
-  bottom: 0;
-  right: 0;
-  transform: translate(50%, 50%);
 }
 
 
@@ -732,29 +742,33 @@
   </script>
 
 <!-- Creature Card Overlay -->
+<!-- Creature Card Overlay -->
 <div id="creature-card" class="creature-card hidden">
-  <!-- Top row: Title integrated into the card -->
+  <!-- CR and EXP pinned to top corners -->
+  <div class="card-top-corners">
+    <div id="card-cr" class="card-cr"></div>
+    <div id="card-exp" class="card-exp"></div>
+  </div>
+
+  <!-- Title row: Full width, integrated into the card -->
   <div class="card-top">
     <h2 id="card-name"></h2>
   </div>
-  
+
   <!-- Image row: Full width -->
   <div class="card-image-container">
     <img id="card-image" src="" alt="Creature Image" />
   </div>
-  
-  <!-- Action Row: Two buttons (Attack and Run!) -->
-  <div class="card-action-row">
-    <button id="attack-button">Attack</button>
-    <button id="run-button">Run!</button>
-  </div>
-  
-  <!-- Bottom row: CR and EXP pinned to the corners -->
+
+  <!-- Bottom: Attack and Run Buttons -->
   <div class="card-bottom">
-    <div id="card-cr" class="card-cr"></div>
-    <div id="card-exp" class="card-exp"></div>
+    <div class="card-action-row">
+      <button id="attack-button">Attack</button>
+      <button id="run-button">Run!</button>
+    </div>
   </div>
 </div>
+
 
 </body>
 </html>
