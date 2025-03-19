@@ -20,6 +20,59 @@
     /* Blinking Player Marker */
     .blinking-dot { width: 15px; height: 15px; background: rgba(0,0,255,0.8); border: 2px solid white; border-radius: 50%; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
+  
+  /* Creature Card Overlay Styles */
+.creature-card {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: #f8f8f2;
+  padding: 15px;
+  border-top: 3px solid gold;
+  max-height: 50%;
+  overflow-y: auto;
+  z-index: 2000;
+}
+.creature-card.hidden {
+  display: none;
+}
+.creature-card .card-content {
+  position: relative;
+}
+#card-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: transparent;
+  color: gold;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+}
+#card-image {
+  max-width: 100px;
+  max-height: 100px;
+  margin-right: 10px;
+  float: left;
+}
+#card-name {
+  margin: 0;
+  font-size: 1.5em;
+}
+#card-rarity {
+  margin: 0 0 10px 0;
+  font-style: italic;
+}
+#card-stats {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+#card-stats li {
+  margin-bottom: 5px;
+}
   </style>
 </head>
 <body>
@@ -336,11 +389,11 @@
             });
           }
           marker.addTo(map)
-            .bindPopup(popupText)
-            .on("click", function() {
-              debugLog("Joining battle for " + spawn.type);
-              joinBattleRoom(spawnId, photonClient);
-            });
+          .on("click", function() {
+            debugLog("Displaying creature card for " + spawn.creatureName);
+            showCreatureCard(spawn);
+          });
+
         } else {
           // Non-creature spawns use the default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
@@ -368,6 +421,67 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
+
+      document.getElementById('card-close').addEventListener('click', function() {
+      document.getElementById('creature-card').classList.add('hidden');
+    });
+
+      function showCreatureCard(spawn) {
+        const card = document.getElementById('creature-card');
+        const cardImage = document.getElementById('card-image');
+        const cardName = document.getElementById('card-name');
+        const cardRarity = document.getElementById('card-rarity');
+        const cardStats = document.getElementById('card-stats');
+
+        // Set the image (fallback to a default image if necessary)
+        if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+          cardImage.src = spawn.imageUrl;
+        } else {
+          cardImage.src = "default-image.png"; // Replace with a proper default if desired
+        }
+
+        // Set name and rarity
+        cardName.textContent = spawn.creatureName || spawn.type;
+        cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
+
+        // Clear previous stats and populate with new ones
+        cardStats.innerHTML = "";
+        if (spawn.stats) {
+          const stats = spawn.stats;
+          const statLabels = {
+            "HP": "hp",
+            "AC": "ac",
+            "Save": "save",
+            "Physical DR": "physicalDR",
+            "Magical DR": "magicalDR",
+            "Attack Bonus": "attackBonus",
+            "Attack Damage": "attackDamage",
+            "Initiative": "initiative",
+            "Special Abilities": "specialAbilities",
+            "CR": "cr",
+            "Exp": "exp"
+          };
+
+          for (let label in statLabels) {
+            let key = statLabels[label];
+            let value = stats[key];
+            // For DR objects, combine amount and types
+            if (typeof value === "object" && value !== null && value.amount !== undefined) {
+              value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
+            }
+            // For arrays (e.g., Special Abilities), join them as a comma-separated string
+            if (Array.isArray(value)) {
+              value = value.join(", ");
+            }
+            let li = document.createElement("li");
+            li.textContent = label + ": " + value;
+            cardStats.appendChild(li);
+          }
+        }
+        // Show the card
+        card.classList.remove('hidden');
+      }
+
 
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
@@ -524,5 +638,18 @@
       return R * c;
     }
   </script>
+
+<!-- Creature Card Overlay -->
+<div id="creature-card" class="creature-card hidden">
+  <div class="card-content">
+    <button id="card-close">X</button>
+    <img id="card-image" src="" alt="Creature Image" />
+    <h2 id="card-name"></h2>
+    <p id="card-rarity"></p>
+    <ul id="card-stats"></ul>
+  </div>
+</div>
+
+
 </body>
 </html>
