@@ -29,45 +29,31 @@
   left: 50%;
   transform: translateX(-50%);
   width: 320px;
-  background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
+  background: linear-gradient(135deg, rgba(44,44,44,0.85), rgba(26,26,26,0.85));
   color: #f8f8f2;
-  padding: 20px;
   border-radius: 15px;
-  border: 5px solid gold;
   box-shadow: 0 0 20px gold;
   z-index: 2000;
+  overflow: hidden;
+  padding-bottom: 20px;
 }
 
-.creature-card.hidden {
-  display: none;
-}
-
-/* Close (X) button in the top-right */
-#card-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: transparent;
-  color: gold;
-  border: none;
-  font-size: 1.5em;
-  cursor: pointer;
-}
-
+/* Title row integrated with the card */
 .card-top {
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.5));
+  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
   padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  display: inline-block;
-  border: 2px solid gold;
+  text-align: center;
+  box-sizing: border-box;
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
 }
 
 #card-name {
   margin: 0;
   font-size: 1.8em;
   color: #FFD700;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
   font-family: 'Cinzel', serif;
 }
 
@@ -80,33 +66,50 @@
 #card-image {
   width: 100%;
   height: auto;
-  border-radius: 10px;
+  border-radius: 0; /* No rounding here; the card's rounded top already applies to the title */
   object-fit: cover;
 }
 
-/* Full-width Attack button */
-#attack-button {
-  display: block;
+/* Action Row: Two equal buttons spanning the card's width */
+.card-action-row {
+  display: flex;
   width: 100%;
+  margin: 10px 0;
+}
+
+.card-action-row button {
+  flex: 1;
   padding: 10px;
+  font-size: 1.2em;
+  border: none;
+  cursor: pointer;
+}
+
+/* Attack Button – retains the original red style */
+#attack-button {
   background-color: #cc0000;
   color: #fff;
-  border: none;
-  border-radius: 5px;
-  font-size: 1.2em;
-  cursor: pointer;
-  margin: 10px 0;
 }
 
 #attack-button:hover {
   background-color: #b30000;
 }
 
-/* Bottom row: CR and EXP pinned to the corners */
+/* Run Button – fantasy RPG blue */
+#run-button {
+  background-color: #1E90FF;
+  color: #fff;
+}
+
+#run-button:hover {
+  background-color: #187bcd;
+}
+
+/* Bottom row: CR and EXP pinned to corners */
 .card-bottom {
   position: relative;
   width: 100%;
-  height: 0;  /* We'll rely on absolutely positioned circles */
+  height: 0;
   margin-top: 10px;
 }
 
@@ -129,7 +132,7 @@
   border: 2px solid #FFD700;
   bottom: 0;
   left: 0;
-  transform: translate(-78%, 78%);
+  transform: translate(-50%, 50%);
 }
 
 /* EXP pinned to bottom-right corner */
@@ -137,8 +140,9 @@
   border: 2px solid #C0C0C0;
   bottom: 0;
   right: 0;
-  transform: translate(78%, 78%);
+  transform: translate(50%, 50%);
 }
+
 
   </style>
 </head>
@@ -729,23 +733,23 @@
 
 <!-- Creature Card Overlay -->
 <div id="creature-card" class="creature-card hidden">
-  <!-- Close (X) button in the top-right corner -->
-  <button id="card-close">×</button>
-  
-  <!-- Top row: Name only -->
+  <!-- Top row: Title integrated into the card -->
   <div class="card-top">
     <h2 id="card-name"></h2>
   </div>
   
-  <!-- Second row: Image full width -->
+  <!-- Image row: Full width -->
   <div class="card-image-container">
     <img id="card-image" src="" alt="Creature Image" />
   </div>
   
-  <!-- Third row: Full-width Attack button -->
-  <button id="attack-button">Attack!</button>
+  <!-- Action Row: Two buttons (Attack and Run!) -->
+  <div class="card-action-row">
+    <button id="attack-button">Attack</button>
+    <button id="run-button">Run!</button>
+  </div>
   
-  <!-- Bottom: CR and EXP pinned to corners -->
+  <!-- Bottom row: CR and EXP pinned to the corners -->
   <div class="card-bottom">
     <div id="card-cr" class="card-cr"></div>
     <div id="card-exp" class="card-exp"></div>
