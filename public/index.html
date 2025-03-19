@@ -21,58 +21,83 @@
     .blinking-dot { width: 15px; height: 15px; background: rgba(0,0,255,0.8); border: 2px solid white; border-radius: 50%; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
   
-  /* Creature Card Overlay Styles */
-.creature-card {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: rgba(0, 0, 0, 0.9);
-  color: #f8f8f2;
-  padding: 15px;
-  border-top: 3px solid gold;
-  max-height: 50%;
-  overflow-y: auto;
-  z-index: 2000;
-}
-.creature-card.hidden {
-  display: none;
-}
-.creature-card .card-content {
-  position: relative;
-}
-#card-close {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: transparent;
-  color: gold;
-  border: none;
-  font-size: 1.2em;
-  cursor: pointer;
-}
-#card-image {
-  max-width: 100px;
-  max-height: 100px;
-  margin-right: 10px;
-  float: left;
-}
-#card-name {
-  margin: 0;
-  font-size: 1.5em;
-}
-#card-rarity {
-  margin: 0 0 10px 0;
-  font-style: italic;
-}
-#card-stats {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-#card-stats li {
-  margin-bottom: 5px;
-}
+      /* Creature Card Overlay Styles */
+      .creature-card {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: rgba(0, 0, 0, 0.9);
+      color: #f8f8f2;
+      padding: 15px;
+      border-top: 3px solid gold;
+      max-height: 50%;
+      overflow-y: auto;
+      z-index: 2000;
+    }
+    .creature-card.hidden {
+      display: none;
+    }
+    .creature-card .card-content {
+      position: relative;
+    }
+    #card-close {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: transparent;
+      color: gold;
+      border: none;
+      font-size: 1.2em;
+      cursor: pointer;
+    }
+    /* Card Header styles */
+    .card-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    #card-image {
+      width: 80px;
+      height: 80px;
+      margin-right: 10px;
+      border: 4px solid gold; /* default, will be updated dynamically */
+      border-radius: 10px;
+      object-fit: cover;
+    }
+    .card-info {
+      flex-grow: 1;
+    }
+    #card-name {
+      margin: 0;
+      font-size: 1.5em;
+    }
+    #card-rarity {
+      margin: 0 0 10px 0;
+      font-style: italic;
+    }
+    /* CR badge styles */
+    #card-cr {
+      width: 50px;
+      height: 50px;
+      line-height: 50px;
+      text-align: center;
+      border: 3px solid #ccc; /* will be set dynamically */
+      border-radius: 50%;
+      font-family: 'Cinzel', serif;
+      font-size: 1.2em;
+      color: #fff;
+      background-color: rgba(0, 0, 0, 0.5);
+      margin-left: 10px;
+    }
+    #card-stats {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #card-stats li {
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 <body>
@@ -371,7 +396,6 @@
         let marker;
         // For creature spawns, use a custom icon (if available) and popup with name/rarity.
         if (spawn.type === "creature") {
-          let popupText = "Name: " + spawn.creatureName + "<br>Rarity: " + spawn.creatureRarity;
           if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
             let icon = L.icon({
               iconUrl: spawn.imageUrl,
@@ -389,11 +413,10 @@
             });
           }
           marker.addTo(map)
-          .on("click", function() {
-            debugLog("Displaying creature card for " + spawn.creatureName);
-            showCreatureCard(spawn);
-          });
-
+            .on("click", function() {
+              debugLog("Displaying creature card for " + spawn.creatureName);
+              showCreatureCard(spawn);
+            });
         } else {
           // Non-creature spawns use the default circle marker.
           marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
@@ -426,63 +449,92 @@
       document.getElementById('creature-card').classList.add('hidden');
     });
 
-      function showCreatureCard(spawn) {
-        const card = document.getElementById('creature-card');
-        const cardImage = document.getElementById('card-image');
-        const cardName = document.getElementById('card-name');
-        const cardRarity = document.getElementById('card-rarity');
-        const cardStats = document.getElementById('card-stats');
-
-        // Set the image (fallback to a default image if necessary)
-        if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
-          cardImage.src = spawn.imageUrl;
-        } else {
-          cardImage.src = "default-image.png"; // Replace with a proper default if desired
-        }
-
-        // Set name and rarity
-        cardName.textContent = spawn.creatureName || spawn.type;
-        cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
-
-        // Clear previous stats and populate with new ones
-        cardStats.innerHTML = "";
-        if (spawn.stats) {
-          const stats = spawn.stats;
-          const statLabels = {
-            "HP": "hp",
-            "AC": "ac",
-            "Save": "save",
-            "Physical DR": "physicalDR",
-            "Magical DR": "magicalDR",
-            "Attack Bonus": "attackBonus",
-            "Attack Damage": "attackDamage",
-            "Initiative": "initiative",
-            "Special Abilities": "specialAbilities",
-            "CR": "cr",
-            "Exp": "exp"
-          };
-
-          for (let label in statLabels) {
-            let key = statLabels[label];
-            let value = stats[key];
-            // For DR objects, combine amount and types
-            if (typeof value === "object" && value !== null && value.amount !== undefined) {
-              value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
-            }
-            // For arrays (e.g., Special Abilities), join them as a comma-separated string
-            if (Array.isArray(value)) {
-              value = value.join(", ");
-            }
-            let li = document.createElement("li");
-            li.textContent = label + ": " + value;
-            cardStats.appendChild(li);
+        function getBorderColor(rarity, exp) {
+          let color = "";
+          switch(rarity.toLowerCase()){
+            case "legendary":
+              color = "#8A2BE2"; break; // Blue Violet
+            case "rare":
+              color = "#1E90FF"; break; // Dodger Blue
+            case "uncommon":
+              color = "#32CD32"; break; // Lime Green
+            default:
+              color = "#A9A9A9"; break; // Dark Gray for common
           }
+          let thickness = 4; // default
+          if(exp > 1000) thickness = 6;
+          if(exp > 3000) thickness = 8;
+          return { color: color, thickness: thickness };
         }
-        // Show the card
-        card.classList.remove('hidden');
-      }
 
+        function showCreatureCard(spawn) {
+          const card = document.getElementById('creature-card');
+          const cardImage = document.getElementById('card-image');
+          const cardName = document.getElementById('card-name');
+          const cardRarity = document.getElementById('card-rarity');
+          const cardCR = document.getElementById('card-cr');
+          const cardStats = document.getElementById('card-stats');
 
+          // Set the image (fallback to default if needed)
+          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+            cardImage.src = spawn.imageUrl;
+          } else {
+            cardImage.src = "default-image.png"; // change as desired
+          }
+          // Update image border based on rarity & EXP
+          if (spawn.stats && spawn.stats.exp) {
+            const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
+            cardImage.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+          } else {
+            cardImage.style.border = "4px solid gold";
+          }
+
+          // Set name and rarity
+          cardName.textContent = spawn.creatureName || spawn.type;
+          cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
+          
+          // Set CR badge with fantasy styling
+          if (spawn.stats && spawn.stats.cr) {
+            cardCR.textContent = spawn.stats.cr;
+            cardCR.style.borderColor = "#FFD700"; // gold border for CR badge
+          } else {
+            cardCR.textContent = "-";
+          }
+
+          // Populate additional stats (if any)
+          cardStats.innerHTML = "";
+          if (spawn.stats) {
+            const stats = spawn.stats;
+            const statLabels = {
+              "HP": "hp",
+              "AC": "ac",
+              "Save": "save",
+              "Physical DR": "physicalDR",
+              "Magical DR": "magicalDR",
+              "Attack Bonus": "attackBonus",
+              "Attack Damage": "attackDamage",
+              "Initiative": "initiative",
+              "Special Abilities": "specialAbilities",
+              "Exp": "exp"
+            };
+            for (let label in statLabels) {
+              let key = statLabels[label];
+              let value = stats[key];
+              if (typeof value === "object" && value !== null && value.amount !== undefined) {
+                value = value.amount + " (" + (value.types.length > 0 ? value.types.join(", ") : "none") + ")";
+              }
+              if (Array.isArray(value)) {
+                value = value.join(", ");
+              }
+              let li = document.createElement("li");
+              li.textContent = label + ": " + value;
+              cardStats.appendChild(li);
+            }
+          }
+          card.classList.remove('hidden');
+        }
+
+        
       // Multiplayer: Join Battle Room Function
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
@@ -643,9 +695,14 @@
 <div id="creature-card" class="creature-card hidden">
   <div class="card-content">
     <button id="card-close">X</button>
-    <img id="card-image" src="" alt="Creature Image" />
-    <h2 id="card-name"></h2>
-    <p id="card-rarity"></p>
+    <div class="card-header">
+      <img id="card-image" src="" alt="Creature Image" />
+      <div class="card-info">
+        <h2 id="card-name"></h2>
+        <p id="card-rarity"></p>
+      </div>
+      <div id="card-cr"></div>
+    </div>
     <ul id="card-stats"></ul>
   </div>
 </div>
