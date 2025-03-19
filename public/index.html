@@ -5,6 +5,7 @@
   <title>WanderingLegends</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; position: relative; }
     /* Login Screen */
@@ -24,14 +25,15 @@
       /* Creature Card Overlay Styles */
       .creature-card {
         position: fixed;
-        top: 20px;
-        right: 20px;
-        width: 280px;
+        top: 20px; /* Snap to top of the screen */
+        left: 50%;
+        transform: translateX(-50%);
+        width: 320px;
         background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
         color: #f8f8f2;
-        padding: 15px;
+        padding: 20px;
         border-radius: 15px;
-        border: 5px solid gold; /* this border will be updated dynamically */
+        border: 5px solid gold; /* default; will be updated dynamically */
         box-shadow: 0 0 20px gold;
         z-index: 2000;
       }
@@ -44,34 +46,32 @@
     }
     #card-close {
       position: absolute;
-      top: 5px;
-      right: 5px;
+      top: 10px;
+      right: 10px;
       background: transparent;
       color: gold;
       border: none;
-      font-size: 1.2em;
+      font-size: 1.5em;
       cursor: pointer;
     }
     .card-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-    /* Remove border from image and refine styling */
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
     #card-image {
-      width: 80px;
-      height: 80px;
+      width: 100px;  /* increased size */
+      height: 100px;
       margin-right: 10px;
-      border: none;  /* remove the border from the creature image */
+      border: none;  /* no individual image border */
       border-radius: 10px;
       object-fit: cover;
-    }
-
-    /* Optionally, if you want a subtle shadow around the image: */
-    #card-image {
       box-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
+    .card-info {
+      flex-grow: 1;
+    }
+
     .card-info {
       flex-grow: 1;
     }
@@ -83,28 +83,43 @@
       margin: 0 0 10px 0;
       font-style: italic;
     }
-    /* CR badge styles */
-    #card-cr {
-      width: 50px;
-      height: 50px;
-      line-height: 50px;
-      text-align: center;
-      border: 3px solid #ccc;
-      border-radius: 50%;
-      font-family: 'Cinzel', serif;
-      font-size: 1.2em;
-      color: #fff;
-      background-color: rgba(0, 0, 0, 0.5);
-      margin-left: 10px;
-    }
-    #card-stats {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    #card-stats li {
-      margin-bottom: 5px;
-    }
+    .card-stats {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+      }
+      .card-cr, .card-exp {
+        width: 60px;
+        height: 60px;
+        line-height: 60px;
+        text-align: center;
+        border: 2px solid; /* border color will be set dynamically (for CR) */
+        border-radius: 50%;
+        font-family: 'Cinzel', serif;
+        font-size: 1.5em;
+        color: #fff;
+        background: radial-gradient(circle, #444 0%, #222 100%);
+      }
+      .card-cr {
+        border-color: #FFD700; /* gold border for CR badge */
+      }
+      .card-exp {
+        border-color: #C0C0C0; /* silver border for EXP badge */
+      }
+      #attack-button {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        background-color: #cc0000;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        font-size: 1.2em;
+        cursor: pointer;
+      }
+      #attack-button:hover {
+        background-color: #b30000;
+      }
   </style>
 </head>
 <body>
@@ -309,6 +324,14 @@
       }
     });
 
+    document.addEventListener('click', function(event) {
+      const card = document.getElementById('creature-card');
+      if (!card.classList.contains('hidden') && !card.contains(event.target)) {
+        card.classList.add('hidden');
+      }
+    });
+
+
     // ---------- Clients Listen for Spawn Movement ----------
     database.ref("spawnPoints").on("child_changed", snapshot => {
       const spawn = snapshot.val();
@@ -383,9 +406,8 @@
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
         debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
-        map.setView([lat, lng], 15, { animate: true });
-        debugLog(`Map center now: ${JSON.stringify(map.getCenter())}`);
       }
+
 
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
@@ -475,79 +497,50 @@
         }
 
         function showCreatureCard(spawn) {
-        const card = document.getElementById('creature-card');
-        const cardImage = document.getElementById('card-image');
-        const cardName = document.getElementById('card-name');
-        const cardRarity = document.getElementById('card-rarity');
-        const cardCR = document.getElementById('card-cr');
-        const cardStats = document.getElementById('card-stats');
+          const card = document.getElementById('creature-card');
+          const cardImage = document.getElementById('card-image');
+          const cardName = document.getElementById('card-name');
+          const cardRarity = document.getElementById('card-rarity');
+          const cardCR = document.getElementById('card-cr');
+          const cardEXP = document.getElementById('card-exp');
 
-        // Set the image (fallback to default if needed)
-        if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
-          cardImage.src = spawn.imageUrl;
-        } else {
-          cardImage.src = "default-image.png"; // change as desired
-        }
-        // Remove image border change (we're now styling the card overall)
-        // cardImage.style.border = ...  <-- Remove or comment out this line
-
-        // Update card border & glow based on rarity and EXP
-        if (spawn.stats && spawn.stats.exp) {
-          const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
-          card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
-          card.style.boxShadow = "0 0 20px " + borderInfo.color;
-        } else {
-          card.style.border = "5px solid gold";
-          card.style.boxShadow = "0 0 20px gold";
-        }
-
-        // Set name and rarity
-        cardName.textContent = spawn.creatureName || spawn.type;
-        cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
-        
-        // Set CR badge with fantasy styling
-        if (spawn.stats && spawn.stats.cr) {
-          cardCR.textContent = spawn.stats.cr;
-          cardCR.style.borderColor = "#FFD700";
-        } else {
-          cardCR.textContent = "-";
-        }
-
-        // Populate additional stats (if any)
-        cardStats.innerHTML = "";
-        if (spawn.stats) {
-          const stats = spawn.stats;
-          const statLabels = {
-            "HP": "hp",
-            "AC": "ac",
-            "Save": "save",
-            "Physical DR": "physicalDR",
-            "Magical DR": "magicalDR",
-            "Attack Bonus": "attackBonus",
-            "Attack Damage": "attackDamage",
-            "Initiative": "initiative",
-            "Special Abilities": "specialAbilities",
-            "Exp": "exp"
-          };
-          for (let label in statLabels) {
-            let key = statLabels[label];
-            let value = stats[key];
-            if (typeof value === "object" && value !== null && value.amount !== undefined) {
-              let types = Array.isArray(value.types) ? value.types : [];
-              value = value.amount + " (" + (types.length > 0 ? types.join(", ") : "none") + ")";
-            }
-
-            if (Array.isArray(value)) {
-              value = value.join(", ");
-            }
-            let li = document.createElement("li");
-            li.textContent = label + ": " + value;
-            cardStats.appendChild(li);
+          // Set the image (fallback to default if needed)
+          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+            cardImage.src = spawn.imageUrl;
+          } else {
+            cardImage.src = "default-image.png"; // change as desired
           }
+          
+          // Update card border & glow based on rarity and EXP
+          if (spawn.stats && spawn.stats.exp) {
+            const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
+            card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+            card.style.boxShadow = "0 0 20px " + borderInfo.color;
+          } else {
+            card.style.border = "5px solid gold";
+            card.style.boxShadow = "0 0 20px gold";
+          }
+          
+          // Set name and rarity
+          cardName.textContent = spawn.creatureName || spawn.type;
+          cardRarity.textContent = "Rarity: " + spawn.creatureRarity;
+          
+          // Set CR badge (ensure it is populated)
+          if (spawn.stats && spawn.stats.cr) {
+            cardCR.textContent = spawn.stats.cr;
+          } else {
+            cardCR.textContent = "-";
+          }
+          
+          // Set EXP badge (new)
+          if (spawn.stats && spawn.stats.exp) {
+            cardEXP.textContent = spawn.stats.exp;
+          } else {
+            cardEXP.textContent = "-";
+          }
+          
+          card.classList.remove('hidden');
         }
-        card.classList.remove('hidden');
-      }
-
 
 
       // Multiplayer: Join Battle Room Function
@@ -610,8 +603,9 @@
               newSpawn.creatureName = creature.name;
               newSpawn.creatureRarity = creature.rarity;
               newSpawn.imageUrl = creature.imageUrl;
-              newSpawn.stats = creature.stats;  // <-- ADD THIS LINE
+              newSpawn.stats = creature.stats;  // <-- Ensure stats are included
             }
+
 
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
@@ -711,19 +705,21 @@
 <!-- Creature Card Overlay -->
 <div id="creature-card" class="creature-card hidden">
   <div class="card-content">
-    <button id="card-close">X</button>
+    <button id="card-close">×</button>
     <div class="card-header">
       <img id="card-image" src="" alt="Creature Image" />
       <div class="card-info">
         <h2 id="card-name"></h2>
         <p id="card-rarity"></p>
       </div>
-      <div id="card-cr"></div>
     </div>
-    <ul id="card-stats"></ul>
+    <div class="card-stats">
+      <div id="card-cr" class="card-cr"></div>
+      <div id="card-exp" class="card-exp"></div>
+    </div>
+    <button id="attack-button">Attack!</button>
   </div>
 </div>
-
 
 </body>
 </html>
