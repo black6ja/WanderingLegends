@@ -890,6 +890,7 @@
 
       await loadSpawnData();
       await electSpawnManager();
+      await loadGlobalLevelTable();
 
       document.getElementById('bottom-menu').style.display = "flex";
 
@@ -1218,22 +1219,21 @@
 
     // Show character card overlay when portrait is clicked
     document.addEventListener("DOMContentLoaded", function() {
-    const portraitContainer = document.getElementById("portrait-container");
-    if (portraitContainer) {
-      portraitContainer.addEventListener("click", function() {
-        showCharacterCard();
-      });
-    }
-
-    const charOverlay = document.getElementById("character-card-overlay");
-    if (charOverlay) {
-      charOverlay.addEventListener("click", function(e) {
-        if (e.target === this) {
-          this.classList.add("hidden");
-        }
-      });
-    }
-  });
+      const portraitContainer = document.getElementById("portrait-container");
+      if (portraitContainer) {
+        portraitContainer.addEventListener("click", function() {
+          showCharacterCard();
+        });
+      }
+      const charOverlay = document.getElementById("character-card-overlay");
+      if (charOverlay) {
+        charOverlay.addEventListener("click", function(e) {
+          if (e.target === this) {
+            this.classList.add("hidden");
+          }
+        });
+      }
+    });
 
 
 // Function to show and populate the character card overlay
