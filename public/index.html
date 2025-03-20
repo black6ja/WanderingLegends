@@ -269,7 +269,7 @@
 }
 
 /* Character Card Overlay */
-/* Overlay for modals */
+/* Overlay (unchanged from your existing code) */
 .overlay {
   position: fixed;
   top: 0;
@@ -286,8 +286,9 @@
   display: none;
 }
 
-/* Character Card Styling */
+/* Character Card Container */
 .character-card {
+  position: relative; /* important for absolutely positioned children */
   background: #1d1f21;
   border-radius: 12px;
   width: 90%;
@@ -297,47 +298,53 @@
   color: #f1f1f1;
   font-family: 'Cinzel', serif;
   animation: fadeInScale 0.3s ease-out;
+  /* You can set a height if you like, e.g. height: 220px; */
 }
 
-/* Animation for card appearance */
+/* Subtle card opening animation */
 @keyframes fadeInScale {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Header styles with gradient background */
-.card-header {
-  text-align: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #333;
-  background: linear-gradient(135deg, #2e2f31, #1d1f21);
-  border-radius: 8px 8px 0 0;
+/* Image Wrapper: absolute positioning for top-left corner overlap */
+.card-image-wrapper {
+  position: absolute;
+  top: -40px;  /* moves the image upward outside the card's top edge */
+  left: 20px;  /* horizontal offset from the card's left edge */
 }
-.card-header img {
+.card-image-wrapper img {
   width: 120px;
   height: 120px;
-  border-radius: 50%;
-  border: 4px solid #FFD700;
   object-fit: cover;
-  margin: 0 auto 10px;
-  display: block;
+  border-radius: 50%;
+  border: 4px solid transparent; /* or #FFD700 if you want a gold ring */
+  /* Optionally add a background or box-shadow here if you like */
+  box-shadow: 0 0 10px rgba(0,0,0,0.7);
 }
-.card-header h2 {
+
+/* Text container for name and class, centered horizontally */
+.card-header-text {
+  text-align: center;
+  margin-top: 0.5em; /* spacing below the top edge */
+  /* Because the image is absolute, we can add top padding so text doesn't hide behind the image. */
+  padding-top: 60px; 
+}
+.card-header-text h2 {
   margin: 0;
-  font-size: 1.8em;
+  font-size: 1.6em;
   color: #FFD700;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
 }
-.card-header p {
-  margin: 5px 0 0;
+.card-header-text p {
+  margin: 4px 0 0;
   font-size: 1em;
   color: #ccc;
 }
 
-/* Card Stats */
+/* Stats container (similar to your previous approach) */
 .card-stats {
-  margin-top: 15px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -356,20 +363,16 @@
   font-weight: bold;
   color: #aaa;
 }
-.attacks {
-  justify-content: center;
-  gap: 20px;
-}
 
-/* Card Actions */
+/* Buttons at the bottom */
 .card-actions {
-  margin-top: 20px;
+  margin-top: 15px;
   display: flex;
   justify-content: center;
   gap: 15px;
 }
 .card-actions button {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border: none;
   background: #FFD700;
   color: #1d1f21;
@@ -381,6 +384,7 @@
 .card-actions button:hover {
   background: #e6c200;
 }
+
 
 
 /* Inventory Card Specific Styles */
@@ -1269,20 +1273,27 @@ document.getElementById("close-character-card").addEventListener("click", functi
 <!-- Character Card Overlay -->
 <div id="character-card-overlay" class="overlay hidden">
   <div id="character-card" class="character-card">
-    <div class="card-header">
-      <img id="character-card-image" src="/images/character-placeholder.png" alt="Character Portrait">
-      <h2 id="character-card-name">Character Name</h2>
-      <p id="character-card-class">Class</p>
+    <!-- Image container with absolute positioning -->
+    <div class="card-image-wrapper">
+      <img id="character-card-image" src="/images/classes/rogue.png" alt="Character Portrait">
     </div>
+    
+    <!-- Card header text (name & class) -->
+    <div class="card-header-text">
+      <h2 id="character-card-name">KAEDIS</h2>
+      <p id="character-card-class">Rogue</p>
+    </div>
+    
+    <!-- Stats container -->
     <div class="card-stats">
       <div class="stats-row">
         <div class="stat-item">
-          <span class="stat-label">HP:</span>
-          <span id="character-card-hp">0</span>
+          <span class="stat-label">HP:</span> 
+          <span id="character-card-hp">90</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">AC:</span>
-          <span id="character-card-ac">0</span>
+          <span class="stat-label">AC:</span> 
+          <span id="character-card-ac">15</span>
         </div>
       </div>
       <div class="stats-row">
@@ -1302,27 +1313,28 @@ document.getElementById("close-character-card").addEventListener("click", functi
         </div>
         <div class="stat-item">
           <span class="stat-label">Mag DR:</span>
-          <span id="character-card-magdr">0</span>
+          <span id="character-card-magdr">1</span>
         </div>
       </div>
-      <div class="stats-row attacks">
+      <div class="stats-row">
         <div class="stat-item">
           <span class="stat-label">Main Hand:</span>
-          <span id="character-card-mainAttacks">0</span>
+          <span id="character-card-mainAttacks">1</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">Off Hand:</span>
-          <span id="character-card-offAttacks">0</span>
+          <span id="character-card-offAttacks">1</span>
         </div>
       </div>
     </div>
+    
+    <!-- Buttons at bottom -->
     <div class="card-actions">
       <button id="open-inventory-button">Open Inventory</button>
       <button id="close-character-card">Close</button>
     </div>
   </div>
 </div>
-
 
 
 <!-- Bottom Menu -->
