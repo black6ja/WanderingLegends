@@ -499,63 +499,64 @@
       });
     });
 
-    // Confirm character creation
     document.getElementById('confirm-character').addEventListener('click', function() {
-      const characterName = document.getElementById('characterName').value.trim();
-      if (!characterName) {
-        alert("Please enter a valid character name.");
-        return;
-      }
-      if (!selectedClass) {
-        alert("Please select a class.");
-        return;
-      }
-      
-      // Retrieve class defaults for the selected class
-      database.ref('classDefaults/' + selectedClass).once('value')
-        .then(snapshot => {
-          if (!snapshot.exists()) {
-            alert("Error: Class defaults not found.");
-            return;
+  const characterName = document.getElementById('characterName').value.trim();
+  if (!characterName) {
+    alert("Please enter a valid character name.");
+    return;
+  }
+  if (!selectedClass) {
+    alert("Please select a class.");
+    return;
+  }
+  
+  // Retrieve class defaults for the selected class
+  database.ref('classDefaults/' + selectedClass).once('value')
+      .then(snapshot => {
+        if (!snapshot.exists()) {
+          alert("Error: Class defaults not found.");
+          return;
+        }
+        const classData = snapshot.val();
+        const newPlayer = {
+          class: selectedClass,
+          name: characterName,
+          stats: classData.stats,
+          inventory: [],
+          equipment: {
+            mainHand: null,
+            offHand: null,
+            armor: null,
+            accessory: null
+          },
+          abilities: {
+            passive: [],
+            action: [],
+            bonusAction: [],
+            reaction: [],
+            recharge: []
           }
-          const classData = snapshot.val();
-          const newPlayer = {
-            class: selectedClass,
-            name: characterName,
-            stats: classData.stats,
-            inventory: [],
-            equipment: {
-              mainHand: null,
-              offHand: null,
-              armor: null,
-              accessory: null
-            },
-            abilities: {
-              passive: [],
-              action: [],
-              bonusAction: [],
-              reaction: [],
-              recharge: []
-            }
-          };
-          // Save player data tied to the UID
-          database.ref('players/' + uid).push(newPlayer)
-            .then(() => {
-              debugLog("Character created successfully!");
-              // Hide character screens and show map
-              document.getElementById("character-selection").classList.remove('visible');
-              document.getElementById("character-creation").classList.remove('visible');
-              document.getElementById("map-container").style.display = "block";
-              initializeGame();
-            })
-            .catch(error => {
-              debugLog("Error creating character: " + error.message);
-            });
-        })
-        .catch(error => {
-          debugLog("Error retrieving class defaults: " + error.message);
-        });
-    });
+        };
+        // Retrieve current user's UID and save character data
+        const uid = firebase.auth().currentUser.uid;
+        database.ref('players/' + uid).push(newPlayer)
+          .then(() => {
+            debugLog("Character created successfully!");
+            // Hide character screens and show map
+            document.getElementById("character-selection").classList.remove('visible');
+            document.getElementById("character-creation").classList.remove('visible');
+            document.getElementById("map-container").style.display = "block";
+            initializeGame();
+          })
+          .catch(error => {
+            debugLog("Error creating character: " + error.message);
+          });
+      })
+      .catch(error => {
+        debugLog("Error retrieving class defaults: " + error.message);
+      });
+  });
+
 
     document.getElementById("confirm-character-selection").addEventListener("click", function () {
       if (!selectedCharacter) {
