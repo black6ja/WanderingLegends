@@ -233,11 +233,13 @@
   <div id="character-selection" class="screen hidden">
     <h2>Select Your Character</h2>
     <div id="existing-characters">
-      <!-- For now, assume none exist -->
-      <p>No character found. Create a new one:</p>
+      <p>Choose your character:</p>
+      <div id="character-list" class="class-options"></div>
     </div>
+    <button id="confirm-character-selection">Confirm Selection</button>
     <button id="create-new-character">Create New Character</button>
   </div>
+
 
   <!-- Character Creation Screen -->
   <div id="character-creation" class="screen hidden">
@@ -408,21 +410,64 @@
 
     // ---------- Post Login Flow ----------
     function postLoginFlow() {
-      // Hide login container
       document.getElementById("login-container").style.display = "none";
       const uid = firebase.auth().currentUser.uid;
-      // Check if player character exists
-      database.ref('players/' + uid).once('value').then(snapshot => {
+
+      // Fetch the user's characters
+      database.ref(`players/${uid}`).once('value').then(snapshot => {
         if (snapshot.exists()) {
-          // Character exists: proceed to game
-          document.getElementById("map-container").style.display = "block";
-          initializeGame();
-        } else {
-          // No character: show character selection screen
+          // Characters exist: Show Character Selection
           showScreen('character-selection');
+          loadUserCharacters(uid);
+        } else {
+          // No character found: Show Character Creation
+          showScreen('character-creation');
         }
       });
     }
+
+    function loadUserCharacters(uid) {
+      const container = document.getElementById("character-list");
+      container.innerHTML = ""; // Clear any existing characters
+
+      database.ref(`players/${uid}`).once('value').then(snapshot => {
+        if (!snapshot.exists()) {
+          document.getElementById("existing-characters").innerHTML = "<p>No characters found. Create a new one.</p>";
+          return;
+        }
+
+        snapshot.forEach(childSnapshot => {
+          const character = childSnapshot.val();
+          const key = childSnapshot.key; // Unique character ID
+
+          // Create character card
+          const charDiv = document.createElement("div");
+          charDiv.classList.add("class-option");
+          charDiv.dataset.charId = key; // Store character ID
+
+          // Character Image
+          const img = document.createElement("img");
+          img.src = `/images/classes/${character.class.toLowerCase()}.png`;
+          img.alt = character.name;
+
+          // Character Name
+          const name = document.createElement("h3");
+          name.textContent = character.name;
+
+          charDiv.appendChild(img);
+          charDiv.appendChild(name);
+          container.appendChild(charDiv);
+
+          // Click Event: Select Character
+          charDiv.addEventListener("click", function () {
+            document.querySelectorAll('.class-option').forEach(opt => opt.classList.remove('selected'));
+            charDiv.classList.add("selected");
+            selectedCharacter = key; // Store selected character ID
+          });
+        });
+      });
+    }
+
 
     // ---------- Character Selection & Creation Event Listeners ----------
     document.getElementById('create-new-character').addEventListener('click', function() {
@@ -450,7 +495,7 @@
         alert("Please select a class.");
         return;
       }
-      const uid = firebase.auth().currentUser.uid;
+      
       // Retrieve class defaults for the selected class
       database.ref('classDefaults/' + selectedClass).once('value')
         .then(snapshot => {
@@ -496,6 +541,26 @@
           debugLog("Error retrieving class defaults: " + error.message);
         });
     });
+
+    document.getElementById("confirm-character-selection").addEventListener("click", function () {
+  if (!selectedCharacter) {
+    alert("Please select a character.");
+    return;
+  }
+
+    const uid = firebase.auth().currentUser.uid;
+
+    // Save selected character as the "active" one
+    database.ref(`players/${uid}/activeCharacter`).set(selectedCharacter).then(() => {
+      debugLog("Character selected successfully!");
+      document.getElementById("character-selection").classList.remove('visible');
+      document.getElementById("map-container").style.display = "block";
+      initializeGame();
+    }).catch(error => {
+      debugLog("Error selecting character: " + error.message);
+    });
+  });
+
 
     // ---------- Spawn Manager Functions ----------
     async function checkSpawnManager() {
