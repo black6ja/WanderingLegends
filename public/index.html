@@ -288,7 +288,6 @@
 
 /* Character Card Container */
 .character-card {
-  position: relative; /* important for absolutely positioned children */
   background: #1d1f21;
   border-radius: 12px;
   width: 90%;
@@ -298,85 +297,82 @@
   color: #f1f1f1;
   font-family: 'Cinzel', serif;
   animation: fadeInScale 0.3s ease-out;
-  /* You can set a height if you like, e.g. height: 220px; */
 }
 
-/* Subtle card opening animation */
-@keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+.card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-/* Image Wrapper: absolute positioning for top-left corner overlap */
 .card-image-wrapper {
-  position: absolute;
-  top: -44px;  /* moves the image upward outside the card's top edge */
-  left: 9px;  /* horizontal offset from the card's left edge */
-}
-.card-image-wrapper img {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
+  flex-shrink: 0;
+  margin-right: 15px;
 }
 
-/* Text container for name and class, centered horizontally */
-.card-header-text {
-  text-align: center;
-  margin-top: 0.5em; /* spacing below the top edge */
-  /* Because the image is absolute, we can add top padding so text doesn't hide behind the image. */
-  padding-top: 20px; 
+.card-image-wrapper img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #FFD700;
 }
-.card-header-text h2 {
+
+.card-header-info h2 {
   margin: 0;
-  font-size: 1.6em;
+  font-size: 1.8em;
   color: #FFD700;
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
 }
-.card-header-text p {
-  margin: 4px 0 0;
+
+.card-header-info p {
+  margin: 5px 0 0;
   font-size: 1em;
   color: #ccc;
 }
 
-/* Stats container (similar to your previous approach) */
 .card-stats {
-  margin-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-.stats-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.95em;
-}
-.stat-item {
-  flex: 1;
-  margin: 0 5px;
-  text-align: center;
-}
-.stat-label {
-  font-weight: bold;
-  color: #aaa;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
-/* Buttons at the bottom */
-.card-actions {
-  margin-top: 15px;
+.stats-group {
   display: flex;
-  justify-content: center;
-  gap: 15px;
+  justify-content: space-between;
 }
+
+.stat {
+  text-align: center;
+  flex: 1;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.8em;
+  color: #aaa;
+  margin-bottom: 5px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+}
+
 .card-actions button {
-  padding: 8px 16px;
+  flex: 1;
+  padding: 10px;
   border: none;
+  border-radius: 5px;
   background: #FFD700;
   color: #1d1f21;
-  cursor: pointer;
-  border-radius: 5px;
   font-weight: bold;
+  cursor: pointer;
   transition: background 0.2s ease;
 }
+
 .card-actions button:hover {
   background: #e6c200;
 }
@@ -1406,21 +1402,72 @@ document.getElementById("close-character-card").addEventListener("click", functi
   <!-- Additional buttons can be added here -->
 </div>
 
-<!-- Character Card Overlay -->
-<div id="character-card" class="character-card hidden">
-  <div class="card-header">
-    <img id="character-card-image" src="/images/character-placeholder.png" alt="Character Portrait">
-    <h2 id="character-card-name">Character Name</h2>
-  </div>
-  <div class="card-stats">
-    <p>Class: <span id="character-card-class">Unknown</span></p>
-    <p>HP: <span id="character-card-hp">0</span></p>
-    <p>AC: <span id="character-card-ac">0</span></p>
-    <p>XP: <span id="character-card-xp">0</span></p>
-  </div>
-  <div class="card-actions">
-    <button id="open-inventory-button">Open Inventory</button>
-    <button id="close-character-card">Close</button>
+<!-- Updated Character Card Overlay -->
+<div id="character-card-overlay" class="overlay hidden">
+  <div class="character-card">
+    <div class="card-header">
+      <div class="card-image-wrapper">
+        <img id="character-card-image" src="/images/classes/rogue.png" alt="Character Portrait">
+      </div>
+      <div class="card-header-info">
+        <h2 id="character-card-name">Character Name</h2>
+        <p id="character-card-class">Class</p>
+      </div>
+    </div>
+    <div class="card-stats">
+      <div class="stats-group">
+        <div class="stat">
+          <span class="stat-label">Level</span>
+          <span id="character-card-level">1</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">XP</span>
+          <span id="character-card-xp">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">XP Req</span>
+          <span id="character-card-xpRequired">100</span>
+        </div>
+      </div>
+      <div class="stats-group">
+        <div class="stat">
+          <span class="stat-label">HP</span>
+          <span id="character-card-hp">90</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">AC</span>
+          <span id="character-card-ac">15</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Save</span>
+          <span id="character-card-save">0</span>
+        </div>
+      </div>
+      <div class="stats-group">
+        <div class="stat">
+          <span class="stat-label">Phys DR</span>
+          <span id="character-card-physdr">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Mag DR</span>
+          <span id="character-card-magdr">1</span>
+        </div>
+      </div>
+      <div class="stats-group">
+        <div class="stat">
+          <span class="stat-label">Main</span>
+          <span id="character-card-mainAttacks">1</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Off</span>
+          <span id="character-card-offAttacks">1</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button id="open-inventory-button">Open Inventory</button>
+      <button id="close-character-card">Close</button>
+    </div>
   </div>
 </div>
 
