@@ -218,6 +218,58 @@
       color: #fff;
     }
     #run-button:hover { background-color: #187bcd; }
+
+    <!-- Bottom Menu-->
+/* Hide the debug panel if needed */
+#debugPanel {
+  display: none;
+}
+
+/* Bottom menu bar */
+#bottom-menu {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: #222;
+  color: #fff;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 1000;
+  padding: 0 20px;
+}
+
+/* Button styles (customize as needed) */
+#bottom-menu button {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+/* Container for portrait to enable absolute positioning */
+#portrait-container {
+  position: relative;
+  width: 80px; /* same as portrait width */
+  height: 80px; /* same as portrait height */
+}
+
+/* Character portrait: circular image that overlaps the menu */
+#character-portrait {
+  position: absolute;
+  top: -40px; /* Half of the portrait's height so its center is at the menu's top edge */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 3px solid #FFD700; /* gold border for emphasis */
+  object-fit: cover;
+}
+
   </style>
 </head>
 <body>
@@ -1007,5 +1059,17 @@
       <button id="run-button">Run!</button>
     </div>
   </div>
+
+<!-- Bottom Menu -->
+<div id="bottom-menu">
+  <button id="inventory-button">Inventory</button>
+  <div id="portrait-container">
+    <img id="character-portrait" src="/images/character-placeholder.png" alt="Character Portrait">
+  </div>
+  <button id="settings-button">Settings</button>
+  <!-- You can add more buttons as needed -->
+</div>
+
+
 </body>
 </html>
