@@ -1171,44 +1171,62 @@
       return R * c;
     }
 
-    // Event listener to open the character card when the portrait is clicked
-    document.addEventListener("DOMContentLoaded", function() {
-      document.getElementById("portrait-container").addEventListener("click", function() {
-        showCharacterCard();
-      });
+    // Show character card overlay when portrait is clicked
+document.addEventListener("DOMContentLoaded", function() {
+  const portraitContainer = document.getElementById("portrait-container");
+  if (portraitContainer) {
+    portraitContainer.addEventListener("click", function() {
+      showCharacterCard();
     });
+  }
 
-    // Function to show and populate the character card overlay
-    function showCharacterCard() {
-      const uid = firebase.auth().currentUser.uid;
-      // Retrieve the active character's data
-      database.ref(`players/${uid}`).once('value').then(snapshot => {
-        const data = snapshot.val();
-        const activeCharacterKey = data.activeCharacter;
-        if (activeCharacterKey) {
-          const characterData = data[activeCharacterKey];
-          if (characterData) {
-            // Update the character card fields
-            document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
-            document.getElementById('character-card-name').textContent = characterData.name;
-            document.getElementById('character-card-class').textContent = characterData.class;
-            // Assuming stats are stored under characterData.stats
-            document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
-            document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
-            document.getElementById('character-card-xp').textContent = characterData.stats.xp || 0;
-            // Show the card
-            document.getElementById('character-card').classList.remove('hidden');
-          }
-        }
-      }).catch(error => {
-        console.error("Error fetching active character data:", error);
-      });
+  // Close character card when clicking outside of it
+  document.getElementById("character-card-overlay").addEventListener("click", function(e) {
+    // If the click is on the overlay (not the card itself)
+    if (e.target === this) {
+      this.classList.add("hidden");
     }
+  });
+});
 
-    // Close character card button
-    document.getElementById("close-character-card").addEventListener("click", function() {
-      document.getElementById('character-card').classList.add('hidden');
-    });
+// Function to show and populate the character card overlay
+function showCharacterCard() {
+  const uid = firebase.auth().currentUser.uid;
+  // Retrieve the active character's data
+  database.ref(`players/${uid}`).once('value').then(snapshot => {
+    const data = snapshot.val();
+    const activeCharacterKey = data.activeCharacter;
+    if (activeCharacterKey) {
+      const characterData = data[activeCharacterKey];
+      if (characterData) {
+        // Update the character card fields with all desired stats
+        document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
+        document.getElementById('character-card-name').textContent = characterData.name;
+        document.getElementById('character-card-class').textContent = characterData.class;
+        document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
+        document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
+        document.getElementById('character-card-save').textContent = characterData.stats.save || 0;
+        document.getElementById('character-card-xp').textContent = characterData.stats.xp || 0;
+        document.getElementById('character-card-physdr').textContent = characterData.stats.physicalDR || 0;
+        document.getElementById('character-card-magdr').textContent = characterData.stats.magicalDR || 0;
+        // Assuming attacksPerRound is an object with mainHand and offHand values:
+        document.getElementById('character-card-mainAttacks').textContent = (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
+        document.getElementById('character-card-offAttacks').textContent = (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
+
+        // Show the overlay (remove hidden class)
+        document.getElementById('character-card-overlay').classList.remove('hidden');
+      }
+    }
+  }).catch(error => {
+    console.error("Error fetching active character data:", error);
+  });
+}
+
+// Close character card button click handler
+document.getElementById("close-character-card").addEventListener("click", function() {
+  document.getElementById('character-card-overlay').classList.add('hidden');
+});
+
 
     // Open inventory button from character card
     document.getElementById("open-inventory-button").addEventListener("click", function() {
