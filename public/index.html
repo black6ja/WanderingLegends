@@ -290,7 +290,7 @@
 /* Main Card Container */
 .character-card.video-game-theme {
   background: #1d1f21;
-  border: 3px solid #FFD700; /* gold border for a fantasy/RPG look */
+  border: 3px solid #000000; /* gold border for a fantasy/RPG look */
   border-radius: 12px;
   width: 90%;
   max-width: 400px;
@@ -309,6 +309,7 @@
 /* Top Row: portrait + basic info side-by-side */
 .card-top-row {
   display: flex;
+  flex-direction: row-reverse; 
   gap: 15px;
   margin-bottom: 15px;
 }
@@ -317,8 +318,6 @@
   width: 100px;
   height: 100px;
   object-fit: cover;
-  border-radius: 50%;
-  border: 3px solid #FFD700;
 }
 
 .basic-info {
