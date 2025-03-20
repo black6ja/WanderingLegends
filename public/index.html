@@ -1265,7 +1265,8 @@ function showCharacterCard() {
         const currentXP = characterData.stats.xp || 0;
         // Look up the required XP for the next level in the global table:
         const nextLevel = currentLevel + 1;
-        const xpRequired = globalLevelTable[nextLevel] ? globalLevelTable[nextLevel].xpRequired : "Max";
+        const xpRequired = globalLevelTable[String(nextLevel)] ? globalLevelTable[String(nextLevel)].xpRequired : "Max";
+
         document.getElementById('character-card-level').textContent = currentLevel;
         document.getElementById('character-card-xp').textContent = currentXP;
         document.getElementById('character-card-xpRequired').textContent = xpRequired;
