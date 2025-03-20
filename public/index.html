@@ -227,6 +227,7 @@
 }
 
 #bottom-menu {
+  display: none; /* Hide until game loads */
   position: fixed;
   bottom: 0;
   left: 0;
@@ -234,14 +235,13 @@
   height: 60px;
   background-color: #222;
   color: #fff;
-  display: flex;
   justify-content: space-around;
   align-items: center;
   z-index: 1000;
   padding: 0 20px;
 }
 
-/* Button styles (customize as needed) */
+/* Button styles */
 #bottom-menu button {
   background: transparent;
   border: none;
@@ -253,20 +253,20 @@
 /* Container for portrait to enable absolute positioning */
 #portrait-container {
   position: relative;
-  width: 80px; /* same as portrait width */
-  height: 80px; /* same as portrait height */
+  width: 80px;
+  height: 80px;
 }
 
 /* Character portrait: circular image that overlaps the menu */
 #character-portrait {
   position: absolute;
-  top: -40px; /* Half of the portrait's height so its center is at the menu's top edge */
+  top: -40px; /* Half of portrait's height */
   left: 50%;
   transform: translateX(-50%);
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  border: 3px solid #FFD700; /* gold border for emphasis */
+  border: 3px solid #FFD700;
   object-fit: cover;
 }
 
@@ -735,6 +735,25 @@
       await loadSpawnData();
       await electSpawnManager();
 
+      document.getElementById('bottom-menu').style.display = "flex";
+
+      // Retrieve the active character's data to update the portrait image
+      const uid = firebase.auth().currentUser.uid;
+      database.ref(`players/${uid}`).once('value').then(snapshot => {
+        const data = snapshot.val();
+        // Expecting the active character key is stored as a property 'activeCharacter'
+        const activeCharacterKey = data.activeCharacter;
+        if (activeCharacterKey) {
+          const activeCharacterData = data[activeCharacterKey];
+          if (activeCharacterData && activeCharacterData.class) {
+            const portraitURL = `/images/classes/${activeCharacterData.class.toLowerCase()}.png`;
+            document.getElementById('character-portrait').src = portraitURL;
+          }
+        }
+      }).catch(error => {
+        console.error("Error fetching active character data:", error);
+      });
+
       // Photon Setup
       let photonClient;
       try {
@@ -1067,7 +1086,9 @@
     <img id="character-portrait" src="/images/character-placeholder.png" alt="Character Portrait">
   </div>
   <button id="settings-button">Settings</button>
+  <!-- Additional buttons can be added here -->
 </div>
+
 
 
 </body>
