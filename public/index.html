@@ -737,102 +737,69 @@
     });
 
     document.getElementById('confirm-character').addEventListener('click', function() {
-  const characterName = document.getElementById('characterName').value.trim();
-  if (!characterName) {
-    alert("Please enter a valid character name.");
-    return;
-  }
-  if (!selectedClass) {
-    alert("Please select a class.");
-    return;
-  }
-  
-  // Retrieve class defaults for the selected class
-  database.ref('classDefaults/' + selectedClass).once('value')
-    .then(snapshot => {
-      if (!snapshot.exists()) {
-        alert("Error: Class defaults not found.");
-        return;
-      }
-      const classData = snapshot.val();
-      
-      // Get default equipment if provided, otherwise use an empty structure.
-      const defaultEquipment = classData.defaultEquipment || {
-        equipment: {
-          mainHand: null,
-          offHand: null,
-          armor: null,
-          accessory: null
-        },
-        bag: {
-          slot1: null,
-          slot2: null,
-          slot3: null,
-          slot4: null,
-          slot5: null,
-          slot6: null
+    const characterName = document.getElementById('characterName').value.trim();
+    if (!characterName) {
+      alert("Please enter a valid character name.");
+      return;
+    }
+    if (!selectedClass) {
+      alert("Please select a class.");
+      return;
+    }
+    
+    // Retrieve class defaults for the selected class
+    database.ref('classDefaults/' + selectedClass).once('value')
+      .then(snapshot => {
+        if (!snapshot.exists()) {
+          alert("Error: Class defaults not found.");
+          return;
         }
-      };
-      
-      // Create new player object with default level, xp, stats, and inventory
-      const newPlayer = {
-        class: selectedClass,
-        name: characterName,
-        stats: {
-          ...classData.stats,
-          level: 1,
-          xp: 0
-        },
-        inventory: defaultEquipment,
-        abilities: {
-          passive: [],
-          action: [],
-          bonusAction: [],
-          reaction: [],
-          recharge: []
-        }
-      };
-      
-      // Retrieve current user's UID and save character data
-      const uid = firebase.auth().currentUser.uid;
-      database.ref('players/' + uid).push(newPlayer)
-        .then(() => {
-          debugLog("Character created successfully with inventory structure!");
-          // Hide character screens and show map
-          document.getElementById("character-selection").classList.remove('visible');
-          document.getElementById("character-creation").classList.remove('visible');
-          document.getElementById("map-container").style.display = "block";
-          initializeGame();
-        })
-        .catch(error => {
-          debugLog("Error creating character: " + error.message);
-        });
-    })
-    .catch(error => {
-      debugLog("Error retrieving class defaults: " + error.message);
-    });
-});
-      
-      // Retrieve current user's UID and save character data
-      const uid = firebase.auth().currentUser.uid;
-      database.ref('players/' + uid).push(newPlayer)
-        .then(() => {
-          debugLog("Character created successfully with inventory structure!");
-          // Hide character screens and show map
-          document.getElementById("character-selection").classList.remove('visible');
-          document.getElementById("character-creation").classList.remove('visible');
-          document.getElementById("map-container").style.display = "block";
-          initializeGame();
-        })
-        .catch(error => {
-          debugLog("Error creating character: " + error.message);
-        });
-    })
-    .catch(error => {
-      debugLog("Error retrieving class defaults: " + error.message);
-    });
-});
-
+        const classData = snapshot.val();
+        
+        // Create new player object with default level and xp
+        const newPlayer = {
+          class: selectedClass,
+          name: characterName,
+          stats: {
+            ...classData.stats,
+            level: 1,   // Add level property (starting at 1)
+            xp: 0       // Add xp property (starting at 0)
+          },
+          inventory: [],
+          equipment: {
+            mainHand: null,
+            offHand: null,
+            armor: null,
+            accessory: null
+          },
+          abilities: {
+            passive: [],
+            action: [],
+            bonusAction: [],
+            reaction: [],
+            recharge: []
+          }
+        };
+        
+        // Retrieve current user's UID and save character data
+        const uid = firebase.auth().currentUser.uid;
+        database.ref('players/' + uid).push(newPlayer)
+          .then(() => {
+            debugLog("Character created successfully!");
+            // Hide character screens and show map
+            document.getElementById("character-selection").classList.remove('visible');
+            document.getElementById("character-creation").classList.remove('visible');
+            document.getElementById("map-container").style.display = "block";
+            initializeGame();
+          })
+          .catch(error => {
+            debugLog("Error creating character: " + error.message);
+          });
+      })
+      .catch(error => {
+        debugLog("Error retrieving class defaults: " + error.message);
+      });
+  });
 
 
     document.getElementById("confirm-character-selection").addEventListener("click", function () {
