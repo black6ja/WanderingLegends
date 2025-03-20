@@ -265,10 +265,75 @@
   transform: translateX(-50%);
   width: 80px;
   height: 80px;
-  border-radius: 50%;
-  border: 3px solid #FFD700;
   object-fit: cover;
 }
+
+/* Character Card Overlay */
+.character-card, .inventory-card {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 400px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  padding: 20px;
+  z-index: 2000;
+}
+.character-card.hidden, .inventory-card.hidden {
+  display: none;
+}
+.character-card .card-header {
+  text-align: center;
+}
+.character-card .card-header img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 4px solid #FFD700;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto;
+}
+.card-stats {
+  margin-top: 10px;
+}
+.card-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+.card-actions button {
+  margin: 5px;
+  padding: 10px 20px;
+  background: #222;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+/* Inventory Card Specific Styles */
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.equipment-slots, .bag-slots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+.equipment-slots .slot, .bag-slots .bag-slot {
+  border: 1px solid #fff;
+  padding: 10px;
+  margin: 5px;
+  flex: 1 1 40%;
+  text-align: center;
+}
+
 
   </style>
 </head>
@@ -1059,6 +1124,57 @@
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
+
+    // Event listener to open the character card when the portrait is clicked
+    document.getElementById("portrait-container").addEventListener("click", function() {
+      showCharacterCard();
+    });
+
+    // Function to show and populate the character card overlay
+    function showCharacterCard() {
+      const uid = firebase.auth().currentUser.uid;
+      // Retrieve the active character's data
+      database.ref(`players/${uid}`).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const activeCharacterKey = data.activeCharacter;
+        if (activeCharacterKey) {
+          const characterData = data[activeCharacterKey];
+          if (characterData) {
+            // Update the character card fields
+            document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
+            document.getElementById('character-card-name').textContent = characterData.name;
+            document.getElementById('character-card-class').textContent = characterData.class;
+            // Assuming stats are stored under characterData.stats
+            document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
+            document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
+            document.getElementById('character-card-xp').textContent = characterData.stats.xp || 0;
+            // Show the card
+            document.getElementById('character-card').classList.remove('hidden');
+          }
+        }
+      }).catch(error => {
+        console.error("Error fetching active character data:", error);
+      });
+    }
+
+    // Close character card button
+    document.getElementById("close-character-card").addEventListener("click", function() {
+      document.getElementById('character-card').classList.add('hidden');
+    });
+
+    // Open inventory button from character card
+    document.getElementById("open-inventory-button").addEventListener("click", function() {
+      // Hide character card and show inventory card
+      document.getElementById('character-card').classList.add('hidden');
+      document.getElementById('inventory-card').classList.remove('hidden');
+    });
+
+    // Close inventory card button
+    document.getElementById("close-inventory-card").addEventListener("click", function() {
+      document.getElementById('inventory-card').classList.add('hidden');
+    });
+
+
   </script>
 
   <!-- Creature Card Overlay -->
@@ -1087,6 +1203,46 @@
   </div>
   <button id="settings-button">Settings</button>
   <!-- Additional buttons can be added here -->
+</div>
+
+<!-- Character Card Overlay -->
+<div id="character-card" class="character-card hidden">
+  <div class="card-header">
+    <img id="character-card-image" src="/images/character-placeholder.png" alt="Character Portrait">
+    <h2 id="character-card-name">Character Name</h2>
+  </div>
+  <div class="card-stats">
+    <p>Class: <span id="character-card-class">Unknown</span></p>
+    <p>HP: <span id="character-card-hp">0</span></p>
+    <p>AC: <span id="character-card-ac">0</span></p>
+    <p>XP: <span id="character-card-xp">0</span></p>
+  </div>
+  <div class="card-actions">
+    <button id="open-inventory-button">Open Inventory</button>
+    <button id="close-character-card">Close</button>
+  </div>
+</div>
+
+<!-- Inventory Card Overlay -->
+<div id="inventory-card" class="inventory-card hidden">
+  <div class="inventory-header">
+    <h2>Inventory</h2>
+    <button id="close-inventory-card">Close</button>
+  </div>
+  <div class="equipment-slots">
+    <div class="slot" id="slot-main-hand">Main Hand</div>
+    <div class="slot" id="slot-off-hand">Off Hand</div>
+    <div class="slot" id="slot-armor">Armor</div>
+    <div class="slot" id="slot-accessory">Accessory</div>
+  </div>
+  <div class="bag-slots">
+    <div class="bag-slot">Slot 1</div>
+    <div class="bag-slot">Slot 2</div>
+    <div class="bag-slot">Slot 3</div>
+    <div class="bag-slot">Slot 4</div>
+    <div class="bag-slot">Slot 5</div>
+    <div class="bag-slot">Slot 6</div>
+  </div>
 </div>
 
 
