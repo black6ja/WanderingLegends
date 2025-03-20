@@ -525,7 +525,7 @@
     let selectedClass = null;  // for character creation
     let selectedCharacter = null; // Global variable to track selected character
     let globalLevelTable = {};
-  
+
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -538,7 +538,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-  
+
     // ---------- Debug Logging ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
@@ -547,7 +547,7 @@
       debugDiv.appendChild(p);
       console.log("DEBUG:", message);
     }
-  
+
     // ---------- Show Login Messages ----------
     function showMessage(message, isError = false) {
       const messageBox = document.getElementById("login-message");
@@ -555,7 +555,7 @@
       messageBox.style.color = isError ? "red" : "green";
       debugLog("Login Message: " + message);
     }
-  
+
     // ---------- Load Spawn Configuration from spawnData.json ----------
     async function loadSpawnData() {
       try {
@@ -569,7 +569,7 @@
         debugLog("Error loading spawn data: " + error.message, true);
       }
     }
-  
+
     // ---------- Global Clear Spawn Points Function ----------
     async function clearSpawnPoints() {
       try {
@@ -579,7 +579,7 @@
         debugLog("Error clearing spawn points: " + error.message, true);
       }
     }
-  
+
     // ---------- Authentication Functions ----------
     function googleLogin() {
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -589,7 +589,7 @@
         showMessage("Sign-in failed: " + error.message, true);
       });
     }
-  
+
     function anonymousLogin() {
       debugLog("Attempting anonymous sign-in...");
       firebase.auth().signInAnonymously().then(result => {
@@ -599,7 +599,7 @@
         showMessage("Anonymous sign-in failed: " + error.message, true);
       });
     }
-  
+
     firebase.auth().getRedirectResult().then(result => {
       if (result.user) {
         debugLog("getRedirectResult: User signed in: " + JSON.stringify(result.user));
@@ -610,7 +610,7 @@
       debugLog("getRedirectResult error: " + error.message);
       showMessage("Sign-in failed: " + error.message, true);
     });
-  
+
     firebase.auth().onAuthStateChanged(user => {
       debugLog("onAuthStateChanged triggered: " + JSON.stringify(user));
       if (user && !gameShown) {
@@ -621,23 +621,23 @@
         debugLog("No user signed in.");
       }
     });
-  
+
     function logout() {
       firebase.auth().signOut().then(() => location.reload());
     }
-  
+
     // ---------- Screen Utility Functions ----------
     function showScreen(screenId) {
       // Hide all screens
       document.querySelectorAll('.screen').forEach(el => el.classList.remove('visible'));
       document.getElementById(screenId).classList.add('visible');
     }
-  
+
     // ---------- Post Login Flow ----------
     function postLoginFlow() {
       document.getElementById("login-container").style.display = "none";
       const uid = firebase.auth().currentUser.uid;
-  
+
       // Check if user has any saved characters
       database.ref(`players/${uid}`).once('value').then(snapshot => {
         if (snapshot.exists()) {
@@ -648,7 +648,7 @@
         }
       });
     }
-  
+
     function loadGlobalLevelTable() {
       database.ref('levelTable').once('value')
         .then(snapshot => {
@@ -663,48 +663,52 @@
           console.error("Error loading global level table:", error);
         });
     }
-  
+
     function loadUserCharacters(uid) {
       const container = document.getElementById("character-list");
       container.innerHTML = ""; // Clear any existing characters
-  
+
       database.ref(`players/${uid}`).once('value').then(snapshot => {
         if (!snapshot.exists()) {
           document.getElementById("existing-characters").innerHTML = "<p>No characters found. Create a new one.</p>";
           return;
         }
-  
+
         console.log("✅ Retrieved Character Data:", snapshot.val()); // Debugging
-  
+
         snapshot.forEach(childSnapshot => {
           const character = childSnapshot.val();
           const key = childSnapshot.key; // Unique character ID
-  
+
+          // 🔥 Debugging: Check what Firebase returned
           if (!character || !character.class || !character.name) {
             console.error("❌ Character data missing or malformed:", JSON.stringify(character, null, 2));
             return;
           }
-  
+
           // Create character card
           const charDiv = document.createElement("div");
           charDiv.classList.add("class-option");
           charDiv.dataset.charId = key; // Store character ID
-  
+
+          // Character Image (Make sure class names match Firebase)
           const img = document.createElement("img");
-          img.src = `/images/classes/${character.class.toLowerCase()}.png`;
+          img.src = `/images/classes/${character.class.toLowerCase()}.png`; // Convert class name to lowercase for consistency
           img.alt = character.name;
-  
+
+          // Character Name
           const name = document.createElement("h3");
           name.textContent = character.name;
-  
+
           charDiv.appendChild(img);
           charDiv.appendChild(name);
           container.appendChild(charDiv);
-  
+
+          // ✅ Fix: Click event updates global `selectedCharacter`
           charDiv.addEventListener("click", function () {
             document.querySelectorAll('.class-option').forEach(opt => opt.classList.remove('selected'));
             charDiv.classList.add("selected");
-            selectedCharacter = key;
+            selectedCharacter = key; // ✅ Assign the character ID to `selectedCharacter`
             console.log("✅ Selected Character:", selectedCharacter);
           });
         });
@@ -712,103 +716,101 @@
         console.error("❌ Error loading characters:", error);
       });
     }
-  
+
+
+
+
+
     // ---------- Character Selection & Creation Event Listeners ----------
     document.getElementById('create-new-character').addEventListener('click', function() {
       showScreen('character-creation');
     });
-  
+
+    // Listen for clicks on class options
     document.querySelectorAll('.class-option').forEach(option => {
       option.addEventListener('click', function() {
+        // Remove "selected" class from all
         document.querySelectorAll('.class-option').forEach(opt => opt.classList.remove('selected'));
         option.classList.add('selected');
         selectedClass = option.getAttribute('data-class');
       });
     });
-  
-    // Updated character creation: add inventory structure (equipment & bag)
+
     document.getElementById('confirm-character').addEventListener('click', function() {
-      const characterName = document.getElementById('characterName').value.trim();
-      if (!characterName) {
-        alert("Please enter a valid character name.");
-        return;
-      }
-      if (!selectedClass) {
-        alert("Please select a class.");
-        return;
-      }
-      
-      // Retrieve class defaults for the selected class
-      database.ref('classDefaults/' + selectedClass).once('value')
-        .then(snapshot => {
-          if (!snapshot.exists()) {
-            alert("Error: Class defaults not found.");
-            return;
+    const characterName = document.getElementById('characterName').value.trim();
+    if (!characterName) {
+      alert("Please enter a valid character name.");
+      return;
+    }
+    if (!selectedClass) {
+      alert("Please select a class.");
+      return;
+    }
+    
+    // Retrieve class defaults for the selected class
+    database.ref('classDefaults/' + selectedClass).once('value')
+      .then(snapshot => {
+        if (!snapshot.exists()) {
+          alert("Error: Class defaults not found.");
+          return;
+        }
+        const classData = snapshot.val();
+        
+        // Create new player object with default level and xp
+        const newPlayer = {
+          class: selectedClass,
+          name: characterName,
+          stats: {
+            ...classData.stats,
+            level: 1,   // Add level property (starting at 1)
+            xp: 0       // Add xp property (starting at 0)
+          },
+          inventory: [],
+          equipment: {
+            mainHand: null,
+            offHand: null,
+            armor: null,
+            accessory: null
+          },
+          abilities: {
+            passive: [],
+            action: [],
+            bonusAction: [],
+            reaction: [],
+            recharge: []
           }
-          const classData = snapshot.val();
-          
-          // Use defaultEquipment from classDefaults if available, else create an empty inventory structure.
-          const defaultEquipment = classData.defaultEquipment || {
-            equipment: {
-              mainHand: null,
-              offHand: null,
-              armor: null,
-              accessory: null
-            },
-            bag: {
-              slot1: null,
-              slot2: null,
-              slot3: null,
-              slot4: null,
-              slot5: null,
-              slot6: null
-            }
-          };
-          
-          // Create new player object with stats and inventory
-          const newPlayer = {
-            class: selectedClass,
-            name: characterName,
-            stats: {
-              ...classData.stats,
-              level: 1,
-              xp: 0
-            },
-            inventory: defaultEquipment,
-            abilities: {
-              passive: [],
-              action: [],
-              bonusAction: [],
-              reaction: [],
-              recharge: []
-            }
-          };
-          
-          const uid = firebase.auth().currentUser.uid;
-          database.ref('players/' + uid).push(newPlayer)
-            .then(() => {
-              debugLog("Character created successfully with inventory structure!");
-              document.getElementById("character-selection").classList.remove('visible');
-              document.getElementById("character-creation").classList.remove('visible');
-              document.getElementById("map-container").style.display = "block";
-              initializeGame();
-            })
-            .catch(error => {
-              debugLog("Error creating character: " + error.message);
-            });
-        })
-        .catch(error => {
-          debugLog("Error retrieving class defaults: " + error.message);
-        });
-    });
-  
+        };
+        
+        // Retrieve current user's UID and save character data
+        const uid = firebase.auth().currentUser.uid;
+        database.ref('players/' + uid).push(newPlayer)
+          .then(() => {
+            debugLog("Character created successfully!");
+            // Hide character screens and show map
+            document.getElementById("character-selection").classList.remove('visible');
+            document.getElementById("character-creation").classList.remove('visible');
+            document.getElementById("map-container").style.display = "block";
+            initializeGame();
+          })
+          .catch(error => {
+            debugLog("Error creating character: " + error.message);
+          });
+      })
+      .catch(error => {
+        debugLog("Error retrieving class defaults: " + error.message);
+      });
+  });
+
+
     document.getElementById("confirm-character-selection").addEventListener("click", function () {
       if (!selectedCharacter) {
         alert("Please select a character.");
         return;
       }
-  
+
       const uid = firebase.auth().currentUser.uid;
+
+      // Save selected character as the "active" one
       database.ref(`players/${uid}/activeCharacter`).set(selectedCharacter).then(() => {
         console.log("Character selected successfully!", selectedCharacter);
         document.getElementById("character-selection").classList.remove('visible');
@@ -818,98 +820,8 @@
         console.error("Error selecting character:", error);
       });
     });
-  
-    // ---------- Inventory Functions ----------
-    function openInventory() {
-      const uid = firebase.auth().currentUser.uid;
-      // Get the active character key
-      database.ref(`players/${uid}`).once('value').then(snapshot => {
-        const data = snapshot.val();
-        const activeCharacterKey = data.activeCharacter;
-        if (!activeCharacterKey) {
-          console.error("No active character set.");
-          return;
-        }
-        // Retrieve the inventory for the active character
-        database.ref(`players/${uid}/${activeCharacterKey}/inventory`).once('value')
-          .then(invSnapshot => {
-            const inventoryData = invSnapshot.val();
-            renderInventoryUI(inventoryData);
-          })
-          .catch(err => console.error("Error retrieving inventory:", err));
-      }).catch(err => console.error("Error retrieving player data:", err));
-    }
-  
-    function renderInventoryUI(inventory) {
-      // Update equipment slots
-      const equipmentMapping = {
-        "mainHand": "slot-main-hand",
-        "offHand": "slot-off-hand",
-        "armor": "slot-armor",
-        "accessory": "slot-accessory"
-      };
-      const equipmentSlots = inventory.equipment || {};
-      for (let slot in equipmentMapping) {
-        const elem = document.getElementById(equipmentMapping[slot]);
-        const slotData = equipmentSlots[slot];
-        if (slotData && slotData.itemId) {
-          firebase.database().ref(`items/${slotData.itemId}`).once('value').then(itemSnap => {
-            const item = itemSnap.val();
-            if (item) {
-              elem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
-            } else {
-              elem.textContent = "Unknown item";
-            }
-          }).catch(err => {
-            elem.textContent = "Error loading item";
-          });
-        } else {
-          elem.textContent = "Empty";
-        }
-      }
-      // Update bag slots; assume bag slots are named slot1, slot2, ... slot6.
-      const bagSlots = inventory.bag || {};
-      for (let i = 1; i <= 6; i++) {
-        const slotName = `slot${i}`;
-        // Ensure each bag slot has an id; if not, they can be assigned in HTML.
-        let bagElem = document.getElementById(`bag-${slotName}`);
-        if (!bagElem) {
-          bagElem = document.createElement("div");
-          bagElem.className = "bag-slot";
-          bagElem.id = `bag-${slotName}`;
-          document.querySelector(".bag-slots").appendChild(bagElem);
-        }
-        const bagData = bagSlots[slotName];
-        if (bagData && bagData.itemId) {
-          firebase.database().ref(`items/${bagData.itemId}`).once('value').then(itemSnap => {
-            const item = itemSnap.val();
-            if (item) {
-              bagElem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
-            } else {
-              bagElem.textContent = "Unknown item";
-            }
-          }).catch(err => {
-            bagElem.textContent = "Error loading item";
-          });
-        } else {
-          bagElem.textContent = "Empty";
-        }
-      }
-      // Show the inventory overlay
-      document.getElementById('inventory-card').classList.remove('hidden');
-    }
-  
-    // ---------- Inventory Button Events ----------
-    document.getElementById("open-inventory-button").addEventListener("click", function() {
-      // Hide character card overlay and open inventory overlay
-      document.getElementById('character-card-overlay').classList.add('hidden');
-      openInventory();
-    });
-  
-    document.getElementById("close-inventory-card").addEventListener("click", function() {
-      document.getElementById('inventory-card').classList.add('hidden');
-    });
-  
+
+
     // ---------- Spawn Manager Functions ----------
     async function checkSpawnManager() {
       const snapshot = await database.ref("spawnManager").once("value");
@@ -919,7 +831,7 @@
       }
       return true;
     }
-  
+
     async function electSpawnManager() {
       const canBecomeLeader = await checkSpawnManager();
       if (!canBecomeLeader) return;
@@ -929,7 +841,7 @@
       debugLog(`Elected new spawn manager: ${currentUser.uid}`);
       startMovingSpawns();
     }
-  
+
     async function moveSpawnsIfManager() {
       const managerSnapshot = await database.ref("spawnManager").once("value");
       if (!managerSnapshot.exists() || managerSnapshot.val().uid !== firebase.auth().currentUser.uid) {
@@ -955,26 +867,26 @@
         debugLog(`Moved spawns: ${Object.keys(updates).length} spawns updated.`);
       }
     }
-  
+
     function startMovingSpawns() {
       moveSpawnsIfManager();
       setInterval(moveSpawnsIfManager, 600000);
     }
-  
+
     database.ref("spawnManager").on("value", async snapshot => {
       if (!snapshot.exists() || !snapshot.val().uid) {
         debugLog("No spawn manager detected. Electing a new one...");
         electSpawnManager();
       }
     });
-  
+
     document.addEventListener('click', function(event) {
       const card = document.getElementById('creature-card');
       if (!card.classList.contains('hidden') && !card.contains(event.target)) {
         card.classList.add('hidden');
       }
     });
-  
+
     // ---------- Clients Listen for Spawn Movement ----------
     database.ref("spawnPoints").on("child_changed", snapshot => {
       const spawn = snapshot.val();
@@ -985,7 +897,7 @@
         marker.setLatLng([spawn.location.lat, spawn.location.lng]);
       }
     });
-  
+
     // ---------- Get Spawn Color Function ----------
     function getSpawnColor(type) {
       const colors = {
@@ -1001,7 +913,7 @@
       };
       return colors[type] || "gray";
     }
-  
+
     // ---------- Initialize Game Logic ----------
     async function initializeGame() {
       debugLog("Initializing game logic...");
@@ -1011,17 +923,18 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
       debugLog("Leaflet map loaded.");
-  
+
       await loadSpawnData();
       await electSpawnManager();
       await loadGlobalLevelTable();
-  
+
       document.getElementById('bottom-menu').style.display = "flex";
-  
-      // Retrieve active character's data to update portrait
+
+      // Retrieve the active character's data to update the portrait image
       const uid = firebase.auth().currentUser.uid;
       database.ref(`players/${uid}`).once('value').then(snapshot => {
         const data = snapshot.val();
+        // Expecting the active character key is stored as a property 'activeCharacter'
         const activeCharacterKey = data.activeCharacter;
         if (activeCharacterKey) {
           const activeCharacterData = data[activeCharacterKey];
@@ -1033,7 +946,7 @@
       }).catch(error => {
         console.error("Error fetching active character data:", error);
       });
-  
+
       // Photon Setup
       let photonClient;
       try {
@@ -1050,7 +963,7 @@
       } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
       }
-  
+
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -1063,16 +976,16 @@
       }).addTo(map);
       let autoCenter = true;
       map.on("movestart", function() { autoCenter = false; });
-  
+
       function updatePlayerMarker(lat, lng) {
         playerMarker.setLatLng([lat, lng]);
         playerActionZone.setLatLng([lat, lng]);
         debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
       }
-  
+
       // Start tracking player location and pass generateSpawns as a callback.
       startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
-  
+
       // Listen for spawn points from Firebase
       database.ref("spawnPoints").on("child_added", snapshot => {
         const spawn = snapshot.val();
@@ -1082,7 +995,7 @@
           return;
         }
         debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-  
+
         let marker;
         if (spawn.type === "creature") {
           if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
@@ -1125,7 +1038,7 @@
         spawnMarkers[snapshot.key] = marker;
         debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
       });
-  
+
       setInterval(async () => {
         try {
           await database.ref("spawnPoints").remove();
@@ -1134,11 +1047,11 @@
           debugLog("Error clearing spawn points: " + error.message, true);
         }
       }, 300000);
-  
+
       document.getElementById('card-close')?.addEventListener('click', function() {
         document.getElementById('creature-card').classList.add('hidden');
       });
-  
+
       function getBorderColor(rarity, exp) {
         let color = "";
         switch(rarity.toLowerCase()){
@@ -1156,18 +1069,18 @@
         if(exp > 3000) thickness = 8;
         return { color: color, thickness: thickness };
       }
-  
+
       function showCreatureCard(spawn) {
         const card = document.getElementById('creature-card');
         const cardImage = document.getElementById('card-image');
         const cardName = document.getElementById('card-name');
         const cardCR = document.getElementById('card-cr');
         const cardEXP = document.getElementById('card-exp');
-  
+
         cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
                         ? spawn.imageUrl 
                         : "https://via.placeholder.com/100";
-  
+
         if (spawn.stats && spawn.stats.exp) {
           const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
           card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
@@ -1176,7 +1089,7 @@
           card.style.border = "5px solid gold";
           card.style.boxShadow = "0 0 20px gold";
         }
-  
+
         cardName.textContent = spawn.creatureName || spawn.type;
         if (spawn.stats && spawn.stats.cr) {
           cardCR.textContent = spawn.stats.cr;
@@ -1190,7 +1103,7 @@
         }
         card.classList.remove('hidden');
       }
-  
+
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
@@ -1210,7 +1123,7 @@
           }, 3000);
         }
       }
-  
+
       async function generateSpawns(center) {
         if (!spawnConfig || Object.keys(spawnConfig).length === 0) {
           debugLog("Spawn configuration not loaded; cannot generate spawns.");
@@ -1263,7 +1176,7 @@
         }
         debugLog(`Generated ${totalSpawns} spawn points.`);
       }
-  
+
       function generateRandomOffset(meters, centerLat) {
         const dLat = meters / 111300;
         const dLng = meters / (111300 * Math.cos(centerLat * Math.PI / 180));
@@ -1272,9 +1185,160 @@
         debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
         return { latOffset, lngOffset };
       }
-    </script>
-  
+    }
 
+    function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
+      if (!navigator.geolocation) {
+        debugLog("Geolocation not supported by this browser.");
+        return;
+      }
+      navigator.geolocation.watchPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          debugLog(`Player position updated: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          updatePlayerMarker(lat, lng);
+          if (photonClient && photonClient.isConnected && photonClient.isConnected()) {
+            let eventData = { lat: lat, lng: lng };
+            photonClient.raiseEvent(1, eventData, Photon.LoadBalancing.Constants.EventCache.DoNotCache, 0);
+          }
+          lastPlayerPosition = { lat, lng };
+          if (!lastSpawnCenter) {
+            lastSpawnCenter = { lat, lng };
+            debugLog("Initialized lastSpawnCenter.");
+          }
+          let distanceMoved = calculateDistance(lastSpawnCenter, lastPlayerPosition);
+          debugLog(`Distance moved since last spawn generation: ${distanceMoved.toFixed(2)} meters`);
+          if (distanceMoved > REGEN_THRESHOLD) {
+            debugLog("Player moved significantly; regenerating spawns...");
+            clearSpawnPoints().then(() => {
+              spawnGenerator(lastPlayerPosition);
+              lastSpawnCenter = { lat, lng };
+            });
+          }
+        },
+        function(error) {
+          debugLog("Error retrieving player location: " + error.message, true);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      );
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          debugLog(`Initial player position: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          updatePlayerMarker(lat, lng);
+          map.setView([lat, lng], 15);
+          lastPlayerPosition = { lat, lng };
+          lastSpawnCenter = { lat, lng };
+          spawnGenerator(lastPlayerPosition);
+        },
+        function(error) {
+          debugLog("Error retrieving initial position: " + error.message, true);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    }
+
+    function calculateDistance(point1, point2) {
+      const R = 6371e3;
+      const φ1 = point1.lat * Math.PI / 180;
+      const φ2 = point2.lat * Math.PI / 180;
+      const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
+      const Δλ = (point2.lng - point1.lng) * Math.PI / 180;
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Show character card overlay when portrait is clicked
+    document.addEventListener("DOMContentLoaded", function() {
+      const portraitContainer = document.getElementById("portrait-container");
+      if (portraitContainer) {
+        portraitContainer.addEventListener("click", function() {
+          showCharacterCard();
+        });
+      }
+      const charOverlay = document.getElementById("character-card-overlay");
+      if (charOverlay) {
+        charOverlay.addEventListener("click", function(e) {
+          if (e.target === this) {
+            this.classList.add("hidden");
+          }
+        });
+      }
+    });
+
+
+// Function to show and populate the character card overlay
+function showCharacterCard() {
+  const uid = firebase.auth().currentUser.uid;
+  // Retrieve the active character's data
+  database.ref(`players/${uid}`).once('value').then(snapshot => {
+    const data = snapshot.val();
+    const activeCharacterKey = data.activeCharacter;
+    if (activeCharacterKey) {
+      const characterData = data[activeCharacterKey];
+      if (characterData) {
+        // Update image, name, and class as before
+        document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
+        document.getElementById('character-card-name').textContent = characterData.name;
+        document.getElementById('character-card-class').textContent = characterData.class;
+        document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
+        document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
+        document.getElementById('character-card-save').textContent = characterData.stats.save || 0;
+        document.getElementById('character-card-physdr').textContent = characterData.stats.physicalDR || 0;
+        document.getElementById('character-card-magdr').textContent = characterData.stats.magicalDR || 0;
+        document.getElementById('character-card-mainAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
+        document.getElementById('character-card-offAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
+        
+        // *** New: Update Level and XP display ***
+        const currentLevel = characterData.stats.level || 1;
+        const currentXP = characterData.stats.xp || 0;
+        // Look up the required XP for the next level in the global table:
+        const nextLevel = currentLevel + 1;
+        const xpRequired = globalLevelTable[String(nextLevel)] ? globalLevelTable[String(nextLevel)].xpRequired : "Max";
+
+        document.getElementById('character-card-level').textContent = currentLevel;
+        document.getElementById('character-card-xp').textContent = currentXP;
+        document.getElementById('character-card-xpRequired').textContent = xpRequired;
+        
+        // Show the overlay (remove hidden class)
+        document.getElementById('character-card-overlay').classList.remove('hidden');
+      }
+    }
+  }).catch(error => {
+    console.error("Error fetching active character data:", error);
+  });
+}
+
+
+// Close character card button click handler
+document.getElementById("close-character-card").addEventListener("click", function() {
+  document.getElementById('character-card-overlay').classList.add('hidden');
+});
+
+
+    // Open inventory button from character card
+    document.getElementById("open-inventory-button").addEventListener("click", function() {
+      // Hide character card and show inventory card
+      document.getElementById('character-card').classList.add('hidden');
+      document.getElementById('inventory-card').classList.remove('hidden');
+    });
+
+    // Close inventory card button
+    document.getElementById("close-inventory-card").addEventListener("click", function() {
+      document.getElementById('inventory-card').classList.add('hidden');
+    });
+
+
+  </script>
+
+<!-- Character Card Overlay -->
 <!-- Character Card Overlay -->
 <div id="character-card-overlay" class="overlay hidden">
   <div id="character-card" class="character-card video-game-theme">
