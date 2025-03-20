@@ -437,12 +437,15 @@
           return;
         }
 
+        console.log("✅ Retrieved Character Data:", snapshot.val()); // Debugging
+
         snapshot.forEach(childSnapshot => {
           const character = childSnapshot.val();
           const key = childSnapshot.key; // Unique character ID
 
-          if (!character || !character.class) {
-            console.error("Character data missing or malformed:", character);
+          // 🔥 Debugging: Check what Firebase returned
+          if (!character || !character.class || !character.name) {
+            console.error("❌ Character data missing or malformed:", JSON.stringify(character, null, 2));
             return;
           }
 
@@ -451,14 +454,14 @@
           charDiv.classList.add("class-option");
           charDiv.dataset.charId = key; // Store character ID
 
-          // Character Image
+          // Character Image (Make sure class names match Firebase)
           const img = document.createElement("img");
-          img.src = `/images/classes/${(character.class || "default").toLowerCase()}.png`;
-          img.alt = character.name || "Unnamed Character";
+          img.src = `/images/classes/${character.class.toLowerCase()}.png`; // Convert class name to lowercase for consistency
+          img.alt = character.name;
 
           // Character Name
           const name = document.createElement("h3");
-          name.textContent = character.name || "Unnamed Character";
+          name.textContent = character.name;
 
           charDiv.appendChild(img);
           charDiv.appendChild(name);
@@ -469,13 +472,14 @@
             document.querySelectorAll('.class-option').forEach(opt => opt.classList.remove('selected'));
             charDiv.classList.add("selected");
             selectedCharacter = key; // ✅ Assign the character ID to `selectedCharacter`
-            console.log("Selected Character:", selectedCharacter);
+            console.log("✅ Selected Character:", selectedCharacter);
           });
         });
       }).catch(error => {
-        console.error("Error loading characters:", error);
+        console.error("❌ Error loading characters:", error);
       });
     }
+
 
 
 
