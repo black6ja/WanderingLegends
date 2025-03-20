@@ -269,14 +269,14 @@
 }
 
 /* Character Card Overlay */
-/* Overlay for modals (character card, inventory, etc.) */
+/* Overlay for modals */
 .overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -286,79 +286,102 @@
   display: none;
 }
 
-/* Character Card Styles */
+/* Character Card Styling */
 .character-card {
-  background: #fff;
-  border-radius: 10px;
+  background: #1d1f21;
+  border-radius: 12px;
   width: 90%;
   max-width: 400px;
   padding: 20px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-  color: #333;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  color: #f1f1f1;
   font-family: 'Cinzel', serif;
+  animation: fadeInScale 0.3s ease-out;
 }
 
+/* Animation for card appearance */
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Header styles with gradient background */
 .card-header {
   text-align: center;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #333;
+  background: linear-gradient(135deg, #2e2f31, #1d1f21);
+  border-radius: 8px 8px 0 0;
 }
-
 .card-header img {
-  width: 150px;
-  height: 150px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   border: 4px solid #FFD700;
   object-fit: cover;
+  margin: 0 auto 10px;
   display: block;
-  margin: 0 auto 10px auto;
 }
-
 .card-header h2 {
   margin: 0;
   font-size: 1.8em;
-  color: #222;
+  color: #FFD700;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+}
+.card-header p {
+  margin: 5px 0 0;
+  font-size: 1em;
+  color: #ccc;
 }
 
+/* Card Stats */
 .card-stats {
+  margin-top: 15px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
 .stats-row {
   display: flex;
   justify-content: space-between;
   font-size: 0.95em;
 }
-
 .stat-item {
   flex: 1;
   margin: 0 5px;
+  text-align: center;
 }
-
 .stat-label {
   font-weight: bold;
+  color: #aaa;
 }
-
 .attacks {
   justify-content: center;
   gap: 20px;
 }
 
+/* Card Actions */
 .card-actions {
   margin-top: 20px;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
 }
-
 .card-actions button {
   padding: 10px 20px;
-  margin: 5px;
   border: none;
-  background: #222;
-  color: #fff;
+  background: #FFD700;
+  color: #1d1f21;
   cursor: pointer;
   border-radius: 5px;
+  font-weight: bold;
+  transition: background 0.2s ease;
 }
+.card-actions button:hover {
+  background: #e6c200;
+}
+
 
 /* Inventory Card Specific Styles */
 .inventory-header {
@@ -1243,32 +1266,54 @@ document.getElementById("close-character-card").addEventListener("click", functi
 
   </script>
 
-  <!-- Character Card Overlay -->
+<!-- Character Card Overlay -->
 <div id="character-card-overlay" class="overlay hidden">
   <div id="character-card" class="character-card">
     <div class="card-header">
       <img id="character-card-image" src="/images/character-placeholder.png" alt="Character Portrait">
       <h2 id="character-card-name">Character Name</h2>
+      <p id="character-card-class">Class</p>
     </div>
     <div class="card-stats">
       <div class="stats-row">
-        <div class="stat-item"><span class="stat-label">Class:</span> <span id="character-card-class">Unknown</span></div>
-        <div class="stat-item"><span class="stat-label">HP:</span> <span id="character-card-hp">0</span></div>
+        <div class="stat-item">
+          <span class="stat-label">HP:</span>
+          <span id="character-card-hp">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">AC:</span>
+          <span id="character-card-ac">0</span>
+        </div>
       </div>
       <div class="stats-row">
-        <div class="stat-item"><span class="stat-label">AC:</span> <span id="character-card-ac">0</span></div>
-        <div class="stat-item"><span class="stat-label">Save:</span> <span id="character-card-save">0</span></div>
+        <div class="stat-item">
+          <span class="stat-label">Save:</span>
+          <span id="character-card-save">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">XP:</span>
+          <span id="character-card-xp">0</span>
+        </div>
       </div>
       <div class="stats-row">
-        <div class="stat-item"><span class="stat-label">XP:</span> <span id="character-card-xp">0</span></div>
-        <div class="stat-item"><span class="stat-label">Phys DR:</span> <span id="character-card-physdr">0</span></div>
-      </div>
-      <div class="stats-row">
-        <div class="stat-item"><span class="stat-label">Mag DR:</span> <span id="character-card-magdr">0</span></div>
+        <div class="stat-item">
+          <span class="stat-label">Phys DR:</span>
+          <span id="character-card-physdr">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Mag DR:</span>
+          <span id="character-card-magdr">0</span>
+        </div>
       </div>
       <div class="stats-row attacks">
-        <div class="stat-item"><span class="stat-label">Main Hand:</span> <span id="character-card-mainAttacks">0</span></div>
-        <div class="stat-item"><span class="stat-label">Off Hand:</span> <span id="character-card-offAttacks">0</span></div>
+        <div class="stat-item">
+          <span class="stat-label">Main Hand:</span>
+          <span id="character-card-mainAttacks">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Off Hand:</span>
+          <span id="character-card-offAttacks">0</span>
+        </div>
       </div>
     </div>
     <div class="card-actions">
@@ -1277,6 +1322,7 @@ document.getElementById("close-character-card").addEventListener("click", functi
     </div>
   </div>
 </div>
+
 
 
 <!-- Bottom Menu -->
