@@ -419,24 +419,62 @@
 }
 
 
-/* Inventory Card Specific Styles */
+.inventory-card {
+  background: #1d1f21;
+  border: 3px solid #000;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  padding: 20px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+  color: #f1f1f1;
+  font-family: 'Cinzel', serif;
+  animation: fadeInScale 0.3s ease-out;
+  overflow-y: auto; /* Allow scrolling for mobile if needed */
+}
+
+/* Inventory Header */
 .inventory-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 15px;
 }
-.equipment-slots, .bag-slots {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-around;
-  margin-top: 10px;
+
+/* Section Headings */
+.inventory-section h3 {
+  margin-bottom: 10px;
+  color: #FFD700;
+  border-bottom: 1px solid #444;
+  padding-bottom: 5px;
 }
-.equipment-slots .slot, .bag-slots .bag-slot {
+
+/* Equipment Grid – 4 slots in a row */
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* Bag Grid – 5 columns for 25 slots */
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+/* Styling for individual slots */
+.slot, .bag-slot {
   border: 1px solid #fff;
   padding: 10px;
-  margin: 5px;
-  flex: 1 1 40%;
   text-align: center;
+  min-height: 70px; /* Adjust based on your design */
+}
+
+/* Optional: Add a hover effect */
+.slot:hover, .bag-slot:hover {
+  background-color: rgba(255, 215, 0, 0.2);
 }
 
 
@@ -1327,6 +1365,62 @@ function showCharacterCard() {
   });
 }
 
+function renderInventoryUI(inventory) {
+  // --- Render Equipment Section ---
+  const equipmentMapping = {
+    "mainHand": "slot-main-hand",
+    "offHand": "slot-off-hand",
+    "armor": "slot-armor",
+    "accessory": "slot-accessory"
+  };
+  const equipmentSlots = inventory.equipment || {};
+  for (let slot in equipmentMapping) {
+    const elem = document.getElementById(equipmentMapping[slot]);
+    const slotData = equipmentSlots[slot];
+    if (slotData && slotData.itemId) {
+      firebase.database().ref(`items/${slotData.itemId}`).once('value').then(itemSnap => {
+        const item = itemSnap.val();
+        if (item) {
+          elem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
+        } else {
+          elem.textContent = "Unknown item";
+        }
+      }).catch(err => {
+        elem.textContent = "Error loading item";
+      });
+    } else {
+      elem.textContent = "Empty";
+    }
+  }
+  
+  // --- Render Bag Section ---
+  // We expect 25 bag slots: bag-slot1, bag-slot2, ... bag-slot25
+  const bagSlots = inventory.bag || {};
+  for (let i = 1; i <= 25; i++) {
+    const slotKey = `slot${i}`;
+    let bagElem = document.getElementById(`bag-slot${i}`);
+    // If the bag element is not in HTML, you could dynamically create it, but we’ve added them in HTML already.
+    const bagData = bagSlots[slotKey];
+    if (bagData && bagData.itemId) {
+      firebase.database().ref(`items/${bagData.itemId}`).once('value').then(itemSnap => {
+        const item = itemSnap.val();
+        if (item) {
+          bagElem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
+        } else {
+          bagElem.textContent = "Unknown item";
+        }
+      }).catch(err => {
+        bagElem.textContent = "Error loading item";
+      });
+    } else {
+      bagElem.textContent = "Empty";
+    }
+  }
+  
+  // Show the inventory overlay
+  document.getElementById('inventory-card').classList.remove('hidden');
+}
+
 
 // Close character card button click handler
 document.getElementById("close-character-card").addEventListener("click", function() {
@@ -1334,11 +1428,10 @@ document.getElementById("close-character-card").addEventListener("click", functi
 });
 
 
-    // Open inventory button from character card
     document.getElementById("open-inventory-button").addEventListener("click", function() {
-      // Hide character card and show inventory card
-      document.getElementById('character-card').classList.add('hidden');
-      document.getElementById('inventory-card').classList.remove('hidden');
+      // Hide character card overlay and open inventory overlay
+      document.getElementById('character-card-overlay').classList.add('hidden');
+      openInventory();
     });
 
     // Close inventory card button
@@ -1547,19 +1640,48 @@ document.getElementById("close-character-card").addEventListener("click", functi
     <h2>Inventory</h2>
     <button id="close-inventory-card">Close</button>
   </div>
-  <div class="equipment-slots">
-    <div class="slot" id="slot-main-hand">Main Hand</div>
-    <div class="slot" id="slot-off-hand">Off Hand</div>
-    <div class="slot" id="slot-armor">Armor</div>
-    <div class="slot" id="slot-accessory">Accessory</div>
+  <!-- Equipment Section -->
+  <div class="inventory-section equipment-section">
+    <h3>Equipment</h3>
+    <div class="equipment-grid">
+      <div class="slot" id="slot-main-hand">Main Hand</div>
+      <div class="slot" id="slot-off-hand">Off Hand</div>
+      <div class="slot" id="slot-armor">Armor</div>
+      <div class="slot" id="slot-accessory">Accessory</div>
+    </div>
   </div>
-  <div class="bag-slots">
-    <div class="bag-slot">Slot 1</div>
-    <div class="bag-slot">Slot 2</div>
-    <div class="bag-slot">Slot 3</div>
-    <div class="bag-slot">Slot 4</div>
-    <div class="bag-slot">Slot 5</div>
-    <div class="bag-slot">Slot 6</div>
+  <!-- Bag Section -->
+  <div class="inventory-section bag-section">
+    <h3>Bag</h3>
+    <div class="bag-grid">
+      <!-- Create 25 bag cells -->
+      <!-- You can generate these in HTML or with JS if preferred -->
+      <div class="bag-slot" id="bag-slot1">Slot 1</div>
+      <div class="bag-slot" id="bag-slot2">Slot 2</div>
+      <div class="bag-slot" id="bag-slot3">Slot 3</div>
+      <div class="bag-slot" id="bag-slot4">Slot 4</div>
+      <div class="bag-slot" id="bag-slot5">Slot 5</div>
+      <div class="bag-slot" id="bag-slot6">Slot 6</div>
+      <div class="bag-slot" id="bag-slot7">Slot 7</div>
+      <div class="bag-slot" id="bag-slot8">Slot 8</div>
+      <div class="bag-slot" id="bag-slot9">Slot 9</div>
+      <div class="bag-slot" id="bag-slot10">Slot 10</div>
+      <div class="bag-slot" id="bag-slot11">Slot 11</div>
+      <div class="bag-slot" id="bag-slot12">Slot 12</div>
+      <div class="bag-slot" id="bag-slot13">Slot 13</div>
+      <div class="bag-slot" id="bag-slot14">Slot 14</div>
+      <div class="bag-slot" id="bag-slot15">Slot 15</div>
+      <div class="bag-slot" id="bag-slot16">Slot 16</div>
+      <div class="bag-slot" id="bag-slot17">Slot 17</div>
+      <div class="bag-slot" id="bag-slot18">Slot 18</div>
+      <div class="bag-slot" id="bag-slot19">Slot 19</div>
+      <div class="bag-slot" id="bag-slot20">Slot 20</div>
+      <div class="bag-slot" id="bag-slot21">Slot 21</div>
+      <div class="bag-slot" id="bag-slot22">Slot 22</div>
+      <div class="bag-slot" id="bag-slot23">Slot 23</div>
+      <div class="bag-slot" id="bag-slot24">Slot 24</div>
+      <div class="bag-slot" id="bag-slot25">Slot 25</div>
+    </div>
   </div>
 </div>
 
