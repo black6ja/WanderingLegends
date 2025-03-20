@@ -756,30 +756,41 @@
         }
         const classData = snapshot.val();
         
+          const defaultEquipment = classData.defaultEquipment || {
+        equipment: {
+          mainHand: null,
+          offHand: null,
+          armor: null,
+          accessory: null
+        },
+        bag: {
+          slot1: null,
+          slot2: null,
+          slot3: null,
+          slot4: null,
+          slot5: null,
+          slot6: null
+        }
+      };
+
         // Create new player object with default level and xp
-        const newPlayer = {
-          class: selectedClass,
-          name: characterName,
-          stats: {
-            ...classData.stats,
-            level: 1,   // Add level property (starting at 1)
-            xp: 0       // Add xp property (starting at 0)
-          },
-          inventory: [],
-          equipment: {
-            mainHand: null,
-            offHand: null,
-            armor: null,
-            accessory: null
-          },
-          abilities: {
-            passive: [],
-            action: [],
-            bonusAction: [],
-            reaction: [],
-            recharge: []
-          }
-        };
+          const newPlayer = {
+        class: selectedClass,
+        name: characterName,
+        stats: {
+          ...classData.stats,
+          level: 1,
+          xp: 0
+        },
+        inventory: defaultEquipment, // <-- This is the updated inventory structure
+        abilities: {
+          passive: [],
+          action: [],
+          bonusAction: [],
+          reaction: [],
+          recharge: []
+        }
+      };
         
         // Retrieve current user's UID and save character data
         const uid = firebase.auth().currentUser.uid;
