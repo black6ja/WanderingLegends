@@ -488,6 +488,7 @@
     let spawnMarkers = {}; // to track spawn markers on the map
     let selectedClass = null;  // for character creation
     let selectedCharacter = null; // Global variable to track selected character
+    let globalLevelTable = {};
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -612,6 +613,20 @@
       });
     }
 
+    function loadGlobalLevelTable() {
+      database.ref('levelTable').once('value')
+        .then(snapshot => {
+          if (snapshot.exists()) {
+            globalLevelTable = snapshot.val();
+            debugLog("Global level table loaded: " + JSON.stringify(globalLevelTable));
+          } else {
+            debugLog("No global level table found in Firebase.");
+          }
+        })
+        .catch(error => {
+          console.error("Error loading global level table:", error);
+        });
+    }
 
     function loadUserCharacters(uid) {
       const container = document.getElementById("character-list");
@@ -1202,22 +1217,24 @@
     }
 
     // Show character card overlay when portrait is clicked
-document.addEventListener("DOMContentLoaded", function() {
-  const portraitContainer = document.getElementById("portrait-container");
-  if (portraitContainer) {
-    portraitContainer.addEventListener("click", function() {
-      showCharacterCard();
-    });
-  }
+    document.addEventListener("DOMContentLoaded", function() {
+    const portraitContainer = document.getElementById("portrait-container");
+    if (portraitContainer) {
+      portraitContainer.addEventListener("click", function() {
+        showCharacterCard();
+      });
+    }
 
-  // Close character card when clicking outside of it
-  document.getElementById("character-card-overlay").addEventListener("click", function(e) {
-    // If the click is on the overlay (not the card itself)
-    if (e.target === this) {
-      this.classList.add("hidden");
+    const charOverlay = document.getElementById("character-card-overlay");
+    if (charOverlay) {
+      charOverlay.addEventListener("click", function(e) {
+        if (e.target === this) {
+          this.classList.add("hidden");
+        }
+      });
     }
   });
-});
+
 
 // Function to show and populate the character card overlay
 function showCharacterCard() {
