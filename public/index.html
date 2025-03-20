@@ -1229,20 +1229,30 @@ function showCharacterCard() {
     if (activeCharacterKey) {
       const characterData = data[activeCharacterKey];
       if (characterData) {
-        // Update the character card fields with all desired stats
+        // Update image, name, and class as before
         document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
         document.getElementById('character-card-name').textContent = characterData.name;
         document.getElementById('character-card-class').textContent = characterData.class;
         document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
         document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
         document.getElementById('character-card-save').textContent = characterData.stats.save || 0;
-        document.getElementById('character-card-xp').textContent = characterData.stats.xp || 0;
         document.getElementById('character-card-physdr').textContent = characterData.stats.physicalDR || 0;
         document.getElementById('character-card-magdr').textContent = characterData.stats.magicalDR || 0;
-        // Assuming attacksPerRound is an object with mainHand and offHand values:
-        document.getElementById('character-card-mainAttacks').textContent = (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
-        document.getElementById('character-card-offAttacks').textContent = (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
-
+        document.getElementById('character-card-mainAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
+        document.getElementById('character-card-offAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
+        
+        // *** New: Update Level and XP display ***
+        const currentLevel = characterData.stats.level || 1;
+        const currentXP = characterData.stats.xp || 0;
+        // Look up the required XP for the next level in the global table:
+        const nextLevel = currentLevel + 1;
+        const xpRequired = globalLevelTable[nextLevel] ? globalLevelTable[nextLevel].xpRequired : "Max";
+        document.getElementById('character-card-level').textContent = currentLevel;
+        document.getElementById('character-card-xp').textContent = currentXP;
+        document.getElementById('character-card-xpRequired').textContent = xpRequired;
+        
         // Show the overlay (remove hidden class)
         document.getElementById('character-card-overlay').classList.remove('hidden');
       }
@@ -1251,6 +1261,7 @@ function showCharacterCard() {
     console.error("Error fetching active character data:", error);
   });
 }
+
 
 // Close character card button click handler
 document.getElementById("close-character-card").addEventListener("click", function() {
@@ -1291,6 +1302,20 @@ document.getElementById("close-character-card").addEventListener("click", functi
     <div class="card-stats">
       <div class="stats-row">
         <div class="stat-item">
+          <span class="stat-label">Level:</span>
+          <span id="character-card-level">1</span>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-label">XP:</span>
+          <span id="character-card-xp">0</span> /
+          <span id="character-card-xpRequired">100</span>
+        </div>
+      </div>
+      <!-- Existing stat rows -->
+      <div class="stats-row">
+        <div class="stat-item">
           <span class="stat-label">HP:</span> 
           <span id="character-card-hp">90</span>
         </div>
@@ -1303,10 +1328,6 @@ document.getElementById("close-character-card").addEventListener("click", functi
         <div class="stat-item">
           <span class="stat-label">Save:</span>
           <span id="character-card-save">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">XP:</span>
-          <span id="character-card-xp">0</span>
         </div>
       </div>
       <div class="stats-row">
