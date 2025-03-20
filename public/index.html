@@ -269,49 +269,95 @@
 }
 
 /* Character Card Overlay */
-.character-card, .inventory-card {
+/* Overlay for modals (character card, inventory, etc.) */
+.overlay {
   position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
-  max-width: 400px;
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-  padding: 20px;
-  z-index: 2000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
 }
-.character-card.hidden, .inventory-card.hidden {
+.overlay.hidden {
   display: none;
 }
-.character-card .card-header {
-  text-align: center;
+
+/* Character Card Styles */
+.character-card {
+  background: #fff;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+  padding: 20px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  color: #333;
+  font-family: 'Cinzel', serif;
 }
-.character-card .card-header img {
+
+.card-header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.card-header img {
   width: 150px;
   height: 150px;
   border-radius: 50%;
   border: 4px solid #FFD700;
   object-fit: cover;
   display: block;
-  margin: 0 auto;
+  margin: 0 auto 10px auto;
 }
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.8em;
+  color: #222;
+}
+
 .card-stats {
-  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95em;
+}
+
+.stat-item {
+  flex: 1;
+  margin: 0 5px;
+}
+
+.stat-label {
+  font-weight: bold;
+}
+
+.attacks {
+  justify-content: center;
+  gap: 20px;
+}
+
 .card-actions {
   margin-top: 20px;
   text-align: center;
 }
+
 .card-actions button {
-  margin: 5px;
   padding: 10px 20px;
+  margin: 5px;
+  border: none;
   background: #222;
   color: #fff;
-  border: none;
   cursor: pointer;
+  border-radius: 5px;
 }
 
 /* Inventory Card Specific Styles */
@@ -1179,23 +1225,41 @@
 
   </script>
 
-  <!-- Creature Card Overlay -->
-  <div id="creature-card" class="creature-card hidden">
-    <div class="card-top-corners">
-      <div id="card-cr" class="card-cr"></div>
-      <div id="card-exp" class="card-exp"></div>
+  <!-- Character Card Overlay -->
+<div id="character-card-overlay" class="overlay hidden">
+  <div id="character-card" class="character-card">
+    <div class="card-header">
+      <img id="character-card-image" src="/images/character-placeholder.png" alt="Character Portrait">
+      <h2 id="character-card-name">Character Name</h2>
     </div>
-    <div class="card-top">
-      <h2 id="card-name"></h2>
+    <div class="card-stats">
+      <div class="stats-row">
+        <div class="stat-item"><span class="stat-label">Class:</span> <span id="character-card-class">Unknown</span></div>
+        <div class="stat-item"><span class="stat-label">HP:</span> <span id="character-card-hp">0</span></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-item"><span class="stat-label">AC:</span> <span id="character-card-ac">0</span></div>
+        <div class="stat-item"><span class="stat-label">Save:</span> <span id="character-card-save">0</span></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-item"><span class="stat-label">XP:</span> <span id="character-card-xp">0</span></div>
+        <div class="stat-item"><span class="stat-label">Phys DR:</span> <span id="character-card-physdr">0</span></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-item"><span class="stat-label">Mag DR:</span> <span id="character-card-magdr">0</span></div>
+      </div>
+      <div class="stats-row attacks">
+        <div class="stat-item"><span class="stat-label">Main Hand:</span> <span id="character-card-mainAttacks">0</span></div>
+        <div class="stat-item"><span class="stat-label">Off Hand:</span> <span id="character-card-offAttacks">0</span></div>
+      </div>
     </div>
-    <div class="card-image-container">
-      <img id="card-image" src="" alt="Creature Image" />
-    </div>
-    <div class="card-bottom">
-      <button id="attack-button">Attack!</button>
-      <button id="run-button">Run!</button>
+    <div class="card-actions">
+      <button id="open-inventory-button">Open Inventory</button>
+      <button id="close-character-card">Close</button>
     </div>
   </div>
+</div>
+
 
 <!-- Bottom Menu -->
 <div id="bottom-menu">
