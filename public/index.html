@@ -539,7 +539,7 @@
             }
           };
           // Save player data tied to the UID
-          database.ref('players/' + uid).set(newPlayer)
+          database.ref('players/' + uid).push(newPlayer)
             .then(() => {
               debugLog("Character created successfully!");
               // Hide character screens and show map
