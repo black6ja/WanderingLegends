@@ -1041,6 +1041,12 @@
         const cardCR = document.getElementById('card-cr');
         const cardEXP = document.getElementById('card-exp');
 
+        console.log("card-image element:", cardImageElem);
+        if (!cardImageElem) {
+          console.error("Element with id 'card-image' not found!");
+          return;
+        }
+
         cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
                         ? spawn.imageUrl 
                         : "https://via.placeholder.com/100";
