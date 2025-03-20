@@ -1126,8 +1126,10 @@
     }
 
     // Event listener to open the character card when the portrait is clicked
-    document.getElementById("portrait-container").addEventListener("click", function() {
-      showCharacterCard();
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("portrait-container").addEventListener("click", function() {
+        showCharacterCard();
+      });
     });
 
     // Function to show and populate the character card overlay
