@@ -686,28 +686,34 @@
     });
 
     document.getElementById('confirm-character').addEventListener('click', function() {
-  const characterName = document.getElementById('characterName').value.trim();
-  if (!characterName) {
-    alert("Please enter a valid character name.");
-    return;
-  }
-  if (!selectedClass) {
-    alert("Please select a class.");
-    return;
-  }
-  
-  // Retrieve class defaults for the selected class
-  database.ref('classDefaults/' + selectedClass).once('value')
+    const characterName = document.getElementById('characterName').value.trim();
+    if (!characterName) {
+      alert("Please enter a valid character name.");
+      return;
+    }
+    if (!selectedClass) {
+      alert("Please select a class.");
+      return;
+    }
+    
+    // Retrieve class defaults for the selected class
+    database.ref('classDefaults/' + selectedClass).once('value')
       .then(snapshot => {
         if (!snapshot.exists()) {
           alert("Error: Class defaults not found.");
           return;
         }
         const classData = snapshot.val();
+        
+        // Create new player object with default level and xp
         const newPlayer = {
           class: selectedClass,
           name: characterName,
-          stats: classData.stats,
+          stats: {
+            ...classData.stats,
+            level: 1,   // Add level property (starting at 1)
+            xp: 0       // Add xp property (starting at 0)
+          },
           inventory: [],
           equipment: {
             mainHand: null,
@@ -723,6 +729,7 @@
             recharge: []
           }
         };
+        
         // Retrieve current user's UID and save character data
         const uid = firebase.auth().currentUser.uid;
         database.ref('players/' + uid).push(newPlayer)
