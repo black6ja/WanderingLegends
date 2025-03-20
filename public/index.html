@@ -309,7 +309,6 @@
 /* Top Row: portrait + basic info side-by-side */
 .card-top-row {
   display: flex;
-  flex-direction: row-reverse; 
   gap: 15px;
   margin-bottom: 15px;
 }
@@ -738,69 +737,80 @@
     });
 
     document.getElementById('confirm-character').addEventListener('click', function() {
-    const characterName = document.getElementById('characterName').value.trim();
-    if (!characterName) {
-      alert("Please enter a valid character name.");
-      return;
-    }
-    if (!selectedClass) {
-      alert("Please select a class.");
-      return;
-    }
-    
-    // Retrieve class defaults for the selected class
-    database.ref('classDefaults/' + selectedClass).once('value')
-      .then(snapshot => {
-        if (!snapshot.exists()) {
-          alert("Error: Class defaults not found.");
-          return;
-        }
-        const classData = snapshot.val();
-        
-        // Create new player object with default level and xp
-        const newPlayer = {
-          class: selectedClass,
-          name: characterName,
-          stats: {
-            ...classData.stats,
-            level: 1,   // Add level property (starting at 1)
-            xp: 0       // Add xp property (starting at 0)
-          },
-          inventory: [],
+  const characterName = document.getElementById('characterName').value.trim();
+  if (!characterName) {
+    alert("Please enter a valid character name.");
+    return;
+  }
+  if (!selectedClass) {
+    alert("Please select a class.");
+    return;
+  }
+  
+  // Retrieve class defaults for the selected class
+  database.ref('classDefaults/' + selectedClass).once('value')
+    .then(snapshot => {
+      if (!snapshot.exists()) {
+        alert("Error: Class defaults not found.");
+        return;
+      }
+      const classData = snapshot.val();
+      
+      // Create new player object with default level and xp and an inventory structure
+      const newPlayer = {
+        class: selectedClass,
+        name: characterName,
+        stats: {
+          ...classData.stats,
+          level: 1,   // starting level
+          xp: 0       // starting XP
+        },
+        // Inventory structure: equipment slots and bag slots
+        inventory: {
           equipment: {
             mainHand: null,
             offHand: null,
             armor: null,
             accessory: null
           },
-          abilities: {
-            passive: [],
-            action: [],
-            bonusAction: [],
-            reaction: [],
-            recharge: []
+          bag: {
+            slot1: null,
+            slot2: null,
+            slot3: null,
+            slot4: null,
+            slot5: null,
+            slot6: null
           }
-        };
-        
-        // Retrieve current user's UID and save character data
-        const uid = firebase.auth().currentUser.uid;
-        database.ref('players/' + uid).push(newPlayer)
-          .then(() => {
-            debugLog("Character created successfully!");
-            // Hide character screens and show map
-            document.getElementById("character-selection").classList.remove('visible');
-            document.getElementById("character-creation").classList.remove('visible');
-            document.getElementById("map-container").style.display = "block";
-            initializeGame();
-          })
-          .catch(error => {
-            debugLog("Error creating character: " + error.message);
-          });
-      })
-      .catch(error => {
-        debugLog("Error retrieving class defaults: " + error.message);
-      });
-  });
+        },
+        abilities: {
+          passive: [],
+          action: [],
+          bonusAction: [],
+          reaction: [],
+          recharge: []
+        }
+      };
+      
+      // Retrieve current user's UID and save character data
+      const uid = firebase.auth().currentUser.uid;
+      database.ref('players/' + uid).push(newPlayer)
+        .then(() => {
+          debugLog("Character created successfully with inventory structure!");
+          // Hide character screens and show map
+          document.getElementById("character-selection").classList.remove('visible');
+          document.getElementById("character-creation").classList.remove('visible');
+          document.getElementById("map-container").style.display = "block";
+          initializeGame();
+        })
+        .catch(error => {
+          debugLog("Error creating character: " + error.message);
+        });
+    })
+    .catch(error => {
+      debugLog("Error retrieving class defaults: " + error.message);
+    });
+});
+
 
 
     document.getElementById("confirm-character-selection").addEventListener("click", function () {
