@@ -756,32 +756,34 @@
       }
       const classData = snapshot.val();
       
-      // Create new player object with default level and xp and an inventory structure
+      // Get default equipment if provided, otherwise use an empty structure.
+      const defaultEquipment = classData.defaultEquipment || {
+        equipment: {
+          mainHand: null,
+          offHand: null,
+          armor: null,
+          accessory: null
+        },
+        bag: {
+          slot1: null,
+          slot2: null,
+          slot3: null,
+          slot4: null,
+          slot5: null,
+          slot6: null
+        }
+      };
+      
+      // Create new player object with default level, xp, stats, and inventory
       const newPlayer = {
         class: selectedClass,
         name: characterName,
         stats: {
           ...classData.stats,
-          level: 1,   // starting level
-          xp: 0       // starting XP
+          level: 1,
+          xp: 0
         },
-        // Inventory structure: equipment slots and bag slots
-        inventory: {
-          equipment: {
-            mainHand: null,
-            offHand: null,
-            armor: null,
-            accessory: null
-          },
-          bag: {
-            slot1: null,
-            slot2: null,
-            slot3: null,
-            slot4: null,
-            slot5: null,
-            slot6: null
-          }
-        },
+        inventory: defaultEquipment,
         abilities: {
           passive: [],
           action: [],
@@ -790,6 +792,26 @@
           recharge: []
         }
       };
+      
+      // Retrieve current user's UID and save character data
+      const uid = firebase.auth().currentUser.uid;
+      database.ref('players/' + uid).push(newPlayer)
+        .then(() => {
+          debugLog("Character created successfully with inventory structure!");
+          // Hide character screens and show map
+          document.getElementById("character-selection").classList.remove('visible');
+          document.getElementById("character-creation").classList.remove('visible');
+          document.getElementById("map-container").style.display = "block";
+          initializeGame();
+        })
+        .catch(error => {
+          debugLog("Error creating character: " + error.message);
+        });
+    })
+    .catch(error => {
+      debugLog("Error retrieving class defaults: " + error.message);
+    });
+});
       
       // Retrieve current user's UID and save character data
       const uid = firebase.auth().currentUser.uid;
