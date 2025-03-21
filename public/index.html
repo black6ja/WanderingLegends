@@ -428,8 +428,10 @@
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;       /* Add this */
-  bottom: 0;      /* Optionally add this for full-height */
+  right: 0;               
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
   background: #1d1f21;
   border: none;
   border-radius: 0;
@@ -439,10 +441,9 @@
   font-family: 'Cinzel', serif;
   z-index: 2100;
   overflow-y: auto;
-  overflow-x: hidden;  /* Prevent horizontal scrolling */
+  overflow-x: hidden;
   box-sizing: border-box;
 }
-
 /* Inventory Header */
 .inventory-header {
   display: flex;
