@@ -1226,54 +1226,6 @@
         return { color: color, thickness: thickness };
       }
 
-      function showItemCard(item) {
-        const card = document.getElementById("item-card");
-        
-        document.getElementById("item-card-name").textContent = item.name;
-        document.getElementById("item-card-image").src = item.imageUrl;
-        document.getElementById("item-card-category").textContent = "Category: " + item.category;
-        document.getElementById("item-card-goldValue").textContent = "Value: " + item.goldValue + " gold";
-        
-        // For weapons/shields, show handedness if available
-        if (item.category === "weapon" || item.category === "shield") {
-          document.getElementById("item-card-handedness").textContent = item.isTwoHanded ? "Two-Handed" : "One-Handed";
-        } else {
-          document.getElementById("item-card-handedness").textContent = "";
-        }
-        
-        document.getElementById("item-card-plusToHit").textContent = item.plusToHit ? "Plus to Hit: " + item.plusToHit : "";
-        document.getElementById("item-card-plusToDamage").textContent = item.plusToDamage ? "Plus to Damage: " + item.plusToDamage : "";
-        
-        // Display the fantasy-flavored description
-        document.getElementById("item-card-description").textContent = item.description || "";
-        
-        // Special Abilities (if any)
-        const abilitiesContainer = document.getElementById("item-card-specialAbilities");
-        abilitiesContainer.innerHTML = "";
-        if (item.specialAbilities && item.specialAbilities.length > 0) {
-          const title = document.createElement("p");
-          title.textContent = "Special Abilities:";
-          abilitiesContainer.appendChild(title);
-          item.specialAbilities.forEach(ability => {
-            const p = document.createElement("p");
-            p.textContent = ability.description;
-            abilitiesContainer.appendChild(p);
-          });
-        }
-        
-        // Set the border glow based on rarity (using the same function as creature card)
-        if (item.rarity) {
-          const borderInfo = getBorderColor(item.rarity, item.goldValue); // goldValue is used here to potentially adjust thickness; adjust as needed.
-          card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
-          card.style.boxShadow = "0 0 20px " + borderInfo.color;
-        } else {
-          card.style.border = "5px solid gold";
-          card.style.boxShadow = "0 0 20px gold";
-        }
-        
-        card.classList.remove("hidden");
-      }
-
       // Close button listener for the item card overlay
       document.getElementById("close-item-card").addEventListener("click", function() {
         document.getElementById("item-card").classList.add("hidden");
@@ -1777,6 +1729,53 @@ function isValidEquipSlot(category, slot) {
   return valid[category]?.includes(slot);
 }
 
+function showItemCard(item) {
+    const card = document.getElementById("item-card");
+    
+    document.getElementById("item-card-name").textContent = item.name;
+    document.getElementById("item-card-image").src = item.imageUrl;
+    document.getElementById("item-card-category").textContent = "Category: " + item.category;
+    document.getElementById("item-card-goldValue").textContent = "Value: " + item.goldValue + " gold";
+    
+    // For weapons/shields, show handedness if available
+    if (item.category === "weapon" || item.category === "shield") {
+      document.getElementById("item-card-handedness").textContent = item.isTwoHanded ? "Two-Handed" : "One-Handed";
+    } else {
+      document.getElementById("item-card-handedness").textContent = "";
+    }
+    
+    document.getElementById("item-card-plusToHit").textContent = item.plusToHit ? "Plus to Hit: " + item.plusToHit : "";
+    document.getElementById("item-card-plusToDamage").textContent = item.plusToDamage ? "Plus to Damage: " + item.plusToDamage : "";
+    
+    // Display the fantasy-flavored description
+    document.getElementById("item-card-description").textContent = item.description || "";
+    
+    // Special Abilities (if any)
+    const abilitiesContainer = document.getElementById("item-card-specialAbilities");
+    abilitiesContainer.innerHTML = "";
+    if (item.specialAbilities && item.specialAbilities.length > 0) {
+      const title = document.createElement("p");
+      title.textContent = "Special Abilities:";
+      abilitiesContainer.appendChild(title);
+      item.specialAbilities.forEach(ability => {
+        const p = document.createElement("p");
+        p.textContent = ability.description;
+        abilitiesContainer.appendChild(p);
+      });
+    }
+    
+    // Set the border glow based on rarity (using the same function as creature card)
+    if (item.rarity) {
+      const borderInfo = getBorderColor(item.rarity, item.goldValue); // goldValue is used here to potentially adjust thickness; adjust as needed.
+      card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+      card.style.boxShadow = "0 0 20px " + borderInfo.color;
+    } else {
+      card.style.border = "5px solid gold";
+      card.style.boxShadow = "0 0 20px gold";
+    }
+    
+    card.classList.remove("hidden");
+  }
 
   </script>
 
