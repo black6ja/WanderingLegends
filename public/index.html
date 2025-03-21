@@ -1627,11 +1627,18 @@ function getItemFromInventory(inventory, type, slot) {
 
 function setItemInInventory(inventory, type, slot, itemData) {
   if (type === "equipment") {
+    if (!inventory.equipment) {
+      inventory.equipment = {};  // Initialize if missing
+    }
     inventory.equipment[slot] = itemData;
   } else {
+    if (!inventory.bag) {
+      inventory.bag = {};  // Initialize if missing
+    }
     inventory.bag[slot] = itemData;
   }
 }
+
 
 function isValidEquipSlot(category, slot) {
   const valid = {
