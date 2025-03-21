@@ -1362,24 +1362,6 @@ function showCharacterCard() {
         document.getElementById('character-card-offAttacks').textContent = 
           (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
         
-
-        const overlay = document.getElementById('character-card-overlay');
-        overlay.classList.remove('hidden');
-
-        const openInvBtn = document.getElementById("open-inventory-button");
-        if (openInvBtn && !isInventoryListenerAttached) {
-          debugLog("Attaching event listener to open-inventory-button");
-          openInvBtn.addEventListener("click", function() {
-            debugLog("Open Inventory button clicked");
-            overlay.classList.add('hidden');
-            openInventory();
-          });
-          isInventoryListenerAttached = true;
-        } else if (!openInvBtn) {
-          console.error("open-inventory-button not found in DOM");
-        }
-
-
         // *** New: Update Level and XP display ***
         const currentLevel = characterData.stats.level || 1;
         const currentXP = characterData.stats.xp || 0;
@@ -1463,6 +1445,22 @@ document.getElementById("close-character-card").addEventListener("click", functi
 });
 
 
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("DOMContentLoaded fired");
+  const openInvBtn = document.getElementById("open-inventory-button");
+  if (openInvBtn) {
+    console.log("Attaching event listener to open inventory button:", openInvBtn);
+    openInvBtn.addEventListener("click", function() {
+      console.log("Open Inventory button clicked");
+      document.getElementById('character-card-overlay').classList.add('hidden');
+      openInventory();
+    });
+  } else {
+    console.error("open-inventory-button not found in the DOM.");
+  }
+});
+
+
     // Close inventory card button
     document.getElementById("close-inventory-card").addEventListener("click", function() {
       document.getElementById('inventory-card').classList.add('hidden');
@@ -1470,26 +1468,23 @@ document.getElementById("close-character-card").addEventListener("click", functi
 
 
     function openInventory() {
-      debugLog("openInventory function called");
-      const uid = firebase.auth().currentUser.uid;
+        const uid = firebase.auth().currentUser.uid;
       database.ref(`players/${uid}`).once('value').then(snapshot => {
-        debugLog("Fetched player data from Firebase");
         const data = snapshot.val();
         const activeCharacterKey = data.activeCharacter;
         if (activeCharacterKey) {
           const characterData = data[activeCharacterKey];
           if (characterData && characterData.inventory) {
-            debugLog("Rendering inventory UI");
+            // Populate the inventory slots
             renderInventoryUI(characterData.inventory);
           }
         }
+        // Finally, unhide the inventory card
         document.getElementById('inventory-card').classList.remove('hidden');
-        debugLog("Inventory card displayed");
       }).catch(error => {
         console.error("Error fetching active character data:", error);
-        debugLog("Error in openInventory: " + error.message);
       });
-    }
+  }
 
   </script>
 
