@@ -1440,8 +1440,15 @@ function renderInventoryUI(inventory) {
 
 
 // Close character card button click handler
-document.getElementById("close-character-card").addEventListener("click", function() {
-  document.getElementById('character-card-overlay').classList.add('hidden');
+document.addEventListener("DOMContentLoaded", function() {
+  const closeButton = document.getElementById("close-character-card");
+  if (closeButton) {
+    closeButton.addEventListener("click", function() {
+      document.getElementById('character-card-overlay').classList.add('hidden');
+    });
+  } else {
+    console.error("❌ close-character-card not found in the DOM.");
+  }
 });
 
 
