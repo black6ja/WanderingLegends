@@ -1596,36 +1596,6 @@ async function handleDrop(e) {
 }
 
 
- 
-  const uid = firebase.auth().currentUser.uid;
-  const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
-  const activeChar = playerSnap.val().activeCharacter;
-  const inventory = playerSnap.val()[activeChar].inventory;
-
-  const fromData = getItemFromInventory(inventory, currentDraggedData.fromType, currentDraggedData.fromSlot);
-  const toData = getItemFromInventory(inventory, toType, toSlot);
-
-  // Validate: can only equip correct item types
-  const itemSnap = await firebase.database().ref(`items/${fromData.itemId}`).once('value');
-  const item = itemSnap.val();
-  const category = item?.category;
-
-  if (currentDraggedData.fromType === "bag" && toType === "equipment") {
-    if (!isValidEquipSlot(category, toSlot)) {
-      alert("⚠️ You can't equip that item here.");
-      return;
-    }
-  }
-
-  // Swap items
-  setItemInInventory(inventory, currentDraggedData.fromType, currentDraggedData.fromSlot, toData || null);
-  setItemInInventory(inventory, toType, toSlot, fromData);
-
-  await firebase.database().ref(`players/${uid}/${activeChar}/inventory`).set(inventory);
-  renderInventoryUI(inventory);
-}
-
-
 function getItemFromInventory(inventory, type, slot) {
   return (type === "equipment") ? inventory.equipment[slot] : inventory.bag[slot];
 }
