@@ -588,6 +588,42 @@
   background: #e6c200;
 }
 
+.item-card-stats {
+  margin-top: 10px;
+}
+
+.item-card-row {
+  margin: 5px 0;
+  display: flex;
+  align-items: center;
+}
+
+.gold-icon {
+  margin-right: 5px;
+  font-size: 1.2em;
+}
+
+.item-card-description {
+  font-style: italic;
+  margin-top: 15px;
+}
+
+.item-card-specialAbilities {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed #FFD700;
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.item-card-specialAbilities h3 {
+  margin-top: 0;
+}
+
+.item-card-specialAbilities ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 5px 0;
+}
 
   </style>
 </head>
@@ -1718,52 +1754,54 @@ function isValidEquipSlot(category, slot) {
 }
 
 function showItemCard(item) {
-    const card = document.getElementById("item-card");
-    
-    document.getElementById("item-card-name").textContent = item.name;
-    document.getElementById("item-card-image").src = item.imageUrl;
-    document.getElementById("item-card-category").textContent = "Category: " + item.category;
-    document.getElementById("item-card-goldValue").textContent = "Value: " + item.goldValue + " gold";
-    
-    // For weapons/shields, show handedness if available
-    if (item.category === "weapon" || item.category === "shield") {
-      document.getElementById("item-card-handedness").textContent = item.isTwoHanded ? "Two-Handed" : "One-Handed";
-    } else {
-      document.getElementById("item-card-handedness").textContent = "";
-    }
-    
-    document.getElementById("item-card-plusToHit").textContent = item.plusToHit ? "Plus to Hit: " + item.plusToHit : "";
-    document.getElementById("item-card-plusToDamage").textContent = item.plusToDamage ? "Plus to Damage: " + item.plusToDamage : "";
-    
-    // Display the fantasy-flavored description
-    document.getElementById("item-card-description").textContent = item.description || "";
-    
-    // Special Abilities (if any)
-    const abilitiesContainer = document.getElementById("item-card-specialAbilities");
-    abilitiesContainer.innerHTML = "";
-    if (item.specialAbilities && item.specialAbilities.length > 0) {
-      const title = document.createElement("p");
-      title.textContent = "Special Abilities:";
-      abilitiesContainer.appendChild(title);
-      item.specialAbilities.forEach(ability => {
-        const p = document.createElement("p");
-        p.textContent = ability.description;
-        abilitiesContainer.appendChild(p);
-      });
-    }
-    
-    // Set the border glow based on rarity (using the same function as creature card)
-    if (item.rarity) {
-      const borderInfo = getBorderColor(item.rarity, item.goldValue); // goldValue is used here to potentially adjust thickness; adjust as needed.
-      card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
-      card.style.boxShadow = "0 0 20px " + borderInfo.color;
-    } else {
-      card.style.border = "5px solid gold";
-      card.style.boxShadow = "0 0 20px gold";
-    }
-    
-    card.classList.remove("hidden");
+  const card = document.getElementById("item-card");
+
+  document.getElementById("item-card-name").textContent = item.name;
+  document.getElementById("item-card-image").src = item.imageUrl;
+  document.getElementById("item-card-goldValue").textContent = item.goldValue + " gold";
+
+  // Update Hit and Damage for weapons
+  if(item.category === "weapon") {
+    const damageDice = item.damageDice || "";
+    document.getElementById("item-card-hit").textContent = "Hit: +" + item.plusToHit;
+    document.getElementById("item-card-damage").textContent = "Damage: " + damageDice + " + " + item.plusToDamage;
+  } else {
+    // For non-weapons, you might want to clear or adjust these rows.
+    document.getElementById("item-card-hit").textContent = "";
+    document.getElementById("item-card-damage").textContent = "";
   }
+
+  // Format special abilities
+  const abilitiesContainer = document.getElementById("item-card-specialAbilities");
+  abilitiesContainer.innerHTML = "";
+  if (item.specialAbilities && item.specialAbilities.length > 0) {
+    const title = document.createElement("h3");
+    title.textContent = "Special Abilities:";
+    abilitiesContainer.appendChild(title);
+    const ul = document.createElement("ul");
+    item.specialAbilities.forEach(ability => {
+      const li = document.createElement("li");
+      li.textContent = ability.description;
+      ul.appendChild(li);
+    });
+    abilitiesContainer.appendChild(ul);
+  }
+
+  // Place the description at the very bottom in italicized text
+  document.getElementById("item-card-description").textContent = item.description || "";
+
+  // Set border glow based on rarity
+  if (item.rarity) {
+    const borderInfo = getBorderColor(item.rarity, item.goldValue);
+    card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+    card.style.boxShadow = "0 0 20px " + borderInfo.color;
+  } else {
+    card.style.border = "5px solid gold";
+    card.style.boxShadow = "0 0 20px gold";
+  }
+
+  card.classList.remove("hidden");
+}
 
   function getBorderColor(rarity, exp) {
         let color = "";
@@ -1903,18 +1941,29 @@ function showItemCard(item) {
   </div>
   <div class="item-card-body">
     <img id="item-card-image" src="" alt="Item Image" />
-    <p id="item-card-category"></p>
-    <p id="item-card-goldValue"></p>
-    <p id="item-card-handedness"></p>
-    <p id="item-card-plusToHit"></p>
-    <p id="item-card-plusToDamage"></p>
-    <p id="item-card-description"></p>
-    <div id="item-card-specialAbilities"></div>
+    <div class="item-card-stats">
+      <div class="item-card-row">
+        <!-- Gold icon (you can swap the emoji for an icon font if preferred) -->
+        <span class="gold-icon">💰</span>
+        <span id="item-card-goldValue"></span>
+      </div>
+      <div class="item-card-row" id="item-card-hit">
+        <!-- Populated as: "Hit: +1" -->
+      </div>
+      <div class="item-card-row" id="item-card-damage">
+        <!-- Populated as: "Damage: 1D6 + 2" -->
+      </div>
+    </div>
+    <div id="item-card-specialAbilities" class="item-card-specialAbilities">
+      <!-- Special abilities will be rendered here -->
+    </div>
+    <p id="item-card-description" class="item-card-description"></p>
   </div>
   <div class="item-card-actions">
     <button id="close-item-card">Close</button>
   </div>
 </div>
+
 
 
 <!-- Bottom Menu -->
