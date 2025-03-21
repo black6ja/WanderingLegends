@@ -509,6 +509,14 @@
   pointer-events: none;
 }
 
+.slot-header {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #FFD700;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
   </style>
 </head>
 <body>
@@ -1440,6 +1448,7 @@ function renderInventoryUI(inventory) {
         elem.addEventListener("dragover", handleDragOver);
         elem.addEventListener("drop", handleDrop);
         elem.addEventListener("dragend", handleDragEnd);
+        elem.addEventListener("dragleave", handleDragLeave);
       }).catch(err => {
         elem.textContent = "Error loading item";
       });
@@ -1454,6 +1463,7 @@ function renderInventoryUI(inventory) {
       elem.addEventListener("dragover", handleDragOver);
       elem.addEventListener("drop", handleDrop);
       elem.addEventListener("dragend", handleDragEnd);
+      elem.addEventListener("dragleave", handleDragLeave);
     }
   }
 
@@ -1481,6 +1491,7 @@ function renderInventoryUI(inventory) {
         bagElem.addEventListener("dragover", handleDragOver);
         bagElem.addEventListener("drop", handleDrop);
         bagElem.addEventListener("dragend", handleDragEnd);
+        bagElem.addEventListener("dragleave", handleDragLeave);
       }).catch(err => {
         bagElem.textContent = "Error loading item";
       });
@@ -1495,6 +1506,7 @@ function renderInventoryUI(inventory) {
       bagElem.addEventListener("dragover", handleDragOver);
       bagElem.addEventListener("drop", handleDrop);
       bagElem.addEventListener("dragend", handleDragEnd);
+      bagElem.addEventListener("dragleave", handleDragLeave);
     }
   }
 
@@ -1546,6 +1558,11 @@ function handleDragEnd(e) {
   document.querySelectorAll(".drag-hover").forEach(el => el.classList.remove("drag-hover"));
   document.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
 }
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove("drag-hover");
+}
+
 
 async function handleDrop(e) {
   e.preventDefault();
@@ -1753,12 +1770,24 @@ function isValidEquipSlot(category, slot) {
   <div class="inventory-section equipment-section">
     <h3>Equipment</h3>
     <div class="equipment-grid">
-      <div class="slot" id="slot-main-hand" data-slot="mainHand" data-type="equipment" draggable="true"></div>
-      <div class="slot" id="slot-off-hand" data-slot="offHand" data-type="equipment" draggable="true"></div>
-      <div class="slot" id="slot-armor" data-slot="armor" data-type="equipment" draggable="true"></div>
-      <div class="slot" id="slot-accessory" data-slot="accessory" data-type="equipment" draggable="true"></div>      
+      <div class="equipment-slot">
+        <div class="slot-header">Main Hand</div>
+        <div class="slot" id="slot-main-hand" data-slot="mainHand" data-type="equipment" draggable="true"></div>
+      </div>
+      <div class="equipment-slot">
+        <div class="slot-header">Off Hand</div>
+        <div class="slot" id="slot-off-hand" data-slot="offHand" data-type="equipment" draggable="true"></div>
+      </div>
+      <div class="equipment-slot">
+        <div class="slot-header">Armor</div>
+        <div class="slot" id="slot-armor" data-slot="armor" data-type="equipment" draggable="true"></div>
+      </div>
+      <div class="equipment-slot">
+        <div class="slot-header">Accessory</div>
+        <div class="slot" id="slot-accessory" data-slot="accessory" data-type="equipment" draggable="true"></div>
+      </div>
     </div>
-  </div>
+  </div>  
   <!-- Bag Section -->
   <div class="inventory-section bag-section">
     <h3>Bag</h3>
