@@ -426,9 +426,10 @@
 /* Inventory Overlay */
 .inventory-card {
   position: fixed;
-  top: 5%;
-  left: 5%;
-  width: 90%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   max-width: 500px;
   max-height: 90%;
   background: #1d1f21;
@@ -520,17 +521,19 @@
 /* Item Card Overlay Styles */
 .item-card {
   position: fixed;
-  top: 10%;
-  left: 50%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   transform: translateX(-50%);
   width: 350px;
   background: #1d1f21;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 0 20px gold; /* This will be updated dynamically based on rarity */
+  box-shadow: 0 0 20px gold;
   color: #f1f1f1;
   font-family: 'Cinzel', serif;
-  z-index: 2100;
+  z-index: 2200; /* Increased from 2100 to 2200 */
 }
 
 .item-card.hidden {
