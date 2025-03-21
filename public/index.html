@@ -1458,8 +1458,23 @@ document.getElementById("close-character-card").addEventListener("click", functi
 
 
     function openInventory() {
-      document.getElementById("inventory-card").classList.remove("hidden");
-    }
+        const uid = firebase.auth().currentUser.uid;
+      database.ref(`players/${uid}`).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const activeCharacterKey = data.activeCharacter;
+        if (activeCharacterKey) {
+          const characterData = data[activeCharacterKey];
+          if (characterData && characterData.inventory) {
+            // Populate the inventory slots
+            renderInventoryUI(characterData.inventory);
+          }
+        }
+        // Finally, unhide the inventory card
+        document.getElementById('inventory-card').classList.remove('hidden');
+      }).catch(error => {
+        console.error("Error fetching active character data:", error);
+      });
+  }
 
   </script>
 
