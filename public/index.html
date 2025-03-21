@@ -1547,11 +1547,6 @@ function handleDragEnd(e) {
   document.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
 }
 
-async function handleDrop(e) {
-  e.preventDefault();
-  const target = e.currentTarget;
-  const toSlot = target.dataset.slot;
-  const toType = target.dataset.type;
 
   // Read the drag data from DataTransfer instead of the global variable
   const dataStr = e.dataTransfer.getData("text/plain");
