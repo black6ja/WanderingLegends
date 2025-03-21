@@ -1593,13 +1593,7 @@ async function handleDrop(e) {
 
   await firebase.database().ref(`players/${uid}/${activeChar}/inventory`).set(inventory);
   renderInventoryUI(inventory);
-}
-
-  
-  const target = e.currentTarget;
-  const toSlot = target.dataset.slot;
-  const toType = target.dataset.type;
-  
+}  
   const uid = firebase.auth().currentUser.uid;
   const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
   const activeChar = playerSnap.val().activeCharacter;
