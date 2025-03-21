@@ -439,7 +439,9 @@
   font-family: 'Cinzel', serif;
   z-index: 2100;
   overflow-y: auto;
-  box-sizing: border-box; /* Ensures padding doesn't cause overflow */
+  overflow-x: hidden;  /* Prevent horizontal scrolling */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Inventory Header */
