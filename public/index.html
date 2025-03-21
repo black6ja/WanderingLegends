@@ -1438,19 +1438,6 @@ function renderInventoryUI(inventory) {
   document.getElementById('inventory-card').classList.remove('hidden');
 }
 
-
-    document.getElementById("open-inventory-button").addEventListener("click", function() {
-      console.log("Open Inventory button clicked");
-      document.getElementById('character-card-overlay').classList.add('hidden');
-      openInventory();
-    });
-
-    // Close inventory card button
-    document.getElementById("close-inventory-card").addEventListener("click", function() {
-      document.getElementById('inventory-card').classList.add('hidden');
-    });
-
-
     function openInventory() {
         const uid = firebase.auth().currentUser.uid;
       database.ref(`players/${uid}`).once('value').then(snapshot => {
