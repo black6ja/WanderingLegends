@@ -1548,20 +1548,7 @@ function handleDragEnd(e) {
 }
 
 
-  // Read the drag data from DataTransfer instead of the global variable
-  const dataStr = e.dataTransfer.getData("text/plain");
-  if (!dataStr) {
-    console.warn("No drag data found on drop.");
-    return;
-  }
-  const droppedData = JSON.parse(dataStr);
-  if (!droppedData || !droppedData.fromSlot || !droppedData.fromType) {
-    console.warn("Incomplete drag data:", droppedData);
-    return;
-  }
-
-  // If dropping on the same slot, do nothing
-  if (droppedData.fromSlot === toSlot && droppedData.fromType === toType) return;
+ 
 
   const uid = firebase.auth().currentUser.uid;
   const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
