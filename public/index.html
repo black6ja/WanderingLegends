@@ -422,9 +422,6 @@
   background: #e6c200;
 }
 
-html, body {
-  height: 100%;
-}
 
 /* Inventory Overlay */
 .inventory-card {
@@ -479,7 +476,7 @@ html, body {
 }
 
 /* Media Query for smaller screens */
-@media (max-width: 360px) {
+@media (max-width: 400px) {
   .bag-grid {
     grid-template-columns: repeat(4, 1fr);
   }
@@ -493,6 +490,8 @@ html, body {
   text-align: center;
   min-height: 60px;
   font-size: 0.8em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Optional hover effect */
