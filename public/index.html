@@ -431,17 +431,15 @@
   width: 100%;
   height: 100%;
   background: #1d1f21;
-  /* Optionally, you can remove the border or adjust as needed */
   border: none;
-  /* Remove max-width and max-height for a true full-screen experience */
   border-radius: 0;
   padding: 15px;
-  /* Optionally, reduce the shadow for a flatter look */
   box-shadow: none;
   color: #f1f1f1;
   font-family: 'Cinzel', serif;
   z-index: 2100;
   overflow-y: auto;
+  box-sizing: border-box; /* Ensures padding doesn't cause overflow */
 }
 
 /* Inventory Header */
@@ -529,12 +527,12 @@
   background: #1d1f21;
   border-radius: 0;
   padding: 20px;
-  /* Retain the glow effect via box-shadow if desired */
   box-shadow: 0 0 20px gold;
   color: #f1f1f1;
   font-family: 'Cinzel', serif;
-  z-index: 2200; /* Ensures it appears on top of the inventory */
+  z-index: 2200;
   overflow-y: auto;
+  box-sizing: border-box; /* Ensures padding doesn't cause overflow */
 }
 
 .item-card.hidden {
