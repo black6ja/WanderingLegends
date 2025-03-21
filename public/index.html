@@ -428,8 +428,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;       /* Add this */
+  bottom: 0;      /* Optionally add this for full-height */
   background: #1d1f21;
   border: none;
   border-radius: 0;
@@ -440,7 +440,6 @@
   z-index: 2100;
   overflow-y: auto;
   overflow-x: hidden;  /* Prevent horizontal scrolling */
-  max-width: 100%;
   box-sizing: border-box;
 }
 
