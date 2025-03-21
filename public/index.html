@@ -1445,21 +1445,11 @@ document.getElementById("close-character-card").addEventListener("click", functi
 });
 
 
-document.addEventListener("DOMContentLoaded", function() {
-  console.log("DOMContentLoaded fired");
-  const openInvBtn = document.getElementById("open-inventory-button");
-  if (openInvBtn) {
-    console.log("Attaching event listener to open inventory button:", openInvBtn);
-    openInvBtn.addEventListener("click", function() {
+    document.getElementById("open-inventory-button").addEventListener("click", function() {
       console.log("Open Inventory button clicked");
       document.getElementById('character-card-overlay').classList.add('hidden');
       openInventory();
     });
-  } else {
-    console.error("open-inventory-button not found in the DOM.");
-  }
-});
-
 
     // Close inventory card button
     document.getElementById("close-inventory-card").addEventListener("click", function() {
