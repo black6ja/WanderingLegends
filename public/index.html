@@ -1547,6 +1547,54 @@ function handleDragEnd(e) {
   document.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
 }
 
+async function handleDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  const toSlot = target.dataset.slot;
+  const toType = target.dataset.type;
+
+  // Read the drag data from DataTransfer instead of a global variable
+  const dataStr = e.dataTransfer.getData("text/plain");
+  if (!dataStr) {
+    console.warn("No drag data found on drop.");
+    return;
+  }
+  const droppedData = JSON.parse(dataStr);
+  if (!droppedData || !droppedData.fromSlot || !droppedData.fromType) {
+    console.warn("Incomplete drag data:", droppedData);
+    return;
+  }
+
+  // If dropping on the same slot, do nothing
+  if (droppedData.fromSlot === toSlot && droppedData.fromType === toType) return;
+
+  const uid = firebase.auth().currentUser.uid;
+  const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
+  const activeChar = playerSnap.val().activeCharacter;
+  const inventory = playerSnap.val()[activeChar].inventory;
+
+  const fromData = getItemFromInventory(inventory, droppedData.fromType, droppedData.fromSlot);
+  const toData = getItemFromInventory(inventory, toType, toSlot);
+
+  // Validate: when dragging from bag to equipment, ensure the slot is valid
+  const itemSnap = await firebase.database().ref(`items/${fromData.itemId}`).once('value');
+  const item = itemSnap.val();
+  const category = item?.category;
+  if (droppedData.fromType === "bag" && toType === "equipment") {
+    if (!isValidEquipSlot(category, toSlot)) {
+      alert("⚠️ You can't equip that item here.");
+      return;
+    }
+  }
+
+  // Swap the items
+  setItemInInventory(inventory, droppedData.fromType, droppedData.fromSlot, toData || null);
+  setItemInInventory(inventory, toType, toSlot, fromData);
+
+  await firebase.database().ref(`players/${uid}/${activeChar}/inventory`).set(inventory);
+  renderInventoryUI(inventory);
+}
+
 
  
   const uid = firebase.auth().currentUser.uid;
