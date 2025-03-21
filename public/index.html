@@ -1548,18 +1548,23 @@ function handleDragEnd(e) {
 
 async function handleDrop(e) {
   e.preventDefault();
+  // Capture the current draggedData in a local variable
+  const currentDraggedData = draggedData;
+  if (!currentDraggedData || (currentDraggedData.fromSlot === e.currentTarget.dataset.slot &&
+      currentDraggedData.fromType === e.currentTarget.dataset.type)) {
+    return;
+  }
+  
   const target = e.currentTarget;
   const toSlot = target.dataset.slot;
   const toType = target.dataset.type;
-
-  if (!draggedData || (draggedData.fromSlot === toSlot && draggedData.fromType === toType)) return;
-
+  
   const uid = firebase.auth().currentUser.uid;
   const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
   const activeChar = playerSnap.val().activeCharacter;
   const inventory = playerSnap.val()[activeChar].inventory;
 
-  const fromData = getItemFromInventory(inventory, draggedData.fromType, draggedData.fromSlot);
+  const fromData = getItemFromInventory(inventory, currentDraggedData.fromType, currentDraggedData.fromSlot);
   const toData = getItemFromInventory(inventory, toType, toSlot);
 
   // Validate: can only equip correct item types
@@ -1567,7 +1572,7 @@ async function handleDrop(e) {
   const item = itemSnap.val();
   const category = item?.category;
 
-  if (draggedData.fromType === "bag" && toType === "equipment") {
+  if (currentDraggedData.fromType === "bag" && toType === "equipment") {
     if (!isValidEquipSlot(category, toSlot)) {
       alert("⚠️ You can't equip that item here.");
       return;
@@ -1575,12 +1580,13 @@ async function handleDrop(e) {
   }
 
   // Swap items
-  setItemInInventory(inventory, draggedData.fromType, draggedData.fromSlot, toData || null);
+  setItemInInventory(inventory, currentDraggedData.fromType, currentDraggedData.fromSlot, toData || null);
   setItemInInventory(inventory, toType, toSlot, fromData);
 
   await firebase.database().ref(`players/${uid}/${activeChar}/inventory`).set(inventory);
   renderInventoryUI(inventory);
 }
+
 
 function getItemFromInventory(inventory, type, slot) {
   return (type === "equipment") ? inventory.equipment[slot] : inventory.bag[slot];
