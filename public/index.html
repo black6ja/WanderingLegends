@@ -517,6 +517,72 @@
   text-align: center;
 }
 
+/* Item Card Overlay Styles */
+.item-card {
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 350px;
+  background: #1d1f21;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 0 20px gold; /* This will be updated dynamically based on rarity */
+  color: #f1f1f1;
+  font-family: 'Cinzel', serif;
+  z-index: 2100;
+}
+
+.item-card.hidden {
+  display: none;
+}
+
+.item-card-header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.item-card-header h2 {
+  margin: 0;
+  font-size: 1.8em;
+  color: #FFD700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.item-card-body img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.item-card-body p {
+  margin: 5px 0;
+}
+
+.item-card-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.item-card-actions button {
+  padding: 10px 20px;
+  font-size: 1em;
+  background: #FFD700;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  color: #1d1f21;
+}
+
+.item-card-actions button:hover {
+  background: #e6c200;
+}
+
+
   </style>
 </head>
 <body>
@@ -1160,6 +1226,60 @@
         return { color: color, thickness: thickness };
       }
 
+      function showItemCard(item) {
+        const card = document.getElementById("item-card");
+        
+        document.getElementById("item-card-name").textContent = item.name;
+        document.getElementById("item-card-image").src = item.imageUrl;
+        document.getElementById("item-card-category").textContent = "Category: " + item.category;
+        document.getElementById("item-card-goldValue").textContent = "Value: " + item.goldValue + " gold";
+        
+        // For weapons/shields, show handedness if available
+        if (item.category === "weapon" || item.category === "shield") {
+          document.getElementById("item-card-handedness").textContent = item.isTwoHanded ? "Two-Handed" : "One-Handed";
+        } else {
+          document.getElementById("item-card-handedness").textContent = "";
+        }
+        
+        document.getElementById("item-card-plusToHit").textContent = item.plusToHit ? "Plus to Hit: " + item.plusToHit : "";
+        document.getElementById("item-card-plusToDamage").textContent = item.plusToDamage ? "Plus to Damage: " + item.plusToDamage : "";
+        
+        // Display the fantasy-flavored description
+        document.getElementById("item-card-description").textContent = item.description || "";
+        
+        // Special Abilities (if any)
+        const abilitiesContainer = document.getElementById("item-card-specialAbilities");
+        abilitiesContainer.innerHTML = "";
+        if (item.specialAbilities && item.specialAbilities.length > 0) {
+          const title = document.createElement("p");
+          title.textContent = "Special Abilities:";
+          abilitiesContainer.appendChild(title);
+          item.specialAbilities.forEach(ability => {
+            const p = document.createElement("p");
+            p.textContent = ability.description;
+            abilitiesContainer.appendChild(p);
+          });
+        }
+        
+        // Set the border glow based on rarity (using the same function as creature card)
+        if (item.rarity) {
+          const borderInfo = getBorderColor(item.rarity, item.goldValue); // goldValue is used here to potentially adjust thickness; adjust as needed.
+          card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+          card.style.boxShadow = "0 0 20px " + borderInfo.color;
+        } else {
+          card.style.border = "5px solid gold";
+          card.style.boxShadow = "0 0 20px gold";
+        }
+        
+        card.classList.remove("hidden");
+      }
+
+      // Close button listener for the item card overlay
+      document.getElementById("close-item-card").addEventListener("click", function() {
+        document.getElementById("item-card").classList.add("hidden");
+      });
+
+
       function showCreatureCard(spawn) {
         const card = document.getElementById('creature-card');
         const cardImage = document.getElementById('card-image');
@@ -1436,6 +1556,9 @@ function renderInventoryUI(inventory) {
         const item = itemSnap.val();
         if (item) {
           elem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
+          elem.addEventListener("click", function() {
+            showItemCard(item);
+          });
         } else {
           elem.textContent = "Unknown item";
         }
@@ -1479,6 +1602,9 @@ function renderInventoryUI(inventory) {
         const item = itemSnap.val();
         if (item) {
           bagElem.innerHTML = `<img src="${item.imageUrl}" alt="${item.name}" style="width:50px;height:50px;"/><br/>${item.name}`;
+          bagElem.addEventListener("click", function() {
+            showItemCard(item);
+          });
         } else {
           bagElem.textContent = "Unknown item";
         }
@@ -1764,6 +1890,27 @@ function isValidEquipSlot(category, slot) {
     <button id="run-button">Run!</button>
   </div>
 </div>
+
+<!-- Item Card Overlay -->
+<div id="item-card" class="item-card hidden">
+  <div class="item-card-header">
+    <h2 id="item-card-name"></h2>
+  </div>
+  <div class="item-card-body">
+    <img id="item-card-image" src="" alt="Item Image" />
+    <p id="item-card-category"></p>
+    <p id="item-card-goldValue"></p>
+    <p id="item-card-handedness"></p>
+    <p id="item-card-plusToHit"></p>
+    <p id="item-card-plusToDamage"></p>
+    <p id="item-card-description"></p>
+    <div id="item-card-specialAbilities"></div>
+  </div>
+  <div class="item-card-actions">
+    <button id="close-item-card">Close</button>
+  </div>
+</div>
+
 
 <!-- Bottom Menu -->
 <div id="bottom-menu">
