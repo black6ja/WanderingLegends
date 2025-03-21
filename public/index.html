@@ -1614,7 +1614,15 @@ async function handleDrop(e) {
 
 
 function getItemFromInventory(inventory, type, slot) {
-  return (type === "equipment") ? inventory.equipment[slot] : inventory.bag[slot];
+  if (type === "equipment") {
+    return (inventory.equipment && inventory.equipment[slot] !== undefined)
+      ? inventory.equipment[slot]
+      : null;
+  } else {
+    return (inventory.bag && inventory.bag[slot] !== undefined)
+      ? inventory.bag[slot]
+      : null;
+  }
 }
 
 function setItemInInventory(inventory, type, slot, itemData) {
