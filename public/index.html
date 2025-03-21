@@ -495,6 +495,20 @@
   background-color: rgba(255, 215, 0, 0.2);
 }
 
+.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.drag-hover {
+  background-color: rgba(255, 215, 0, 0.25);
+  outline: 2px dashed #FFD700;
+}
+
+.slot img, .bag-slot img {
+  pointer-events: none;
+}
+
   </style>
 </head>
 <body>
@@ -1343,6 +1357,11 @@
           inventoryBtn.addEventListener("click", openInventory);
         }
 
+        document.getElementById("close-inventory-card").addEventListener("click", function() {
+          document.getElementById("inventory-card").classList.add("hidden");
+        });
+
+
     });
 
 
@@ -1399,9 +1418,11 @@ function renderInventoryUI(inventory) {
     "accessory": "slot-accessory"
   };
   const equipmentSlots = inventory.equipment || {};
+
   for (let slot in equipmentMapping) {
     const elem = document.getElementById(equipmentMapping[slot]);
     const slotData = equipmentSlots[slot];
+
     if (slotData && slotData.itemId) {
       firebase.database().ref(`items/${slotData.itemId}`).once('value').then(itemSnap => {
         const item = itemSnap.val();
@@ -1410,22 +1431,39 @@ function renderInventoryUI(inventory) {
         } else {
           elem.textContent = "Unknown item";
         }
+
+        // ✅ Make equipment slots interactive
+        elem.setAttribute("draggable", "true");
+        elem.dataset.slot = slot;
+        elem.dataset.type = "equipment";
+        elem.addEventListener("dragstart", handleDragStart);
+        elem.addEventListener("dragover", handleDragOver);
+        elem.addEventListener("drop", handleDrop);
+        elem.addEventListener("dragend", handleDragEnd);
       }).catch(err => {
         elem.textContent = "Error loading item";
       });
     } else {
       elem.textContent = "Empty";
+
+      // ✅ Allow dropping into empty equipment slots
+      elem.setAttribute("draggable", "true");
+      elem.dataset.slot = slot;
+      elem.dataset.type = "equipment";
+      elem.addEventListener("dragstart", handleDragStart);
+      elem.addEventListener("dragover", handleDragOver);
+      elem.addEventListener("drop", handleDrop);
+      elem.addEventListener("dragend", handleDragEnd);
     }
   }
-  
+
   // --- Render Bag Section ---
-  // We expect 25 bag slots: bag-slot1, bag-slot2, ... bag-slot25
   const bagSlots = inventory.bag || {};
   for (let i = 1; i <= 25; i++) {
     const slotKey = `slot${i}`;
-    let bagElem = document.getElementById(`bag-slot${i}`);
-    // If the bag element is not in HTML, you could dynamically create it, but we’ve added them in HTML already.
+    const bagElem = document.getElementById(`bag-slot${i}`);
     const bagData = bagSlots[slotKey];
+
     if (bagData && bagData.itemId) {
       firebase.database().ref(`items/${bagData.itemId}`).once('value').then(itemSnap => {
         const item = itemSnap.val();
@@ -1434,17 +1472,36 @@ function renderInventoryUI(inventory) {
         } else {
           bagElem.textContent = "Unknown item";
         }
+
+        // ✅ Make this filled bag slot draggable
+        bagElem.setAttribute("draggable", "true");
+        bagElem.dataset.slot = slotKey;
+        bagElem.dataset.type = "bag";
+        bagElem.addEventListener("dragstart", handleDragStart);
+        bagElem.addEventListener("dragover", handleDragOver);
+        bagElem.addEventListener("drop", handleDrop);
+        bagElem.addEventListener("dragend", handleDragEnd);
       }).catch(err => {
         bagElem.textContent = "Error loading item";
       });
     } else {
       bagElem.textContent = "Empty";
+
+      // ✅ Empty slots still need to be drop targets
+      bagElem.setAttribute("draggable", "true");
+      bagElem.dataset.slot = slotKey;
+      bagElem.dataset.type = "bag";
+      bagElem.addEventListener("dragstart", handleDragStart);
+      bagElem.addEventListener("dragover", handleDragOver);
+      bagElem.addEventListener("drop", handleDrop);
+      bagElem.addEventListener("dragend", handleDragEnd);
     }
   }
-  
-  // Show the inventory overlay
+
+  // ✅ Show the inventory overlay
   document.getElementById('inventory-card').classList.remove('hidden');
 }
+
 
     function openInventory() {
         const uid = firebase.auth().currentUser.uid;
@@ -1464,6 +1521,89 @@ function renderInventoryUI(inventory) {
         console.error("Error fetching active character data:", error);
       });
   }
+
+  let draggedData = null;
+
+function handleDragStart(e) {
+  const el = e.currentTarget;
+  draggedData = {
+    fromSlot: el.dataset.slot,
+    fromType: el.dataset.type
+  };
+  el.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  e.currentTarget.classList.add("drag-hover");
+}
+
+function handleDragEnd(e) {
+  document.querySelectorAll(".drag-hover").forEach(el => el.classList.remove("drag-hover"));
+  document.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
+  draggedData = null;
+}
+
+async function handleDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  const toSlot = target.dataset.slot;
+  const toType = target.dataset.type;
+
+  if (!draggedData || (draggedData.fromSlot === toSlot && draggedData.fromType === toType)) return;
+
+  const uid = firebase.auth().currentUser.uid;
+  const playerSnap = await firebase.database().ref(`players/${uid}`).once('value');
+  const activeChar = playerSnap.val().activeCharacter;
+  const inventory = playerSnap.val()[activeChar].inventory;
+
+  const fromData = getItemFromInventory(inventory, draggedData.fromType, draggedData.fromSlot);
+  const toData = getItemFromInventory(inventory, toType, toSlot);
+
+  // Validate: can only equip correct item types
+  const itemSnap = await firebase.database().ref(`items/${fromData.itemId}`).once('value');
+  const item = itemSnap.val();
+  const category = item?.category;
+
+  if (draggedData.fromType === "bag" && toType === "equipment") {
+    if (!isValidEquipSlot(category, toSlot)) {
+      alert("⚠️ You can't equip that item here.");
+      return;
+    }
+  }
+
+  // Swap items
+  setItemInInventory(inventory, draggedData.fromType, draggedData.fromSlot, toData || null);
+  setItemInInventory(inventory, toType, toSlot, fromData);
+
+  await firebase.database().ref(`players/${uid}/${activeChar}/inventory`).set(inventory);
+  renderInventoryUI(inventory);
+}
+
+function getItemFromInventory(inventory, type, slot) {
+  return (type === "equipment") ? inventory.equipment[slot] : inventory.bag[slot];
+}
+
+function setItemInInventory(inventory, type, slot, itemData) {
+  if (type === "equipment") {
+    inventory.equipment[slot] = itemData;
+  } else {
+    inventory.bag[slot] = itemData;
+  }
+}
+
+function isValidEquipSlot(category, slot) {
+  const valid = {
+    weapon: ["mainHand", "offHand"],
+    shield: ["offHand"],
+    armor: ["armor"],
+    accessory: ["accessory"]
+  };
+  return valid[category]?.includes(slot);
+}
+
 
   </script>
 
@@ -1599,10 +1739,10 @@ function renderInventoryUI(inventory) {
   <div class="inventory-section equipment-section">
     <h3>Equipment</h3>
     <div class="equipment-grid">
-      <div class="slot" id="slot-main-hand">Main Hand</div>
-      <div class="slot" id="slot-off-hand">Off Hand</div>
-      <div class="slot" id="slot-armor">Armor</div>
-      <div class="slot" id="slot-accessory">Accessory</div>
+      <div class="slot" id="slot-main-hand" data-slot="mainHand" data-type="equipment" draggable="true"></div>
+      <div class="slot" id="slot-off-hand" data-slot="offHand" data-type="equipment" draggable="true"></div>
+      <div class="slot" id="slot-armor" data-slot="armor" data-type="equipment" draggable="true"></div>
+      <div class="slot" id="slot-accessory" data-slot="accessory" data-type="equipment" draggable="true"></div>      
     </div>
   </div>
   <!-- Bag Section -->
@@ -1610,7 +1750,7 @@ function renderInventoryUI(inventory) {
     <h3>Bag</h3>
     <div class="bag-grid">
       <!-- Define 25 bag slots -->
-      <div class="bag-slot" id="bag-slot1">Slot 1</div>
+      <div class="bag-slot" id="bag-slot1" data-slot="slot1" data-type="bag" draggable="true"></div>
       <div class="bag-slot" id="bag-slot2">Slot 2</div>
       <div class="bag-slot" id="bag-slot3">Slot 3</div>
       <div class="bag-slot" id="bag-slot4">Slot 4</div>
