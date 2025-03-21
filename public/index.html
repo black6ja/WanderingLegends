@@ -1208,24 +1208,6 @@
         document.getElementById('creature-card').classList.add('hidden');
       });
 
-      function getBorderColor(rarity, exp) {
-        let color = "";
-        switch(rarity.toLowerCase()){
-          case "legendary":
-            color = "#8A2BE2"; break;
-          case "rare":
-            color = "#1E90FF"; break;
-          case "uncommon":
-            color = "#32CD32"; break;
-          default:
-            color = "#A9A9A9"; break;
-        }
-        let thickness = 4;
-        if(exp > 1000) thickness = 6;
-        if(exp > 3000) thickness = 8;
-        return { color: color, thickness: thickness };
-      }
-
       // Close button listener for the item card overlay
       document.getElementById("close-item-card").addEventListener("click", function() {
         document.getElementById("item-card").classList.add("hidden");
@@ -1776,6 +1758,24 @@ function showItemCard(item) {
     
     card.classList.remove("hidden");
   }
+
+  function getBorderColor(rarity, exp) {
+        let color = "";
+        switch(rarity.toLowerCase()){
+          case "legendary":
+            color = "#8A2BE2"; break;
+          case "rare":
+            color = "#1E90FF"; break;
+          case "uncommon":
+            color = "#32CD32"; break;
+          default:
+            color = "#A9A9A9"; break;
+        }
+        let thickness = 4;
+        if(exp > 1000) thickness = 6;
+        if(exp > 3000) thickness = 8;
+        return { color: color, thickness: thickness };
+      }
 
   </script>
 
