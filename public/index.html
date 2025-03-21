@@ -1439,17 +1439,25 @@ function renderInventoryUI(inventory) {
 }
 
 
-// Close character card button click handler
 document.addEventListener("DOMContentLoaded", function() {
   const closeButton = document.getElementById("close-character-card");
+  
+  console.log("Checking if close-character-card exists:", closeButton); // Debugging line
+
   if (closeButton) {
     closeButton.addEventListener("click", function() {
-      document.getElementById('character-card-overlay').classList.add('hidden');
+      const overlay = document.getElementById('character-card-overlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      } else {
+        console.error("❌ character-card-overlay not found in the DOM.");
+      }
     });
   } else {
     console.error("❌ close-character-card not found in the DOM.");
   }
 });
+
 
 
     document.getElementById("open-inventory-button").addEventListener("click", function() {
