@@ -1351,6 +1351,56 @@
         document.getElementById("item-card").classList.add("hidden");
       });
 
+      function showBattleCard(battleData) {
+  // battleData: an object containing player info, enemy info, turn order, etc.
+  const battleCard = document.getElementById("battle-card");
+  battleCard.classList.remove("hidden");
+
+  // Update player stats
+  document.getElementById("player-hp").textContent = battleData.player.hp;
+  document.getElementById("player-ac").textContent = battleData.player.ac;
+  document.getElementById("player-image").src = battleData.player.imageUrl || "/images/character-placeholder.png";
+
+  // Clear any existing enemy cards
+  const enemyContainer = document.getElementById("enemy-combatants");
+  enemyContainer.innerHTML = "";
+
+  // Loop through each enemy in battleData and create an enemy card
+  battleData.enemies.forEach(enemy => {
+    const enemyCard = document.createElement("div");
+    enemyCard.classList.add("combatant", "enemy");
+    enemyCard.innerHTML = `
+      <img src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
+      <div class="stats">
+        <span>${enemy.name}</span>
+        <span>HP: <span>${enemy.hp}</span></span>
+        <span>AC: <span>${enemy.ac}</span></span>
+      </div>
+      <div class="status-effects">
+        <!-- Here you can add icons for status effects if needed -->
+      </div>
+    `;
+    enemyContainer.appendChild(enemyCard);
+  });
+
+  // Update the turn order bar
+  const turnOrderBar = document.getElementById("turn-order-bar");
+  turnOrderBar.innerHTML = "";
+  battleData.turnOrder.forEach((name, index) => {
+    const turnItem = document.createElement("span");
+    turnItem.classList.add("turn-item");
+    if (index === battleData.currentTurnIndex) {
+      turnItem.classList.add("active");
+    }
+    turnItem.textContent = name;
+    turnOrderBar.appendChild(turnItem);
+  });
+}
+
+// Optional: Attach the function to the global window so it’s available everywhere.
+window.showBattleCard = showBattleCard;
+
+
 
       function showCreatureCard(spawn) {
         currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
@@ -1593,7 +1643,7 @@
   cardCR.textContent = (spawn.stats && spawn.stats.cr) ? spawn.stats.cr : "-";
   cardEXP.textContent = (spawn.stats && spawn.stats.exp) ? spawn.stats.exp : "-";
   card.classList.remove('hidden');
-  
+
   window.showBattleCard = showBattleCard;
 }
 
