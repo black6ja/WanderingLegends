@@ -794,6 +794,7 @@
     let selectedClass = null;  // for character creation
     let selectedCharacter = null; // Global variable to track selected character
     let globalLevelTable = {};
+    let creatureTable = {};
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -808,6 +809,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
+    
     // ---------- Debug Logging ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
@@ -823,6 +825,13 @@
       messageBox.textContent = message;
       messageBox.style.color = isError ? "red" : "green";
       debugLog("Login Message: " + message);
+    }
+
+    function loadCreatureTable() {
+      return firebase.database().ref("creatures").once("value").then(snapshot => {
+        creatureTable = snapshot.val() || {};
+        debugLog("Creature table loaded: " + JSON.stringify(creatureTable));
+      });
     }
 
     // ---------- Load Spawn Configuration from spawnData.json ----------
@@ -1207,6 +1216,7 @@
       debugLog("Leaflet map loaded.");
 
       await loadSpawnData();
+      await loadCreatureTable();
       await electSpawnManager();
       await loadGlobalLevelTable();
 
