@@ -1501,16 +1501,23 @@ showBattleCard(exampleBattleData);
               respawnTime: config.respawnTime,
               lastMovedAt: Date.now()
             };
-            if (type === "creature" && config.subtypes) {
-              let categories = Object.keys(config.subtypes);
-              let randomCategory = categories[Math.floor(Math.random() * categories.length)];
-              let creatures = config.subtypes[randomCategory];
-              let creature = creatures[Math.floor(Math.random() * creatures.length)];
+            if (type === "creature") {
+            // Check if the creatureTable has been loaded
+            if (!creatureTable || Object.keys(creatureTable).length === 0) {
+              debugLog("Creature table not loaded. Falling back to spawnData.json subtypes.");
+              // Optional: You can add fallback logic here if needed.
+            } else {
+              const creatureKeys = Object.keys(creatureTable);
+              const randomKey = creatureKeys[Math.floor(Math.random() * creatureKeys.length)];
+              const creature = creatureTable[randomKey];
               newSpawn.creatureName = creature.name;
               newSpawn.creatureRarity = creature.rarity;
               newSpawn.imageUrl = creature.imageUrl;
               newSpawn.stats = creature.stats;
+              // Optionally, store a reference to the creature template ID:
+              newSpawn.creatureId = randomKey;
             }
+          }
             if (type === "worldBoss") newSpawn.roaming = true;
             debugLog(`Creating spawn: ${JSON.stringify(newSpawn)}`);
             try {
