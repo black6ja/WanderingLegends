@@ -1380,68 +1380,6 @@
       }
 
 
-      function showBattleCard(battleData) {
-  // battleData could be an object containing player and enemy details, turn order, etc.
-  const battleCard = document.getElementById("battle-card");
-  battleCard.classList.remove("hidden");
-
-  // Update player stats (example values; replace with battleData.player)
-  document.getElementById("player-hp").textContent = battleData.player.hp;
-  document.getElementById("player-ac").textContent = battleData.player.ac;
-  document.getElementById("player-image").src = battleData.player.imageUrl || "/images/character-placeholder.png";
-
-  // Clear enemy combatants container
-  const enemyContainer = document.getElementById("enemy-combatants");
-  enemyContainer.innerHTML = "";
-  
-  // Populate enemy cards (battleData.enemies as an array)
-  battleData.enemies.forEach(enemy => {
-    const enemyCard = document.createElement("div");
-    enemyCard.classList.add("combatant", "enemy");
-    enemyCard.innerHTML = `
-      <img src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
-      <div class="stats">
-        <span>${enemy.name}</span>
-        <span>HP: <span>${enemy.hp}</span></span>
-        <span>AC: <span>${enemy.ac}</span></span>
-      </div>
-      <div class="status-effects">
-        <!-- Status effect icons for enemy -->
-      </div>
-    `;
-    enemyContainer.appendChild(enemyCard);
-  });
-
-  // Update turn order bar (battleData.turnOrder as an array of names)
-  const turnOrderBar = document.getElementById("turn-order-bar");
-  turnOrderBar.innerHTML = "";
-  battleData.turnOrder.forEach((name, index) => {
-    const turnItem = document.createElement("span");
-    turnItem.classList.add("turn-item");
-    if (index === battleData.currentTurnIndex) {
-      turnItem.classList.add("active");
-    }
-    turnItem.textContent = name;
-    turnOrderBar.appendChild(turnItem);
-  });
-}
-
-// Example usage (this data would normally come from your game logic/Photon events):
-const exampleBattleData = {
-  player: {
-    hp: 120,
-    ac: 18,
-    imageUrl: "/images/character-placeholder.png"
-  },
-  enemies: [
-    { name: "Goblin", hp: 30, ac: 12, imageUrl: "/images/goblin.png" },
-    { name: "Orc", hp: 45, ac: 14, imageUrl: "/images/orc.png" }
-  ],
-  turnOrder: ["JoLaArDe", "Goblin", "Orc"],
-  currentTurnIndex: 0
-};
-
-
 // You'd also attach event listeners to the action buttons (Attack, Special, End Turn)
 // and integrate Photon events for synchronizing turns and actions.
 
@@ -1630,6 +1568,35 @@ const exampleBattleData = {
 
   });
 
+  function showCreatureCard(spawn) {
+  currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
+  const card = document.getElementById('creature-card');
+  const cardImage = document.getElementById('card-image');
+  const cardName = document.getElementById('card-name');
+  const cardCR = document.getElementById('card-cr');
+  const cardEXP = document.getElementById('card-exp');
+
+  cardImage.src = (spawn.imageUrl && spawn.imageUrl.trim() !== "")
+                  ? spawn.imageUrl 
+                  : "https://via.placeholder.com/100";
+
+  if (spawn.stats && spawn.stats.exp) {
+    const borderInfo = getBorderColor(spawn.creatureRarity, spawn.stats.exp);
+    card.style.border = borderInfo.thickness + "px solid " + borderInfo.color;
+    card.style.boxShadow = "0 0 20px " + borderInfo.color;
+  } else {
+    card.style.border = "5px solid gold";
+    card.style.boxShadow = "0 0 20px gold";
+  }
+
+  cardName.textContent = spawn.creatureName || spawn.type;
+  cardCR.textContent = (spawn.stats && spawn.stats.cr) ? spawn.stats.cr : "-";
+  cardEXP.textContent = (spawn.stats && spawn.stats.exp) ? spawn.stats.exp : "-";
+  card.classList.remove('hidden');
+}
+window.showBattleCard = showBattleCard;
+
+
   document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("attack-button").addEventListener("click", function() {
     // Hide the creature card overlay.
@@ -1677,7 +1644,6 @@ const exampleBattleData = {
     });
   });
 });
-
 
 
 
