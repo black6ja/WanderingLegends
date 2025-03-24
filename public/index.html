@@ -625,6 +625,90 @@
   margin: 5px 0;
 }
 
+.battle-card {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.battle-header, .battle-footer {
+  padding: 10px;
+  background: #222;
+  text-align: center;
+}
+
+.turn-order-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.turn-item {
+  padding: 5px 10px;
+  border: 1px solid #fff;
+  border-radius: 5px;
+  background: #444;
+}
+
+.turn-item.active {
+  border-color: gold;
+  box-shadow: 0 0 10px gold;
+}
+
+.battle-body {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.combatants {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.combatant {
+  border: 1px solid #fff;
+  padding: 10px;
+  width: 150px;
+  text-align: center;
+  background: #333;
+  border-radius: 5px;
+}
+
+.combatant.active {
+  border-color: gold;
+  box-shadow: 0 0 10px gold;
+}
+
+.combatant img {
+  width: 100%;
+  height: auto;
+  margin-bottom: 10px;
+}
+
+.stats span {
+  display: block;
+  margin: 5px 0;
+}
+
+.actions button {
+  margin: 5px;
+}
+
+.hidden {
+  display: none;
+}
+
+
   </style>
 </head>
 <body>
@@ -1289,6 +1373,74 @@
         }
         card.classList.remove('hidden');
       }
+
+      function showBattleCard(battleData) {
+  // battleData could be an object containing player and enemy details, turn order, etc.
+  const battleCard = document.getElementById("battle-card");
+  battleCard.classList.remove("hidden");
+
+  // Update player stats (example values; replace with battleData.player)
+  document.getElementById("player-hp").textContent = battleData.player.hp;
+  document.getElementById("player-ac").textContent = battleData.player.ac;
+  document.getElementById("player-image").src = battleData.player.imageUrl || "/images/character-placeholder.png";
+
+  // Clear enemy combatants container
+  const enemyContainer = document.getElementById("enemy-combatants");
+  enemyContainer.innerHTML = "";
+  
+  // Populate enemy cards (battleData.enemies as an array)
+  battleData.enemies.forEach(enemy => {
+    const enemyCard = document.createElement("div");
+    enemyCard.classList.add("combatant", "enemy");
+    enemyCard.innerHTML = `
+      <img src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
+      <div class="stats">
+        <span>${enemy.name}</span>
+        <span>HP: <span>${enemy.hp}</span></span>
+        <span>AC: <span>${enemy.ac}</span></span>
+      </div>
+      <div class="status-effects">
+        <!-- Status effect icons for enemy -->
+      </div>
+    `;
+    enemyContainer.appendChild(enemyCard);
+  });
+
+  // Update turn order bar (battleData.turnOrder as an array of names)
+  const turnOrderBar = document.getElementById("turn-order-bar");
+  turnOrderBar.innerHTML = "";
+  battleData.turnOrder.forEach((name, index) => {
+    const turnItem = document.createElement("span");
+    turnItem.classList.add("turn-item");
+    if (index === battleData.currentTurnIndex) {
+      turnItem.classList.add("active");
+    }
+    turnItem.textContent = name;
+    turnOrderBar.appendChild(turnItem);
+  });
+}
+
+// Example usage (this data would normally come from your game logic/Photon events):
+const exampleBattleData = {
+  player: {
+    hp: 120,
+    ac: 18,
+    imageUrl: "/images/character-placeholder.png"
+  },
+  enemies: [
+    { name: "Goblin", hp: 30, ac: 12, imageUrl: "/images/goblin.png" },
+    { name: "Orc", hp: 45, ac: 14, imageUrl: "/images/orc.png" }
+  ],
+  turnOrder: ["JoLaArDe", "Goblin", "Orc"],
+  currentTurnIndex: 0
+};
+
+// For testing, you could call:
+showBattleCard(exampleBattleData);
+
+// You'd also attach event listeners to the action buttons (Attack, Special, End Turn)
+// and integrate Photon events for synchronizing turns and actions.
+
 
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
@@ -2038,6 +2190,46 @@ function showItemCard(item) {
     </div>
   </div>
 </div>
+
+<!-- Battle Card Overlay -->
+<div id="battle-card" class="battle-card hidden">
+  <div class="battle-header">
+    <h2>Battle</h2>
+    <!-- Turn Order Bar: displays the initiative order -->
+    <div id="turn-order-bar" class="turn-order-bar">
+      <!-- Example turn items; will be dynamically generated -->
+      <!-- <span class="turn-item active">Player</span>
+      <span class="turn-item">Goblin</span> -->
+    </div>
+  </div>
+  <div class="battle-body">
+    <div class="combatants">
+      <!-- Player Combatant Card -->
+      <div class="combatant player" id="player-combatant">
+        <img id="player-image" src="/images/character-placeholder.png" alt="Player" />
+        <div class="stats">
+          <span>HP: <span id="player-hp">100</span></span>
+          <span>AC: <span id="player-ac">18</span></span>
+        </div>
+        <div class="actions">
+          <button id="action-attack">Attack</button>
+          <button id="action-special">Special</button>
+        </div>
+        <div class="status-effects" id="player-status">
+          <!-- Status effect icons go here -->
+        </div>
+      </div>
+      <!-- Enemy Combatant Cards Container -->
+      <div class="combatant enemies" id="enemy-combatants">
+        <!-- Enemy cards will be appended here dynamically -->
+      </div>
+    </div>
+  </div>
+  <div class="battle-footer">
+    <button id="end-turn">End Turn</button>
+  </div>
+</div>
+
 
 
 </body>
