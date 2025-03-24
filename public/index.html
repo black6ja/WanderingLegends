@@ -795,6 +795,8 @@
     let selectedCharacter = null; // Global variable to track selected character
     let globalLevelTable = {};
     let creatureTable = {};
+    let currentSpawnForBattle = null;
+
 
     // Initialize Firebase
     const firebaseConfig = {
@@ -1351,6 +1353,7 @@
 
 
       function showCreatureCard(spawn) {
+        currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
         const card = document.getElementById('creature-card');
         const cardImage = document.getElementById('card-image');
         const cardName = document.getElementById('card-name');
@@ -1371,18 +1374,11 @@
         }
 
         cardName.textContent = spawn.creatureName || spawn.type;
-        if (spawn.stats && spawn.stats.cr) {
-          cardCR.textContent = spawn.stats.cr;
-        } else {
-          cardCR.textContent = "-";
-        }
-        if (spawn.stats && spawn.stats.exp) {
-          cardEXP.textContent = spawn.stats.exp;
-        } else {
-          cardEXP.textContent = "-";
-        }
+        cardCR.textContent = (spawn.stats && spawn.stats.cr) ? spawn.stats.cr : "-";
+        cardEXP.textContent = (spawn.stats && spawn.stats.exp) ? spawn.stats.exp : "-";
         card.classList.remove('hidden');
       }
+
 
       function showBattleCard(battleData) {
   // battleData could be an object containing player and enemy details, turn order, etc.
