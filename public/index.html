@@ -2230,6 +2230,7 @@ function showItemCard(item) {
   </div>
 </div>
 
+<script>
 function updateCreatureTable() {
   fetch('spawnData.json')
     .then(response => response.json())
@@ -2256,6 +2257,9 @@ function updateCreatureTable() {
     })
     .catch(err => console.error("Error fetching spawnData.json:", err));
 }
+
+</script>
+
 
 </body>
 </html>
