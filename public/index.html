@@ -1593,9 +1593,9 @@
   cardCR.textContent = (spawn.stats && spawn.stats.cr) ? spawn.stats.cr : "-";
   cardEXP.textContent = (spawn.stats && spawn.stats.exp) ? spawn.stats.exp : "-";
   card.classList.remove('hidden');
+  
+  window.showBattleCard = showBattleCard;
 }
-window.showBattleCard = showBattleCard;
-
 
   document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("attack-button").addEventListener("click", function() {
