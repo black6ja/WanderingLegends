@@ -1973,6 +1973,34 @@ function showItemCard(item) {
         return { color: color, thickness: thickness };
       }
 
+
+      function updateCreatureTable() {
+    fetch('spawnData.json')
+      .then(response => response.json())
+      .then(data => {
+        const creatureTemplates = {};
+        // Loop through spawn types and pull creature templates
+        data.spawnTypes.forEach(spawn => {
+          if (spawn.type === "creature" && spawn.subtypes) {
+            Object.keys(spawn.subtypes).forEach(category => {
+              spawn.subtypes[category].forEach(creature => {
+                // Create a key based on the creature name and category (replace spaces with underscores)
+                let key = creature.name.toLowerCase().replace(/\s+/g, '_') + '_' + category.toLowerCase();
+                // Optionally, add category info into the creature record
+                creature.category = category;
+                creatureTemplates[key] = creature;
+              });
+            });
+          }
+        });
+        // Write the extracted creature templates to Firebase under the "creatures" node
+        firebase.database().ref("creatures").set(creatureTemplates)
+          .then(() => console.log("Creature table updated successfully!"))
+          .catch(err => console.error("Error updating creature table:", err));
+      })
+      .catch(err => console.error("Error fetching spawnData.json:", err));
+  }
+
   </script>
 
 <!-- Character Card Overlay -->
