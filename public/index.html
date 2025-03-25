@@ -1465,7 +1465,7 @@ window.showBattleCard = showBattleCard;
       function joinBattleRoom(spawnId, photonClient) {
         if (photonClient) {
           let roomName = "battle_" + spawnId;
-          photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+          photonClient.joinRoom(roomName, { maxPlayers: 2 });
           debugLog("Attempting to join Photon room: " + roomName);
           setTimeout(() => {
             let room = photonClient.myRoom();
