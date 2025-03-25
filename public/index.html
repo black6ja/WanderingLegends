@@ -1669,10 +1669,11 @@ document.addEventListener("DOMContentLoaded", function() {
       
       // Create or join a Photon room for this battle.
       const roomName = "battle_" + creatureSpawn.creatureId || "battle_enemy1";
-      if (!photonClient || photonClient.getState() < Photon.LoadBalancing.ClientState.JoinedLobby) {
+      if (!photonClient || photonClient.state < Photon.LoadBalancing.ClientState.JoinedLobby) {
         console.error("Photon client is not available or not ready.");
         return;
       }
+
       
     photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
 
