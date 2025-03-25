@@ -812,6 +812,26 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
+    function waitForPhotonReady(timeout = 10000) {
+      return new Promise((resolve, reject) => {
+        const PHOTON_JOINED_LOBBY = 5;
+        const startTime = Date.now();
+
+        function checkState() {
+          if (photonClient && photonClient.state === PHOTON_JOINED_LOBBY) {
+            debugLog("Photon is ready (JoinedLobby).");
+            resolve();
+          } else if (Date.now() - startTime >= timeout) {
+            reject(new Error("Timed out waiting for Photon to be ready."));
+          } else {
+            setTimeout(checkState, 200); // Keep checking every 200ms
+          }
+        }
+
+        checkState();
+      });
+    }
+
     
     // ---------- Debug Logging ----------
     function debugLog(message) {
@@ -1406,26 +1426,6 @@
 
 // Optional: Attach the function to the global window so it’s available everywhere.
 window.showBattleCard = showBattleCard;
-
-function waitForPhotonReady(timeout = 10000) {
-  return new Promise((resolve, reject) => {
-    const PHOTON_JOINED_LOBBY = 5;
-    const startTime = Date.now();
-
-        function checkState() {
-              if (photonClient && photonClient.state === PHOTON_JOINED_LOBBY) {
-                debugLog("Photon is ready (JoinedLobby).");
-                resolve();
-              } else if (Date.now() - startTime >= timeout) {
-                reject(new Error("Timed out waiting for Photon to be ready."));
-              } else {
-                setTimeout(checkState, 200); // Keep checking every 200ms
-              }
-            }
-
-            checkState();
-          });
-        }
 
       function showCreatureCard(spawn) {
         currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
