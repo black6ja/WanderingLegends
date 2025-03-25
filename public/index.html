@@ -813,21 +813,20 @@
     const database = firebase.database();
 
     function waitForPhotonReady(timeout = 10000) {
-      return new Promise((resolve, reject) => {
-        const PHOTON_JOINED_LOBBY = 5;
+    return new Promise((resolve, reject) => {
+        const READY_STATE_THRESHOLD = 5; // Consider any state 5 or higher as "ready"
         const startTime = Date.now();
 
         function checkState() {
-          if (photonClient && photonClient.state === PHOTON_JOINED_LOBBY) {
-            debugLog("Photon is ready (JoinedLobby).");
+          if (photonClient && photonClient.state >= READY_STATE_THRESHOLD) {
+            debugLog("Photon is ready (state " + photonClient.state + ").");
             resolve();
           } else if (Date.now() - startTime >= timeout) {
-            reject(new Error("Timed out waiting for Photon to be ready."));
+            reject(new Error("Timed out waiting for Photon to be ready. Current state: " + (photonClient ? photonClient.state : 'undefined')));
           } else {
-            setTimeout(checkState, 200); // Keep checking every 200ms
+            setTimeout(checkState, 200); // Check every 200ms
           }
         }
-
         checkState();
       });
     }
@@ -1268,7 +1267,8 @@
 
         photonClient.onStateChange = function (state) {
           debugLog("Photon: State changed to " + state);
-          if (state === 5) {
+          // Enable the attack button if state is 5 (JoinedLobby) or higher
+          if (state >= 5) {
             document.getElementById("attack-button").disabled = false;
           } else {
             document.getElementById("attack-button").disabled = true;
