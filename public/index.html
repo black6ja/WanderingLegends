@@ -1701,11 +1701,12 @@ document.addEventListener("DOMContentLoaded", function () {
       const activeCharKey = playerData.activeCharacter;
       const activeChar = playerData[activeCharKey];
 
-      // Wait for Photon to be ready (using the updated function)
+      // Wait for Photon to be ready
       await waitForPhotonReady();
 
       const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
-      photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+      // Use joinRoom instead of joinOrCreateRoom:
+      photonClient.joinRoom(roomName, { maxPlayers: 2 });
 
       const playerInitiative = Math.floor(Math.random() * 20) + 1;
       const enemyInitiative = Math.floor(Math.random() * 20) + 1;
@@ -1742,6 +1743,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 });
+
 
 
 // Sample End Turn handler to cycle through turn order.
