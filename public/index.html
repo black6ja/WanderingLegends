@@ -1674,63 +1674,72 @@ window.showBattleCard = showBattleCard;
 }
 
 // Modify the attack-button click event listener to initialize the battle.
-document.getElementById("attack-button").addEventListener("click", async function () {
-  document.getElementById("creature-card").classList.add("hidden");
-
-  const creatureSpawn = currentSpawnForBattle;
-  if (!creatureSpawn) {
-    console.error("No creature spawn data available for battle.");
+document.addEventListener("DOMContentLoaded", function () {
+  const attackBtn = document.getElementById("attack-button");
+  if (!attackBtn) {
+    console.warn("⚠️ attack-button not found in DOM.");
     return;
   }
 
-  const uid = firebase.auth().currentUser.uid;
+  attackBtn.addEventListener("click", async function () {
+    document.getElementById("creature-card").classList.add("hidden");
 
-  try {
-    const snapshot = await database.ref(`players/${uid}`).once("value");
-    const playerData = snapshot.val();
-    const activeCharKey = playerData.activeCharacter;
-    const activeChar = playerData[activeCharKey];
+    const creatureSpawn = currentSpawnForBattle;
+    if (!creatureSpawn) {
+      console.error("No creature spawn data available for battle.");
+      return;
+    }
 
-    // ✅ Wait for Photon to be ready
-    await waitForPhotonReady();
+    const uid = firebase.auth().currentUser.uid;
 
-    const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
-    photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+    try {
+      const snapshot = await database.ref(`players/${uid}`).once("value");
+      const playerData = snapshot.val();
+      const activeCharKey = playerData.activeCharacter;
+      const activeChar = playerData[activeCharKey];
 
-    const playerInitiative = Math.floor(Math.random() * 20) + 1;
-    const enemyInitiative = Math.floor(Math.random() * 20) + 1;
-    const turnOrder = (playerInitiative >= enemyInitiative)
-      ? [activeChar.name, creatureSpawn.creatureName]
-      : [creatureSpawn.creatureName, activeChar.name];
+      // ✅ Wait for Photon to be ready
+      await waitForPhotonReady();
 
-    currentBattleData = {
-      player: {
-        id: activeCharKey,
-        name: activeChar.name,
-        hp: activeChar.stats.hp,
-        ac: activeChar.stats.ac,
-        imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
-        initiative: playerInitiative
-      },
-      enemies: [{
-        id: creatureSpawn.creatureId || "enemy1",
-        name: creatureSpawn.creatureName,
-        hp: creatureSpawn.stats.hp,
-        ac: creatureSpawn.stats.ac,
-        imageUrl: creatureSpawn.imageUrl,
-        initiative: enemyInitiative
-      }],
-      turnOrder: turnOrder,
-      currentTurnIndex: 0
-    };
+      const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
+      photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
 
-    showBattleCard(currentBattleData);
+      const playerInitiative = Math.floor(Math.random() * 20) + 1;
+      const enemyInitiative = Math.floor(Math.random() * 20) + 1;
+      const turnOrder = (playerInitiative >= enemyInitiative)
+        ? [activeChar.name, creatureSpawn.creatureName]
+        : [creatureSpawn.creatureName, activeChar.name];
 
-  } catch (err) {
-    console.error("Error starting battle:", err);
-    alert("Could not start battle: " + err.message);
-  }
+      currentBattleData = {
+        player: {
+          id: activeCharKey,
+          name: activeChar.name,
+          hp: activeChar.stats.hp,
+          ac: activeChar.stats.ac,
+          imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
+          initiative: playerInitiative
+        },
+        enemies: [{
+          id: creatureSpawn.creatureId || "enemy1",
+          name: creatureSpawn.creatureName,
+          hp: creatureSpawn.stats.hp,
+          ac: creatureSpawn.stats.ac,
+          imageUrl: creatureSpawn.imageUrl,
+          initiative: enemyInitiative
+        }],
+        turnOrder: turnOrder,
+        currentTurnIndex: 0
+      };
+
+      showBattleCard(currentBattleData);
+
+    } catch (err) {
+      console.error("Error starting battle:", err);
+      alert("Could not start battle: " + err.message);
+    }
+  });
 });
+
 
 
 // Sample End Turn handler to cycle through turn order.
