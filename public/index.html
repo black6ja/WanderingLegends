@@ -1242,8 +1242,6 @@
         console.error("Error fetching active character data:", error);
       });
 
-      // Photon Setup
-      let photonClient;
       try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
@@ -1671,8 +1669,13 @@ document.addEventListener("DOMContentLoaded", function() {
       
       // Create or join a Photon room for this battle.
       const roomName = "battle_" + creatureSpawn.creatureId || "battle_enemy1";
-      photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+      if (!photonClient || typeof photonClient.joinOrCreateRoom !== "function") {
+      console.error("Photon client is not available or not ready.");
+      return;
+    }
       
+    photonClient.joinOrCreateRoom(roomName, { maxPlayers: 2 }, null);
+
       // Roll initiative for both sides (this is a simple random roll from 1 to 20).
       const playerInitiative = Math.floor(Math.random() * 20) + 1;
       const enemyInitiative = Math.floor(Math.random() * 20) + 1;
