@@ -836,41 +836,6 @@
       });
     }
     
-    function joinOrCreateRoom(roomName, options) {
-      return new Promise((resolve, reject) => {
-        // Try to join the room
-        photonClient.joinRoom(roomName, options);
-        
-        // Listen for errors related to joining
-        const onErrorCallback = function (errorCode, errorMsg) {
-          debugLog("Photon Error (join attempt): " + errorCode + " / " + errorMsg);
-          // Check if error code corresponds to "Game does not exist"
-          if (errorCode === 32758) {
-            // Remove this listener to avoid multiple calls
-            photonClient.onError = originalOnError;
-            // Create the room instead
-            debugLog("Room not found. Creating room: " + roomName);
-            photonClient.createRoom(roomName, options);
-            resolve("Room created");
-          } else {
-            reject(new Error("Join Room failed: " + errorMsg));
-          }
-        };
-
-        // Backup the original onError handler
-        const originalOnError = photonClient.onError;
-        photonClient.onError = onErrorCallback;
-
-        // Optionally, set a timeout if neither join nor create happens
-        setTimeout(() => {
-          // Restore original onError
-          photonClient.onError = originalOnError;
-          reject(new Error("Timed out while trying to join or create room."));
-        }, 5000);
-      });
-    }
-
-
     // ---------- Debug Logging ----------
     function debugLog(message) {
       const debugDiv = document.getElementById("debugPanel");
@@ -1740,11 +1705,8 @@ document.addEventListener("DOMContentLoaded", function () {
       await waitForPhotonReady();
 
       const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
-      try {
-            await joinOrCreateRoom(roomName, { maxPlayers: 2 });
-          } catch (err) {
-            throw new Error(err.message);
-          }
+      // Use joinRoom instead of joinOrCreateRoom:
+      photonClient.joinRoom(roomName, { maxPlayers: 2 });
 
       const playerInitiative = Math.floor(Math.random() * 20) + 1;
       const enemyInitiative = Math.floor(Math.random() * 20) + 1;
