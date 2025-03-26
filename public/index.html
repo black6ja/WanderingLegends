@@ -2895,15 +2895,7 @@ document.addEventListener("DOMContentLoaded", function() {
 // The showBattleCard() function to render the battle UI.
 // Update the showBattleCard function
 
-function showBattleCard(battleData) {
-    const battleCard = document.getElementById("battle-card");
-    if (!battleCard) {
-        console.error("Battle card element not found!");
-        return;
-    }
-    battleCard.classList.remove("hidden");
-
-    function addCombatLogMessage(message) 
+function addCombatLogMessage(message) 
     {
       const logList = document.getElementById("combat-log-list");
       if (logList) {
@@ -2916,6 +2908,14 @@ function showBattleCard(battleData) {
           console.warn("Combat log list element not found.");
       }
     }
+
+function showBattleCard(battleData) {
+    const battleCard = document.getElementById("battle-card");
+    if (!battleCard) {
+        console.error("Battle card element not found!");
+        return;
+    }
+    battleCard.classList.remove("hidden");
 
     debugLog("[showBattleCard] Updating battle display with data:", battleData);
 
