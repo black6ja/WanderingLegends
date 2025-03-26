@@ -1039,6 +1039,20 @@
     let currentBattleData = null;
     let photonClient;
 
+    const BATTLE_EVENT_CODES = {
+    END_TURN: 10,       // Signals the end of a combatant's turn
+    ENEMY_ACTION: 11,   // Broadcasts the result of an enemy's action (e.g., attack)
+    PLAYER_ATTACK: 12,  // (Future) Player attack action
+    // Add more as needed (e.g., PLAYER_ITEM, PLAYER_SPECIAL)
+    };
+
+    const ROOM_PROPERTY_KEYS = {
+        BATTLE_STATE_INITIALIZED: "bInit",
+        TURN_ORDER: "bTurnOrder",
+        COMBATANTS: "bCombatants", // Store initial HP, AC etc. indexed by actorNr/instanceId
+        CURRENT_TURN_INDEX: "bTurnIdx"
+    };
+
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -1052,14 +1066,164 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // ---------- Photon Utility Functions ----------
+    function rollDice(diceString) {
+    if (!diceString || typeof diceString !== 'string') {
+        console.error("Invalid dice string:", diceString);
+        return 0;
+    }
+    const diceRegex = /(\d+)?d(\d+)([+-]\d+)?/i;
+    const match = diceString.match(diceRegex);
+
+    if (!match) {
+        // Handle simple numbers as "rolls" (e.g., for flat damage bonuses)
+        const flatNumber = parseInt(diceString, 10);
+        if (!isNaN(flatNumber)) return flatNumber;
+        console.error("Could not parse dice string:", diceString);
+        return 0;
+    }
+
+    const numDice = match[1] ? parseInt(match[1], 10) : 1;
+    const numSides = parseInt(match[2], 10);
+    const modifier = match[3] ? parseInt(match[3], 10) : 0;
+
+    let total = 0;
+    let rolls = []; // Keep track of individual rolls for logging (optional)
+
+    if (numSides <= 0) {
+         console.error("Dice must have at least 1 side:", diceString);
+         return 0;
+    }
+
+    for (let i = 0; i < numDice; i++) {
+        const roll = Math.floor(Math.random() * numSides) + 1;
+        rolls.push(roll);
+        total += roll;
+    }
+
+    total += modifier;
+
+    // Log the roll details (optional but good for debugging)
+    // debugLog(`Rolled ${diceString}: [${rolls.join(', ')}] + (${modifier}) = ${total}`);
+
+    return total;
+}
 
 /**
- * Waits for the Photon client to reach a specified state or higher.
- * @param {number} targetState - The minimum Photon.LoadBalancing.LoadBalancingClient.State to wait for (e.g., 5 for JoinedLobby).
- * @param {number} timeout - Maximum time to wait in milliseconds.
- * @returns {Promise<void>} Resolves when the target state is reached, rejects on timeout or disconnect.
+ * Creates a pause in async functions.
+ * @param {number} ms - Milliseconds to wait.
+ * @returns {Promise<void>}
  */
+ function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Handles the reception of an END_TURN event from Photon.
+ * Advances the local turn index and triggers AI if necessary (on Master Client).
+ */
+ function handleEndTurnEvent() {
+    if (!currentBattleData) {
+        debugLog("Received END_TURN event but no local battle data exists.", true);
+        addCombatLogMessage("Error: Battle data lost.");
+        return;
+    }
+
+    // Advance the local turn index
+    const oldIndex = currentBattleData.currentTurnIndex;
+    currentBattleData.currentTurnIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
+    const newActiveName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+    debugLog(`Advanced local turn index to ${currentBattleData.currentTurnIndex} (${newActiveName})`);
+
+    // Update the UI to show the new turn state
+    showBattleCard(currentBattleData); // UI update happens first
+
+    // --- MASTER CLIENT: Check if AI needs to be triggered ---
+    if (photonClient.isMasterClient()) {
+        const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
+        if (activeEnemy) {
+            debugLog(`Master Client: It's now ${activeEnemy.name}'s turn. Triggering AI...`);
+            // Use setTimeout to prevent potential issues and allow UI to render
+            setTimeout(() => {
+                // Pass the most current player state in case it changed (e.g., status effects)
+                handleEnemyTurn(activeEnemy, currentBattleData.player);
+            }, 750); // Delay before AI acts
+        } else {
+             debugLog(`Master Client: New turn is for player ${newActiveName}. Waiting for player action.`);
+        }
+    } else {
+        // Non-Master client just waits if it's an enemy turn.
+         const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
+         if (activeEnemy) {
+             debugLog(`Client: Waiting for Master Client to perform ${activeEnemy.name}'s turn.`);
+             // UI already updated by showBattleCard to show enemy active / player buttons disabled
+         }
+    }
+}
+
+/**
+ * Handles the reception of an ENEMY_ACTION event from Photon.
+ * Updates the local battle state based on the action results and refreshes the UI.
+ * @param {object} content - The event data sent by the Master Client.
+ * @param {string} senderName - The name or identifier of the sender (Master Client).
+ */
+function handleEnemyActionEvent(content, senderName) {
+     if (!currentBattleData || !content) {
+         debugLog("Received invalid ENEMY_ACTION event or no local data.", true);
+         return;
+     }
+     debugLog(`Processing ENEMY_ACTION from ${senderName}:`, content);
+
+     // Destructure the expected data from the event content
+     const {
+         enemyName, targetName, attackRoll, totalAttackRoll, targetAC,
+         hit, damageRoll, finalDamage, damageType, drApplied, attackBonus // Include attackBonus and drApplied
+        } = content;
+
+     // Log the sequence of events based on the received data
+     addCombatLogMessage(`${enemyName} attacks ${targetName}...`);
+     // Optional small delay for readability? If so, make function async
+     // await delay(300);
+     addCombatLogMessage(`${enemyName} rolled ${totalAttackRoll} (${attackRoll}+${attackBonus || 0}) to hit (AC ${targetAC}).`);
+     // await delay(300);
+
+     if (hit) {
+         addCombatLogMessage(`Hit!`);
+         // await delay(300);
+         addCombatLogMessage(`${enemyName} deals ${finalDamage} ${damageType || 'physical'} damage (${damageRoll} rolled, ${drApplied || 0} reduced).`);
+
+         // Find the target in the local data and apply damage
+         // Assuming only the player can be targeted by enemies for now
+         if (currentBattleData.player && currentBattleData.player.name === targetName) {
+             const player = currentBattleData.player;
+             player.currentHp = Math.max(0, player.currentHp - finalDamage); // Apply damage, prevent negative HP
+             debugLog(`Player HP updated to: ${player.currentHp}`);
+
+             // Check for player defeat
+             if (player.currentHp <= 0) {
+                  addCombatLogMessage(`${player.name} has been defeated!`);
+                  // TODO: Implement game over / battle end logic here
+                  // Example: Disable all buttons permanently, show a message
+                  document.getElementById('action-attack-mh').disabled = true;
+                  document.getElementById('action-attack-oh').disabled = true;
+                  document.getElementById('action-special').disabled = true;
+                  document.getElementById('action-item').disabled = true;
+                  document.getElementById('end-turn').disabled = true;
+             }
+         } else {
+              // Target might be another player or an invalid target name
+              debugLog(`ENEMY_ACTION targeted someone other than the local player: ${targetName}`, true);
+              // If multiple players, you'd find the correct player object here
+         }
+
+     } else {
+         addCombatLogMessage(`Miss!`);
+     }
+
+     // Refresh the UI with the updated state (e.g., new HP)
+     showBattleCard(currentBattleData);
+}
+
+    // ---------- Photon Utility Functions ----------
 /**
  * Waits for the Photon client to reach a specified state or higher.
  * @param {number} targetState - The minimum Photon.LoadBalancing.LoadBalancingClient.State to wait for.
@@ -1686,49 +1850,116 @@ function debugLog(message, isError = false) {
         console.error("Error fetching active character data:", error);
       });
 
-      try {
+      
+    // Inside initializeGame function...
+    try {
         const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
         photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
 
+        // -----vvvvv THIS IS WHERE YOU ADD/MODIFY THE HANDLERS vvvvv-----
+
         photonClient.onStateChange = function (state) {
           debugLog("Photon: State changed to " + state);
-          // Enable the attack button if state is 5 (JoinedLobby) or higher
-          if (state >= 5) {
-            document.getElementById("attack-button").disabled = false;
-          } else {
-            document.getElementById("attack-button").disabled = true;
-          }
+          // ... existing logic ...
         };
 
         photonClient.onError = function (errorCode, errorMsg) {
           debugLog("Photon Error: " + errorCode + " / " + errorMsg, true);
         };
+
+        // --- ADD THE FOLLOWING HANDLERS HERE ---
+
+        photonClient.onJoinRoom = function(room) {
+            debugLog(`Photon: Joined Room ${room.name}. Player count: ${room.playerCount}. IsMaster: ${photonClient.isMasterClient()}`);
+            addCombatLogMessage(`Joined battle room: ${room.name}`);
+
+            // Attempt to get initial state from properties
+            const props = room.getCustomProperties();
+            if (props && props[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED]) {
+                debugLog("Battle state found in room properties on join.");
+                // Call the helper function (defined elsewhere) to build local state
+                updateLocalBattleDataFromProps(props, room.name);
+            } else if (room.playerCount > 1) {
+                // We joined an existing room, but state isn't in props YET.
+                debugLog("Joined existing room, waiting for initial state via onPropertiesChanged.");
+                addCombatLogMessage("Synchronizing battle state...");
+                // UI should ideally show a loading/syncing state
+                initializeBattleCardUI(); // Show empty structure while waiting
+            } else {
+                // We are the first player (playerCount === 1).
+                // The 'attackBtn' listener logic will set the properties soon.
+                debugLog("First player in room. Initial properties will be set shortly.");
+                 initializeBattleCardUI(); // Show empty structure
+            }
+        };
+
+        photonClient.onActorJoin = function(actor) {
+            // Keep your existing onActorJoin logic if needed, or just log
+            debugLog(`Photon: Actor ${actor.actorNr} joined room ${photonClient.myRoom()?.name}.`);
+             addCombatLogMessage(`Actor ${actor.actorNr} joined the battle.`);
+             // Optional: If Master Client, maybe resend state? (Relying on props is often better)
+        };
+
+        photonClient.onPropertiesChanged = function(props) {
+            // 'props' here ONLY contains the properties that CHANGED.
+            debugLog("Photon: Room properties changed:", props);
+            const currentRoom = photonClient.myRoom();
+            if (!currentRoom) return;
+
+            const allProps = currentRoom.getCustomProperties(); // Get the complete set
+
+             // Check if this is the INITIAL state arriving AFTER joining
+             if (!currentBattleData && allProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED]) {
+                  debugLog("Received initial battle state via onPropertiesChanged.");
+                  // Call the helper function to build local state from ALL properties
+                  updateLocalBattleDataFromProps(allProps, currentRoom.name);
+             }
+             // Add else-if blocks here if you sync OTHER specific states via properties later
+             // else if (currentBattleData && props.hasOwnProperty(ROOM_PROPERTY_KEYS.SOME_OTHER_PROP)) {
+             //    // Update specific part of currentBattleData
+             //    // showBattleCard(currentBattleData);
+             // }
+        };
+
+        photonClient.onEvent = function(code, content, actorNr) {
+            debugLog(`Photon: Received event ${code} from actor ${actorNr}. Content:`, content);
+            const senderActor = photonClient.myRoom()?.getActor(actorNr);
+            // Try getting a name if you set it as a player property, otherwise use actorNr
+            const senderName = senderActor?.getCustomProperty('playerName') || `Actor ${actorNr}`;
+
+            switch (code) {
+                case BATTLE_EVENT_CODES.END_TURN:
+                    // Call the handler function (defined elsewhere)
+                    handleEndTurnEvent();
+                    break;
+                case BATTLE_EVENT_CODES.ENEMY_ACTION:
+                    // Call the handler function (defined elsewhere)
+                    handleEnemyActionEvent(content, senderName);
+                    break;
+                // case BATTLE_EVENT_CODES.PLAYER_ATTACK: // Example for later
+                //     handlePlayerAttackEvent(content, senderName);
+                //     break;
+                default:
+                    debugLog(`Received unhandled event code: ${code}`);
+            }
+        };
+
+        photonClient.onLeftRoom = function() {
+            debugLog("Photon: Left room.");
+            addCombatLogMessage("Left battle room.");
+            // Clean up UI and state
+            document.getElementById("battle-card").classList.add("hidden");
+            currentBattleData = null;
+            // Maybe re-enable the attack button on the creature card if it's still visible?
+            // Or handle returning to the map view properly.
+        };
+
         debugLog("Connecting to Photon...");
         photonClient.connectToRegionMaster("us");
-      } catch (error) {
+
+    } catch (error) {
         debugLog("Error initializing Photon: " + error.message, true);
-      }
-
-      photonClient.onActorJoin = function(actor) {
-          debugLog("[onActorJoin] Actor Nr: " + actor.actorNr + (actor.isLocal ? " (Local)" : "") + " joined room: " + photonClient.myRoom()?.name);
-
-          // IMPORTANT: Check properties *here* if the local player joined
-          if (actor.isLocal) {
-              const currentRoom = photonClient.myRoom();
-              if (currentRoom) {
-                  debugLog("[onActorJoin - Local] Room Check - Name: " + currentRoom.name +
-                            ", maxPlayers: " + currentRoom.maxPlayers +
-                            ", playerCount: " + currentRoom.playerCount);
-                  // You might trigger the next step of your battle setup from here
-                  // e.g., call showBattleCard or enable UI elements
-              } else {
-                  debugLog("[onActorJoin - Local] Error: Could not get current room!");
-              }
-          } else {
-              // Another player joined, update UI if needed
-              debugLog("[onActorJoin - Remote] Remote Actor joined. Current playerCount: " + photonClient.myRoom()?.playerCount);
-          }
-      };
+    }
 
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
@@ -1823,134 +2054,217 @@ function debugLog(message, isError = false) {
         document.getElementById("item-card").classList.add("hidden");
       });
 
-      function showBattleCard(battleData) {
+      // Replace the existing showBattleCard function (around line 1180) with this consolidated version:
+function showBattleCard(battleData) {
     const battleCard = document.getElementById("battle-card");
-    if (!battleCard) return;
-    battleCard.classList.remove("hidden");
+    if (!battleCard) {
+        console.error("Battle card element not found!");
+        return;
+    }
+    // Ensure battle card is visible if called
+    if (battleCard.classList.contains('hidden')) {
+        battleCard.classList.remove("hidden");
+        addCombatLogMessage("Battle display opened."); // Log only when opening
+    }
 
-    debugLog("[showBattleCard] Updating NEW battle display with data:", battleData);
-    addCombatLogMessage("Displaying Battle State..."); // Add initial log message
+    // Log the current state being displayed FOR DEBUGGING ONLY (can be verbose)
+    // debugLog("[showBattleCard] Updating UI with state:", JSON.stringify(battleData));
 
     // --- Clear previous active highlights ---
-    document.querySelectorAll('.combatant.active').forEach(el => el.classList.remove('active'));
-
+    document.querySelectorAll('.combat-section.active').forEach(el => el.classList.remove('active')); // Use section highlight
 
     // --- Update Player Section ---
     const player = battleData.player;
-    const playerSection = document.querySelector('.player-section'); // Use querySelector if needed
+    const playerSection = document.querySelector('.player-section');
     if (player && playerSection) {
-        playerSection.querySelector("#player-image").src = player.imageUrl || "/images/character-placeholder.png";
-        playerSection.querySelector("#player-name").textContent = player.name || "Player";
-        playerSection.querySelector("#player-level").textContent = player.level || 1;
-        playerSection.querySelector("#player-class").textContent = player.class || "Class";
-        playerSection.querySelector("#player-current-hp").textContent = player.currentHp;
-        playerSection.querySelector("#player-max-hp").textContent = player.maxHp;
-        playerSection.querySelector("#player-ac").textContent = player.ac;
-        playerSection.querySelector("#player-phys-dr").textContent = player.physicalDR;
-        playerSection.querySelector("#player-mag-dr").textContent = player.magicalDR;
-        playerSection.querySelector("#player-save").textContent = player.save;
-
-        // Update Player HP Bar
-        const playerHpFill = playerSection.querySelector(".player-hp-bar .hp-fill");
-        const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
-        playerHpFill.style.width = `${Math.max(0, playerHpPercent)}%`; // Set width percentage
-
-        // Update Player Status Effects (Example)
-        const playerStatusDiv = playerSection.querySelector(".player-status");
-        playerStatusDiv.innerHTML = ""; // Clear
-        // player.statusEffects.forEach(effect => { playerStatusDiv.innerHTML += `<span>${effect.icon || '?'}</span>`; });
-
-        // Enable/Disable Off-Hand Attack Button
-        const ohAttackBtn = document.getElementById('action-attack-oh');
-        if (ohAttackBtn) {
-            ohAttackBtn.disabled = !(player.offHand?.numAttacks > 0); // Disable if numAttacks is 0 or N/A
+        document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
+        document.getElementById("player-name").textContent = player.name || "Player";
+        document.getElementById("player-level").textContent = player.level || 1;
+        document.getElementById("player-class").textContent = player.class || "Class";
+        // HP Text Update
+        const playerHpTextEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-text");
+        if (playerHpTextEl) {
+            playerHpTextEl.innerHTML = `<span id="player-current-hp">${player.currentHp}</span>/<span id="player-max-hp">${player.maxHp}</span>`;
         }
+        // HP Bar Fill Update
+        const playerHpFillEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-fill");
+        if (playerHpFillEl) {
+            const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
+            playerHpFillEl.style.width = `${Math.max(0, playerHpPercent)}%`;
+        }
+        document.getElementById("player-ac").textContent = player.ac || '?';
+        document.getElementById("player-phys-dr").textContent = player.physicalDR || 0;
+        document.getElementById("player-mag-dr").textContent = player.magicalDR || 0;
+        document.getElementById("player-save").textContent = player.save || 0;
 
+        // Update Player Status Effects (Placeholder)
+        const playerStatusDiv = playerSection.querySelector(".player-status"); // Corrected selector
+        if (playerStatusDiv) playerStatusDiv.innerHTML = ""; // Clear
+        // TODO: Render player.statusEffects
 
     } else {
         console.error("[showBattleCard] Player data or player section missing!");
+        addCombatLogMessage("Error: Player data missing!");
     }
 
     // --- Update Enemy Section ---
-    const enemyContainer = document.getElementById("enemy-combatants"); // This ID is gone, use enemy-section
     const enemySection = document.querySelector('.enemy-section');
-    // enemyContainer.innerHTML = ""; // Clear old cards if multiple were possible
-
-    // Assuming only one enemy for now, directly update the elements
     if (battleData.enemies && battleData.enemies.length > 0 && enemySection) {
-        const enemy = battleData.enemies[0]; // Get the first enemy
+        const enemy = battleData.enemies[0]; // Assuming one enemy
+
+        enemySection.style.display = ''; // Make sure it's visible
 
         enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
         enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
-        enemySection.querySelector(".enemy-current-hp").textContent = enemy.currentHp;
-        enemySection.querySelector(".enemy-max-hp").textContent = enemy.maxHp;
-        enemySection.querySelector(".enemy-ac").textContent = enemy.ac;
+         // HP Text Update
+         const enemyHpTextEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-text");
+         if (enemyHpTextEl) {
+              enemyHpTextEl.innerHTML = `<span class="enemy-current-hp">${enemy.currentHp}</span>/<span class="enemy-max-hp">${enemy.maxHp}</span>`;
+         }
+         // HP Bar Fill Update
+        const enemyHpFillEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-fill");
+        if (enemyHpFillEl) {
+            const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
+            enemyHpFillEl.style.width = `${Math.max(0, enemyHpPercent)}%`;
+        }
+        enemySection.querySelector(".enemy-ac").textContent = enemy.ac || '?';
         enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
         enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
-        enemySection.querySelector(".enemy-save").textContent = enemy.save;
+        enemySection.querySelector(".enemy-save").textContent = enemy.save || 0;
 
-        // Update Enemy HP Bar
-        const enemyHpFill = enemySection.querySelector(".enemy-hp-bar .hp-fill");
-        const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
-        enemyHpFill.style.width = `${Math.max(0, enemyHpPercent)}%`;
-
-        // Update Enemy Status Effects (Example)
-        const enemyStatusDiv = enemySection.querySelector(".enemy-status");
-        enemyStatusDiv.innerHTML = ""; // Clear
-        // enemy.statusEffects.forEach(effect => { enemyStatusDiv.innerHTML += `<span>${effect.icon || '?'}</span>`; });
+        // Update Enemy Status Effects (Placeholder)
+        const enemyStatusDiv = enemySection.querySelector(".enemy-status"); // Corrected selector
+        if (enemyStatusDiv) enemyStatusDiv.innerHTML = ""; // Clear
+        // TODO: Render enemy.statusEffects
 
     } else {
         console.error("[showBattleCard] Enemies data missing or enemy section not found!");
-         if (enemySection) { // Clear enemy section if no enemy data
-             enemySection.style.display = 'none'; // Hide it
-         }
+        addCombatLogMessage("Error: Enemy data missing!");
+        if (enemySection) enemySection.style.display = 'none'; // Hide if no enemy
     }
 
-    // --- Update Turn Order Bar ---
-    const turnOrderBar = document.getElementById("turn-order-bar");
+    // --- Update Turn Order Bar & Determine Active Combatant/Button States ---
+    const turnOrderBar = document.getElementById("turn-order-bar"); // The overlay bar
     turnOrderBar.innerHTML = ""; // Clear old
     let activeCombatantName = null;
-    if (battleData.turnOrder && battleData.turnOrder.length > 0) {
+    let isPlayerTurn = false;
+
+    if (battleData.turnOrder && battleData.turnOrder.length > 0 && battleData.currentTurnIndex < battleData.turnOrder.length) {
+        activeCombatantName = battleData.turnOrder[battleData.currentTurnIndex];
+
+        // Populate turn order display
         battleData.turnOrder.forEach((combatantName, index) => {
             const turnItem = document.createElement("span");
             turnItem.classList.add("turn-item");
             if (index === battleData.currentTurnIndex) {
                 turnItem.classList.add("active");
-                activeCombatantName = combatantName; // Store the active name
             }
-            turnItem.textContent = combatantName.substring(0, 10); // Abbreviate if needed
+            turnItem.textContent = combatantName.substring(0, 10); // Abbreviate
             turnOrderBar.appendChild(turnItem);
         });
 
-        // --- Highlight Active Combatant Card ---
-        if(activeCombatantName) {
-            if(battleData.player.name === activeCombatantName && playerSection) {
-                playerSection.classList.add('active'); // Use section highlight now
-                 debugLog(`[showBattleCard] Highlighting player turn.`);
-                 // Enable player action buttons
-                 document.getElementById('action-attack-mh').disabled = false;
-                 document.getElementById('action-attack-oh').disabled = !(player.offHand?.numAttacks > 0);
-                 // document.getElementById('action-special').disabled = false; // If specials exist
-                 // document.getElementById('action-item').disabled = false; // If items exist
-                 document.getElementById('end-turn').disabled = false;
-            } else if (enemySection) {
-                 const enemy = battleData.enemies.find(e => e.name === activeCombatantName);
-                 if (enemy) {
-                    enemySection.classList.add('active'); // Highlight enemy section
-                    debugLog(`[showBattleCard] Highlighting enemy turn.`);
-                    // Disable player action buttons during enemy turn
-                    document.getElementById('action-attack-mh').disabled = true;
-                    document.getElementById('action-attack-oh').disabled = true;
-                    document.getElementById('action-special').disabled = true;
-                    document.getElementById('action-item').disabled = true;
-                    document.getElementById('end-turn').disabled = true; // Or maybe AI auto-ends?
-                 }
+        // --- Highlight Active Section & Set Player Turn Flag ---
+        if (player && player.name === activeCombatantName) {
+            isPlayerTurn = true;
+            if (playerSection) playerSection.classList.add('active');
+            // Log message is handled when turn *starts* in handleEndTurnEvent
+        } else {
+            // It's an enemy's turn (or another player's turn in future)
+            isPlayerTurn = false;
+            const activeEnemy = battleData.enemies.find(e => e.name === activeCombatantName);
+            if (activeEnemy && enemySection) {
+                 enemySection.classList.add('active');
             }
+            // Log message handled elsewhere (handleEndTurnEvent/handleEnemyTurn)
         }
 
+         // --- Enable/Disable Action Buttons Based ONLY on isPlayerTurn ---
+         document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
+         // Also check if player data exists and has offhand attacks
+         document.getElementById('action-attack-oh').disabled = !isPlayerTurn || !(player?.offHand?.numAttacks > 0);
+         document.getElementById('action-special').disabled = !isPlayerTurn; // Keep disabled for now
+         document.getElementById('action-item').disabled = !isPlayerTurn;   // Keep disabled for now
+         document.getElementById('end-turn').disabled = !isPlayerTurn;
+
     } else {
-         console.error("[showBattleCard] Turn order data missing or empty in battleData!");
+         console.error("[showBattleCard] Turn order data missing, empty, or index out of bounds!");
+         addCombatLogMessage("Error: Turn order corrupted!");
+         // Disable all buttons if turn order is broken
+         document.getElementById('action-attack-mh').disabled = true;
+         document.getElementById('action-attack-oh').disabled = true;
+         document.getElementById('action-special').disabled = true;
+         document.getElementById('action-item').disabled = true;
+         document.getElementById('end-turn').disabled = true;
     }
+} // --- End of consolidated showBattleCard ---
+
+
+
+/**
+ * Handles the AI logic for the currently active enemy's turn.
+ * Executes ONLY on the Master Client.
+ * Broadcasts results via RaiseEvent.
+ * @param {object} enemy - The active enemy's data from currentBattleData.
+ * @param {object} player - The player's data from currentBattleData.
+ */
+ async function handleEnemyTurn(enemy, player) {
+    // --- MASTER CLIENT CHECK ---
+    if (!photonClient.isMasterClient()) {
+        debugLog("Not the Master Client, ignoring AI trigger.");
+        return;
+    }
+    if (!enemy || !player) {
+         debugLog("handleEnemyTurn called with invalid enemy or player data.", true);
+         // Maybe Master Client should force end turn if data is bad?
+         // photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
+         return;
+    }
+
+    debugLog(`Master Client: Running AI for ${enemy.name}`);
+    addCombatLogMessage(`${enemy.name} is thinking...`); // Log locally on master
+    await delay(1000); // Pause for "thinking"
+
+    // --- Basic Attack AI ---
+    const attackBonus = enemy.attackBonus || 0;
+    const attackRoll = rollDice("1d20");
+    const totalAttackRoll = attackRoll + attackBonus;
+    const targetAC = player.ac || 10;
+    let hit = totalAttackRoll >= targetAC;
+    let damageRoll = 0;
+    let finalDamage = 0;
+    let damageType = "physical"; // Assume physical
+    let drApplied = 0;
+
+    if (hit) {
+        damageRoll = rollDice(enemy.attackDamage || "1d4");
+        drApplied = (damageType === "physical" ? player.physicalDR : player.magicalDR) || 0;
+        finalDamage = Math.max(0, damageRoll - drApplied);
+    }
+
+    // Prepare event data to broadcast
+    const eventData = {
+        enemyName: enemy.name,
+        targetName: player.name, // Target the player
+        attackRoll: attackRoll,
+        attackBonus: attackBonus, // Send bonus for clarity in log
+        totalAttackRoll: totalAttackRoll,
+        targetAC: targetAC,
+        hit: hit,
+        damageRoll: damageRoll, // Send original roll
+        drApplied: drApplied,   // Send DR applied
+        finalDamage: finalDamage, // Send final damage dealt
+        damageType: damageType
+    };
+
+    debugLog("Master Client: Raising ENEMY_ACTION event:", eventData);
+    photonClient.raiseEvent(BATTLE_EVENT_CODES.ENEMY_ACTION, eventData);
+
+    // Wait slightly after broadcasting the action
+    await delay(1500);
+
+    // Now, end the enemy's turn by broadcasting END_TURN
+    debugLog(`Master Client: Ending turn for ${enemy.name}, raising END_TURN.`);
+    photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
 }
 
 // Optional: Attach the function to the global window so it’s available everywhere.
@@ -2489,31 +2803,28 @@ return joinedRoom;
 
 
 async function forceResetPhoton() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => { // Added reject
     debugLog("Forcing Photon disconnect...");
     photonClient.disconnect();
 
     setTimeout(() => {
       debugLog("Reconnecting Photon...");
-      photonClient.connectToRegionMaster("us");
-
       // Re-attach handlers after reconnect
-      photonClient.onStateChange = (state) => {
-        debugLog("Photon: State changed to " + state);
-        if (state >= 5) {
-          document.getElementById("attack-button").disabled = false;
-        }
-      };
+      photonClient.onStateChange = (state) => { /* ... */ };
+      photonClient.onError = function (errorCode, errorMsg) { /* ... */ };
+      // Re-attach OTHER handlers like onJoinRoom, onEvent etc. if needed!
+      // It might be better to call a full re-initialization function here.
 
-      photonClient.onError = function (errorCode, errorMsg) {
-        debugLog("Photon Error: " + errorCode + " / " + errorMsg, true);
-      };
-
-      // Add your other handlers back here (onEvent, onActorJoin, etc.)
-      // photonClient.onActorJoin = ...
-
-      waitForPhotonReady().then(() => resolve());
-    }, 3000);
+      if (photonClient.connectToRegionMaster("us")) {
+          // Wait for lobby state
+          waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 15000, 'ForceReconnect')
+            .then(() => resolve())
+            .catch(err => reject(err)); // Pass rejection up
+      } else {
+           debugLog("[forceResetPhoton] connectToRegionMaster failed immediately on retry.", true);
+           reject(new Error("Photon connectToRegionMaster failed on reconnect."));
+      }
+    }, 3000); // Increased delay slightly
   });
 }
 
@@ -2746,31 +3057,37 @@ async function forceResetPhoton() {
 }
 
 // Modify the attack-button click event listener to initialize the battle.
+// Modify the attack-button click event listener
 document.addEventListener("DOMContentLoaded", function () {
     const attackBtn = document.getElementById("attack-button");
-    // ... (rest of your DOMContentLoaded, ensure this listener is correctly placed)
 
     attackBtn.addEventListener("click", async function () {
         debugLog("Attack button clicked.");
-        attackBtn.disabled = true;
+        attackBtn.disabled = true; // Keep disabled until battle ends or leaves
         document.getElementById("creature-card").classList.add("hidden");
 
         const creatureSpawn = currentSpawnForBattle;
-        // ... (checks for creatureSpawn, user) ...
-
+        if (!creatureSpawn) {
+            debugLog("Error: No creature selected for battle.", true);
+            // Re-enable button maybe? Or show error message
+            // attackBtn.disabled = false;
+            alert("Error starting battle: No creature selected.");
+            return;
+        }
+        if (!firebase.auth().currentUser) {
+             debugLog("Error: User not logged in.", true);
+             alert("Error starting battle: User not logged in.");
+             return;
+        }
         const uid = firebase.auth().currentUser.uid;
 
         try {
-            // --- Fetch ALL necessary data upfront ---
+            // --- Fetch Player/Item Data (Keep this part) ---
             debugLog("Fetching player data, inventory, and items...");
             const playerSnapshot = await database.ref(`players/${uid}`).once("value");
-            if (!playerSnapshot.exists()) throw new Error(`Player data not found for UID: ${uid}`);
-            const playerData = playerSnapshot.val();
-
-            const activeCharKey = playerData.activeCharacter;
-            if (!activeCharKey || !playerData[activeCharKey]) throw new Error(`Active character not found or invalid for UID: ${uid}`);
-            const activeCharBaseData = playerData[activeCharKey]; // Base stats, name, class, inventory refs
-
+            // ... (rest of your data fetching logic for player, items) ...
+             const activeCharKey = playerSnapshot.val().activeCharacter;
+            const activeCharBaseData = playerSnapshot.val()[activeCharKey];
             // Fetch all item details needed
             const itemIdsToFetch = new Set();
             const inventory = activeCharBaseData.inventory || { equipment: {}, bag: {} };
@@ -2779,121 +3096,176 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (equip?.itemId) itemIdsToFetch.add(equip.itemId);
                 });
             }
-            // We might need bag items later for 'Use Item' action, but for now, just equipment.
-
+            
             const itemPromises = Array.from(itemIdsToFetch).map(itemId =>
-                database.ref(`items/${itemId}`).once('value').then(snap => ({ id: itemId, data: snap.val() }))
+                database.ref(`items/${itemId}`).once('value')
+                    .then(snap => ({ id: itemId, data: snap.val() }))
+                    .catch(err => {
+                         debugLog(`Error fetching item ${itemId}: ${err.message}`, true);
+                         return { id: itemId, data: null }; // Return null on error
+                    })
             );
             const itemResults = await Promise.all(itemPromises);
             const itemsData = itemResults.reduce((acc, itemResult) => {
                 if (itemResult.data) {
                     acc[itemResult.id] = itemResult.data;
                 } else {
-                     debugLog(`Warning: Failed to fetch item data for ID: ${itemResult.id}`, true);
+                     debugLog(`Warning: Failed to fetch or process item data for ID: ${itemResult.id}`, true);
                 }
                 return acc;
             }, {});
             debugLog(`Fetched details for ${Object.keys(itemsData).length} equipped items.`);
-            // --- End data fetching ---
+            // --- *** END REPLACEMENT for itemsData placeholder *** ---
 
-            // --- Calculate Effective Stats ---
             const playerEffectiveStats = calculateEffectivePlayerStats(activeCharBaseData.stats, inventory.equipment, itemsData);
-             // Augment with details not in base stats (like name, class if needed)
-             playerEffectiveStats.name = activeCharBaseData.name;
-             playerEffectiveStats.class = activeCharBaseData.class;
-             playerEffectiveStats.imageUrl = `/images/classes/${activeCharBaseData.class.toLowerCase()}.png`; // Get image URL
 
-            // --- Prepare Room Join ---
-            // ... (room name generation, call prepareAndJoinBattleRoom) ...
+            playerEffectiveStats.name = activeCharBaseData.name;
+            playerEffectiveStats.class = activeCharBaseData.class;
+            playerEffectiveStats.imageUrl = `/images/classes/${activeCharBaseData.class.toLowerCase()}.png`;
+
+            // --- Prepare Room ---
             const creatureIdentifier = creatureSpawn.creatureId || creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
-            const roomName = "battle_" + creatureIdentifier + "_" + Date.now();
-            const roomOptions = { maxPlayers: 2, isOpen: true, isVisible: true };
-            debugLog(`Generated room name: ${roomName}`);
-            debugLog(`Calling prepareAndJoinBattleRoom for room: ${roomName}`);
-            const joinedRoom = await prepareAndJoinBattleRoom(roomName, roomOptions);
-            debugLog(`Successfully prepared and joined room: ${joinedRoom.name}...`);
-
-
-            // --- Create currentBattleData using EFFECTIVE stats ---
-            debugLog("Calculating initiative and creating battle data...");
-            const playerInitiative = Math.floor(Math.random() * 20) + 1; // TODO: Add Dex mod later if available
-            const enemyStats = creatureSpawn.stats; // Stats from the spawn point
-            const enemyInitiative = enemyStats.initiative || Math.floor(Math.random() * 20) + 1;
-
-             // Combine effective stats with battle-specific info
-             const playerBattleData = {
-                 ...playerEffectiveStats, // Includes calculated AC, MaxHP, DRs, Save, ToHit, Damage, Level, Name, Class, ImageUrl etc.
-                 id: activeCharKey,
-                 actorNr: photonClient.myActor().actorNr,
-                 currentHp: playerEffectiveStats.maxHp, // Start at full HP
-                 initiative: playerInitiative,
-                 statusEffects: [] // Placeholder for status effects
+            const roomName = "battle_" + creatureIdentifier + "_" + Date.now(); // Keep unique room names
+            const roomOptions = {
+                 maxPlayers: 2, // Or more if needed
+                 isOpen: true,
+                 isVisible: true,
+                 // Custom Properties to be set LATER if we CREATE the room
+                 customGameProperties: {},
+                 propertiesListedInLobby: [] // Optional: properties visible before joining
              };
+            debugLog(`Preparing room: ${roomName}`);
 
-             const enemyBattleData = {
+            // --- Join or Create Room ---
+            // Use prepareAndJoinBattleRoom as before
+            const joinedRoom = await prepareAndJoinBattleRoom(roomName, roomOptions);
+            debugLog(`Successfully in room: ${joinedRoom.name}`);
+
+            const myActorNr = photonClient.myActor().actorNr;
+
+            // --- Create Local Battle Data Structure (Common for all) ---
+            const enemyStats = creatureSpawn.stats;
+            const enemyBattleData = {
                  templateId: creatureSpawn.creatureId || "unknown",
-                 instanceId: `${creatureSpawn.creatureId || 'enemy'}_${Date.now()}`,
+                 instanceId: `${creatureSpawn.creatureId || 'enemy'}_1`, // Give enemy a consistent ID
                  name: creatureSpawn.creatureName || "Creature",
                  imageUrl: creatureSpawn.imageUrl || "/images/enemy-placeholder.png",
                  ac: enemyStats.ac || 10,
                  maxHp: enemyStats.hp || 10,
                  currentHp: enemyStats.hp || 10, // Start at full HP
-                 physicalDR: enemyStats.physicalDR || { amount: 0 }, // Store the DR object
-                 magicalDR: enemyStats.magicalDR || { amount: 0 },   // Store the DR object
+                 physicalDR: enemyStats.physicalDR || { amount: 0 },
+                 magicalDR: enemyStats.magicalDR || { amount: 0 },
                  save: enemyStats.save || 0,
                  attackBonus: enemyStats.attackBonus || 0,
                  attackDamage: enemyStats.attackDamage || "1d4+0",
-                 initiative: enemyInitiative,
-                 statusEffects: [] // Placeholder
+                 initiative: enemyStats.initiative || rollDice("1d20"), // Roll initiative if needed
+                 statusEffects: []
+            };
+
+            // Player data now needs actorNr
+            const playerBattleData = {
+                 ...playerEffectiveStats,
+                 id: activeCharKey,
+                 actorNr: myActorNr, // Store Photon actor number
+                 currentHp: playerEffectiveStats.maxHp,
+                 initiative: rollDice("1d20"), // Roll player initiative
+                 statusEffects: []
              };
 
+            // --- Determine Initial State (Only if CREATING the room) ---
+            if (joinedRoom.playerCount === 1) { // We are the first player / creator
+                debugLog("First player in room, setting initial battle state properties...");
 
-            const turnOrderNames = (playerInitiative >= enemyInitiative)
-                ? [playerBattleData.name, enemyBattleData.name]
-                : [enemyBattleData.name, playerBattleData.name];
+                // Determine Turn Order
+                const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
+                const turnOrderNames = turnOrderCombatants.map(c => c.name);
+                const currentTurnIndex = 0;
 
-            currentBattleData = {
-                roomId: joinedRoom.name,
-                player: playerBattleData,
-                enemies: [enemyBattleData], // Array of enemies
-                turnOrder: turnOrderNames,
-                currentTurnIndex: 0
-            };
-            debugLog("currentBattleData created with effective stats: " + JSON.stringify(currentBattleData));
+                // Prepare combatant data for room properties (more static info)
+                const combatantsProp = {};
+                combatantsProp[playerBattleData.actorNr] = { // Index by actorNr for players
+                     name: playerBattleData.name,
+                     maxHp: playerBattleData.maxHp,
+                     ac: playerBattleData.ac,
+                     // Include other stats needed by AI or display?
+                };
+                 combatantsProp[enemyBattleData.instanceId] = { // Index by instanceId for enemies
+                     name: enemyBattleData.name,
+                     maxHp: enemyBattleData.maxHp,
+                     ac: enemyBattleData.ac,
+                     attackBonus: enemyBattleData.attackBonus,
+                     attackDamage: enemyBattleData.attackDamage,
+                     physicalDR: enemyBattleData.physicalDR,
+                     magicalDR: enemyBattleData.magicalDR,
+                 };
 
-            // --- TODO: Raise Photon Event if needed ---
+                // Prepare properties to set
+                const initialProps = {};
+                initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderNames;
+                initialProps[ROOM_PROPERTY_KEYS.COMBATANTS] = combatantsProp;
+                initialProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = currentTurnIndex;
+                initialProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED] = true;
 
-            debugLog("Showing battle card UI.");
-            showBattleCard(currentBattleData); // Update the UI
+                 // Use setCustomProperties (broadcasts to others)
+                 if (photonClient.isJoinedToRoom()) {
+                    photonClient.myRoom().setCustomProperties(initialProps);
+                    debugLog("Set initial room properties:", initialProps);
+                 } else {
+                     debugLog("Error: Not in room when trying to set initial props!", true);
+                     throw new Error("Failed to set initial room properties.");
+                 }
+
+                 // Create local currentBattleData based on what was just set
+                 currentBattleData = {
+                     roomId: joinedRoom.name,
+                     // Store combatants locally indexed by name for easier lookup? Or keep separate player/enemy?
+                     // Let's keep player/enemies separate locally for easier UI updates for now.
+                     player: playerBattleData, // Contains currentHp, status etc.
+                     enemies: [enemyBattleData], // Contains currentHp, status etc.
+                     turnOrder: turnOrderNames,
+                     currentTurnIndex: currentTurnIndex,
+                     // Store the static data read from properties too? Maybe not needed if always read on join.
+                 };
+                 debugLog("Created local battle data for creator:", JSON.stringify(currentBattleData));
+
+            } else {
+                 // We are joining an existing battle, wait for onJoinRoom/onPropertiesChanged
+                 debugLog("Joined existing battle, waiting for room properties...");
+                 // currentBattleData will be populated in onJoinRoom or onPropertiesChanged
+            }
+
+            // Show initial empty/loading card or wait for properties?
+            // Let's show the card structure but maybe disable buttons until state is confirmed.
+             initializeBattleCardUI(); // A function to just show the structure, maybe disable buttons
+
 
         } catch (err) {
-            console.error("Error starting battle:", err);
-            debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
+            console.error("Error preparing battle:", err);
+            debugLog(`Error preparing battle: ${err.message}. Stack: ${err.stack}`, true);
             alert("Could not start battle: " + err.message);
-        } finally {
-             attackBtn.disabled = false;
+            // Consider leaving room if join succeeded but setup failed?
+            if (photonClient.isJoinedToRoom()) await robustLeaveRoom();
+             // attackBtn.disabled = false; // Re-enable maybe?
         }
+        // No finally block to re-enable attackBtn, it stays disabled during battle
     });
+
+    // ... Keep other DOMContentLoaded listeners ...
 });
 
+// Helper function to show the card structure but maybe disable actions
+function initializeBattleCardUI() {
+     const battleCard = document.getElementById("battle-card");
+     if (battleCard) battleCard.classList.remove("hidden");
+     // Maybe disable all action buttons initially
+      document.getElementById('action-attack-mh').disabled = true;
+      document.getElementById('action-attack-oh').disabled = true;
+      document.getElementById('action-special').disabled = true;
+      document.getElementById('action-item').disabled = true;
+      document.getElementById('end-turn').disabled = true;
+      addCombatLogMessage("Joining battle...");
+}
 
-
-// Sample End Turn handler to cycle through turn order.
-document.addEventListener("DOMContentLoaded", function() {
-  document.getElementById("end-turn").addEventListener("click", function() {
-    if (!currentBattleData) {
-      console.error("No battle data available for End Turn.");
-      return;
-    }
-    // Move to next turn.
-    currentBattleData.currentTurnIndex = (currentBattleData.currentTurnIndex + 1) % currentBattleData.turnOrder.length;
-    // Update the battle card UI.
-    showBattleCard(currentBattleData);
-  });
-});
-
-// The showBattleCard() function to render the battle UI.
-// Update the showBattleCard function
 
 function addCombatLogMessage(message) 
     {
@@ -2909,176 +3281,7 @@ function addCombatLogMessage(message)
       }
     }
 
-function showBattleCard(battleData) {
-    const battleCard = document.getElementById("battle-card");
-    if (!battleCard) {
-        console.error("Battle card element not found!");
-        return;
-    }
-    battleCard.classList.remove("hidden");
 
-    debugLog("[showBattleCard] Updating battle display with data:", battleData);
-
-    // --- Update Player Section ---
-    const player = battleData.player;
-    if (player) {
-        document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
-        document.getElementById("player-name").textContent = player.name || "Player"; // Display name
-        document.getElementById("player-level").textContent = player.level || 1; // Display level
-        document.getElementById("player-class").textContent = player.class || "Class"; // Display class
-        document.getElementById("player-current-hp").textContent = player.currentHp;
-        document.getElementById("player-max-hp").textContent = player.maxHp; // Display Max HP
-        document.getElementById("player-ac").textContent = player.ac;
-        document.getElementById("player-phys-dr").textContent = player.physicalDR; // Display Phys DR
-        document.getElementById("player-mag-dr").textContent = player.magicalDR;   // Display Mag DR
-        document.getElementById("player-save").textContent = player.save;       // Display Save
-
-        // Main Hand Attack Info
-        document.getElementById("player-mh-attacks").textContent = player.mainHand?.numAttacks ?? '?';
-        document.getElementById("player-mh-hit").textContent = player.mainHand?.toHitBonus ?? '?';
-        document.getElementById("player-mh-damage").textContent = player.mainHand?.damageString ?? '?';
-        document.getElementById("player-mh-type").textContent = player.mainHand?.damageType ?? '?';
-
-        // Off Hand Attack Info
-         document.getElementById("player-oh-attacks").textContent = player.offHand?.numAttacks ?? '?';
-        document.getElementById("player-oh-hit").textContent = player.offHand?.toHitBonus ?? '?';
-        document.getElementById("player-oh-damage").textContent = player.offHand?.damageString ?? 'N/A';
-         document.getElementById("player-oh-type").textContent = player.offHand?.damageType ?? 'N/A';
-
-        // Update Player Status Effects (placeholder)
-        const playerStatusDiv = document.getElementById("player-status");
-        playerStatusDiv.innerHTML = ""; // Clear old statuses
-        // TODO: Loop through player.statusEffects and render them
-        if (player.statusEffects && player.statusEffects.length > 0) {
-             // Example: playerStatusDiv.innerHTML = '<span>🔥</span>';
-        }
-
-    } else {
-        console.error("[showBattleCard] Player data missing in battleData!");
-    }
-
-    // --- Update Enemy Section ---
-    const enemyContainer = document.getElementById("enemy-combatants");
-    enemyContainer.innerHTML = ""; // Clear previous enemies
-
-    if (battleData.enemies && battleData.enemies.length > 0) {
-        battleData.enemies.forEach(enemy => {
-            // Create enemy card structure dynamically (or use a template)
-            const enemyCard = document.createElement("div");
-            enemyCard.classList.add("combatant", "enemy");
-            // Set a unique ID based on instanceId if needed for targeting
-            enemyCard.id = `enemy_${enemy.instanceId}`;
-
-            // Basic structure (adapt based on your exact HTML template in the comment)
-            enemyCard.innerHTML = `
-                <img class="enemy-image" src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
-                <h4 class="enemy-name">${enemy.name || 'Enemy'}</h4>
-                <div class="stats">
-                    <span>HP: <span class="enemy-current-hp">${enemy.currentHp}</span> / <span class="enemy-max-hp">${enemy.maxHp}</span></span>
-                    <span>AC: <span class="enemy-ac">${enemy.ac}</span></span>
-                    <span>PhysDR: <span class="enemy-phys-dr">${enemy.physicalDR?.amount ?? 0}</span></span> <!-- Display DR amount -->
-                    <span>MagDR: <span class="enemy-mag-dr">${enemy.magicalDR?.amount ?? 0}</span></span> <!-- Display DR amount -->
-                    <span>Save: <span class="enemy-save">${enemy.save}</span></span>
-                </div>
-                <div class="attack-info">
-                    <span>Attack: +<span class="enemy-attack-bonus">${enemy.attackBonus}</span> | <span class="enemy-attack-damage">${enemy.attackDamage}</span></span>
-                </div>
-                <div class="status-effects enemy-status" id="status_${enemy.instanceId}">
-                    <!-- Status effects for this enemy -->
-                </div>
-            `;
-            enemyContainer.appendChild(enemyCard);
-
-             // Update Enemy Status Effects (placeholder)
-             const enemyStatusDiv = enemyCard.querySelector(`#status_${enemy.instanceId}`);
-             if (enemyStatusDiv) {
-                enemyStatusDiv.innerHTML = ""; // Clear old
-                 // TODO: Loop through enemy.statusEffects and render them
-             }
-        });
-    } else {
-        console.error("[showBattleCard] Enemies data missing or empty in battleData!");
-    }
-
-    // --- Update Turn Order Bar ---
-    const turnOrderBar = document.getElementById("turn-order-bar");
-    turnOrderBar.innerHTML = ""; // Clear old
-    if (battleData.turnOrder && battleData.turnOrder.length > 0) {
-        battleData.turnOrder.forEach((combatantName, index) => {
-            const turnItem = document.createElement("span");
-            turnItem.classList.add("turn-item");
-            // Highlight the active turn
-            if (index === battleData.currentTurnIndex) {
-                turnItem.classList.add("active");
-                 // Also highlight the corresponding combatant card
-                 const activeCombatantId = getCombatantIdByName(battleData, combatantName); // Helper needed
-                 const activeCard = document.getElementById(activeCombatantId);
-                 if(activeCard) activeCard.classList.add('active'); // Ensure 'active' CSS exists for combatant
-            }
-            turnItem.textContent = combatantName;
-            turnOrderBar.appendChild(turnItem);
-        });
-    } else {
-         console.error("[showBattleCard] Turn order data missing or empty in battleData!");
-    }
-}
-
-// Helper function to find combatant ID by name (needed for highlighting)
-function getCombatantIdByName(battleData, name) {
-    if (battleData.player.name === name) {
-        return "player-combatant"; // Assuming player card has this ID
-    }
-    const enemy = battleData.enemies.find(e => e.name === name);
-    if (enemy) {
-        return `enemy_${enemy.instanceId}`; // Use the ID we assigned when creating the card
-    }
-    return null; // Not found
-}
-
-
-// Function to show and populate the character card overlay
-function showCharacterCard() {
-  const uid = firebase.auth().currentUser.uid;
-  // Retrieve the active character's data
-  database.ref(`players/${uid}`).once('value').then(snapshot => {
-    const data = snapshot.val();
-    const activeCharacterKey = data.activeCharacter;
-    if (activeCharacterKey) {
-      const characterData = data[activeCharacterKey];
-      if (characterData) {
-        // Update image, name, and class as before
-        document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
-        document.getElementById('character-card-name').textContent = characterData.name;
-        document.getElementById('character-card-class').textContent = characterData.class;
-        document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
-        document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
-        document.getElementById('character-card-save').textContent = characterData.stats.save || 0;
-        document.getElementById('character-card-physdr').textContent = characterData.stats.physicalDR || 0;
-        document.getElementById('character-card-magdr').textContent = characterData.stats.magicalDR || 0;
-        document.getElementById('character-card-mainAttacks').textContent = 
-          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
-        document.getElementById('character-card-offAttacks').textContent = 
-          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
-        
-        // *** New: Update Level and XP display ***
-        const currentLevel = characterData.stats.level || 1;
-        const currentXP = characterData.stats.xp || 0;
-        // Look up the required XP for the next level in the global table:
-        const nextLevel = currentLevel + 1;
-        const xpRequired = globalLevelTable[String(nextLevel)] ? globalLevelTable[String(nextLevel)].xpRequired : "Max";
-
-        document.getElementById('character-card-level').textContent = currentLevel;
-        document.getElementById('character-card-xp').textContent = currentXP;
-        document.getElementById('character-card-xpRequired').textContent = xpRequired;
-        
-        // Show the overlay (remove hidden class)
-        document.getElementById('character-card-overlay').classList.remove('hidden');
-      }
-    }
-  }).catch(error => {
-    console.error("Error fetching active character data:", error);
-  });
-}
 
 function renderInventoryUI(inventory) {
   // --- Render Equipment Section ---
