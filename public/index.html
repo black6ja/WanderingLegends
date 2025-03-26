@@ -1854,7 +1854,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // *** USE THE NEW V2 FUNCTION ***
             debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
-            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2 }); // Pass options
+            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
             debugLog(`Successfully completed joinOrCreateRoomV2_PropertyAssignment. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
             // --- Proceed with battle setup ONLY AFTER successful join ---
