@@ -1131,35 +1131,6 @@
         return;
     }
 
-    const oldIndex = currentBattleData.currentTurnIndex;
-    if (!currentBattleData.turnOrder || currentBattleData.turnOrder.length === 0) {
-         debugLog("handleEndTurnEvent PREVENTED: Invalid turnOrder.", true); // <-- ADD
-         addCombatLogMessage("Error: Turn order missing.");
-         return;
-    }
-    currentBattleData.currentTurnIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
-    const newActiveName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
-    debugLog(`Advanced local turn index from ${oldIndex} to ${currentBattleData.currentTurnIndex} (${newActiveName})`); // <-- MODIFY to use new variable
-
-    showBattleCard(currentBattleData);
-
-    if (photonClient.isMasterClient()) {
-        debugLog("handleEndTurnEvent: I am Master Client."); // <-- ADD
-        const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
-        if (activeEnemy) {
-            debugLog(`handleEndTurnEvent: New turn is for enemy ${activeEnemy.name}. Triggering AI.`); // <-- ADD
-            setTimeout(() => {
-                handleEnemyTurn(activeEnemy, currentBattleData.player);
-            }, 750);
-        } else {
-             debugLog(`handleEndTurnEvent: New turn is not for an enemy (${newActiveName}).`); // <-- ADD
-        }
-    } else {
-         debugLog("handleEndTurnEvent: I am not Master Client."); // <-- ADD
-    }
-     debugLog("--- handleEndTurnEvent END ---"); // <-- ADD
-}
-
     // Advance the local turn index
     const oldIndex = currentBattleData.currentTurnIndex;
     currentBattleData.currentTurnIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
