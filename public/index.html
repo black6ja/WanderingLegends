@@ -1658,8 +1658,9 @@ window.showBattleCard = showBattleCard;
         joined = true;
         debugLog("Successfully joined room: " + roomName + " after create attempt.");
         const currentRoom = photonClient.myRoom();
-        debugLog("Current Room Object (after create): " + JSON.stringify(currentRoom)); // Log the whole object
-        debugLog("Current Room maxPlayers (after create): " + currentRoom.maxPlayers); // Log the specific property
+        debugLog("Current Room (after create) Name: " + currentRoom.name);
+        debugLog("Current Room (after create) maxPlayers: " + currentRoom.maxPlayers);
+        debugLog("Current Room (after create) playerCount: " + currentRoom.playerCount);
         break; 
     }
     await new Promise(resolve => setTimeout(resolve, 200));
