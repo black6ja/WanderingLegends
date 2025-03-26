@@ -1849,120 +1849,107 @@ window.showBattleCard = showBattleCard;
 
   });
 
-  /**
- * Reliably joins a Photon room, creating it if it doesn't exist.
- * @param {string} roomName - The name of the room to join or create.
- * @param {object} options - Room options (e.g., { maxPlayers: 2, isOpen: true, isVisible: true }).
+ /**
+ * Attempts to join a room, creating it if it doesn't exist.
+ * Uses temporary global handlers, similar to the working console test pattern.
+ * @param {string} roomName - The name of the room.
+ * @param {object} options - Room options for creation.
  * @param {number} timeout - Maximum time to wait in milliseconds.
- * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object when joined/created, rejects on error or timeout.
+ * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object, rejects on error/timeout.
  */
-function robustJoinOrCreateRoom(roomName, options, timeout = 15000) {
+function simpleJoinOrCreateRoom(roomName, options, timeout = 15000) {
     return new Promise((resolve, reject) => {
-        debugLog(`[robustJoinOrCreateRoom] Attempting join/create for room: ${roomName}`);
+        debugLog(`[simpleJoinOrCreateRoom] Attempting join/create for room: ${roomName}`);
 
-        const originalOnJoinRoom = photonClient.onJoinRoom;
+        // 1. Store Original Global Handlers
+        const originalOnJoin = photonClient.onJoinRoom;
         const originalOnError = photonClient.onError;
+        let handlersRestored = false;
         let timeoutHandle = null;
-        let didCreate = false; // Flag to know if we are in the create phase
+        let tryingToCreate = false; // Flag to know if we called createRoom
 
+        // 2. Define Cleanup Function (Crucial)
         const cleanup = (error = null, room = null) => {
+            if (handlersRestored) return; // Prevent double cleanup
+
             clearTimeout(timeoutHandle);
-            photonClient.onJoinRoom = originalOnJoinRoom;
-            photonClient.onError = originalOnError;
-            debugLog(`[robustJoinOrCreateRoom] Cleaned up handlers for ${roomName}.`);
+            photonClient.onJoinRoom = originalOnJoin; // Restore
+            photonClient.onError = originalOnError;   // Restore
+            handlersRestored = true;
+            debugLog(`[simpleJoinOrCreateRoom] Cleaned up handlers for ${roomName}.`);
+
             if (error) {
                 reject(error);
             } else if (room) {
                 resolve(room);
             } else {
-                // Should not happen, but safeguard
-                reject(new Error(`[robustJoinOrCreateRoom] Cleanup called without error or room for ${roomName}`));
+                // Should ideally not happen if called correctly
+                reject(new Error(`[simpleJoinOrCreateRoom] Cleanup called unexpectedly without error or room for ${roomName}`));
             }
         };
 
+        // 3. Set Timeout for the whole operation
         timeoutHandle = setTimeout(() => {
-            debugLog(`[robustJoinOrCreateRoom] Timed out waiting for join/create: ${roomName}`, true);
+            debugLog(`[simpleJoinOrCreateRoom] Timed out waiting for join/create: ${roomName}`, true);
             cleanup(new Error(`Timed out waiting to join or create room: ${roomName}`));
         }, timeout);
 
-        // Temporary handler for successful join/create
+        // 4. Set Temporary Global Handlers
         photonClient.onJoinRoom = (room) => {
-            debugLog(`[robustJoinOrCreateRoom] onJoinRoom successfully triggered for room: ${room?.name}.`);
-             if (originalOnJoinRoom) {
-                try { originalOnJoinRoom.call(photonClient, room); } catch (e) { debugLog(`Error in originalOnJoinRoom: ${e}`, true); }
-            }
-            // Crucially, check if we joined the *correct* room
+            debugLog(`[simpleJoinOrCreateRoom] Global onJoinRoom triggered for room: ${room?.name}`);
             if (room && room.name === roomName) {
-                debugLog(`[robustJoinOrCreateRoom] Successfully joined/created target room: ${roomName}`);
-                cleanup(null, room); // Resolve the promise with the room object
+                debugLog(`[simpleJoinOrCreateRoom] Successfully joined/created target room: ${roomName}`);
+                cleanup(null, room); // SUCCESS!
             } else {
-                 debugLog(`[robustJoinOrCreateRoom] Joined room "${room?.name}" but expected "${roomName}". Ignoring.`, true);
-                 // Do not resolve or reject, let the timeout handle it if the correct join never happens.
-                 // This prevents resolving early if the client somehow joins another room unexpectedly.
+                 debugLog(`[simpleJoinOrCreateRoom] Joined room "${room?.name}" but expected "${roomName}". Ignoring this join event.`);
+                 // Don't cleanup, wait for the correct join or timeout
             }
         };
 
-        // Temporary handler for errors during join/create
         photonClient.onError = (errorCode, errorMsg) => {
-            debugLog(`[robustJoinOrCreateRoom] onError triggered. Code: ${errorCode}, Msg: ${errorMsg}, In Create Phase: ${didCreate}`);
-            if (originalOnError) {
-                try { originalOnError.call(photonClient, errorCode, errorMsg); } catch (e) { debugLog(`Error in originalOnError: ${e}`, true); }
-            }
-
-            // Photon Error Code for "Game does not exist"
             const GAME_DOES_NOT_EXIST = 32758;
+            debugLog(`[simpleJoinOrCreateRoom] Global onError triggered. Code: ${errorCode}, Msg: ${errorMsg}, TryingToCreate: ${tryingToCreate}`);
 
-            if (!didCreate && errorCode === GAME_DOES_NOT_EXIST) {
-                // Join failed because the room doesn't exist, now try to create it.
-                debugLog(`[robustJoinOrCreateRoom] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
-                didCreate = true; // Mark that we are now in the create phase
+            if (!tryingToCreate && errorCode === GAME_DOES_NOT_EXIST) {
+                // --- EXPECTED path: Join failed, now CREATE ---
+                debugLog(`[simpleJoinOrCreateRoom] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
+                tryingToCreate = true; // Set flag
 
-                debugLog(`[robustJoinOrCreateRoom] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+                debugLog(`[simpleJoinOrCreateRoom] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
                 const createResult = photonClient.createRoom(roomName, options);
-                debugLog(`[robustJoinOrCreateRoom] createRoom call returned: ${createResult}`);
+                debugLog(`[simpleJoinOrCreateRoom] createRoom call returned: ${createResult}`);
 
                 if (!createResult) {
                     // createRoom failed immediately (e.g., client disconnected)
-                    debugLog(`[robustJoinOrCreateRoom] photonClient.createRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
+                    debugLog(`[simpleJoinOrCreateRoom] photonClient.createRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
                     cleanup(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
                 }
-                // If createRoom returns true, we now wait for the onJoinRoom handler to be called.
+                // If createResult is true, DO NOTHING HERE. Wait for onJoinRoom (success) or another onError (create failure).
 
             } else {
-                // Any other error (or error during create phase) is fatal for this attempt.
-                debugLog(`[robustJoinOrCreateRoom] Unrecoverable error or error during create phase. Code: ${errorCode}, Msg: ${errorMsg}`, true);
+                // --- UNEXPECTED path: Different error, or error during create ---
+                debugLog(`[simpleJoinOrCreateRoom] Unrecoverable error or error during create phase. Code: ${errorCode}, Msg: ${errorMsg}`, true);
                 cleanup(new Error(`Photon error during join/create room ${roomName}: ${errorMsg} (${errorCode})`));
             }
         };
+        debugLog(`[simpleJoinOrCreateRoom] Temporary global handlers set for ${roomName}.`);
 
-        // --- Start the process: Try to Join ---
-        debugLog(`[robustJoinOrCreateRoom] Calling joinRoom: ${roomName}`);
-        if (!photonClient.joinRoom(roomName)) { // Pass options only to createRoom if needed, joinRoom often doesn't need them or uses different ones. Check Photon docs.
+        // 5. Initiate the Process: Try to Join
+        debugLog(`[simpleJoinOrCreateRoom] Calling joinRoom: ${roomName}`);
+        const joinResult = photonClient.joinRoom(roomName);
+        debugLog(`[simpleJoinOrCreateRoom] joinRoom call returned: ${joinResult}`);
+
+        if (!joinResult) {
              // joinRoom failed immediately
-             debugLog(`[robustJoinOrCreateRoom] photonClient.joinRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
+             debugLog(`[simpleJoinOrCreateRoom] photonClient.joinRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
              cleanup(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
         }
-        // Now we wait for onJoinRoom or the temporary onError handler
+        // If joinResult is true, wait for onJoinRoom or onError...
     });
 }
 
 
-/**
- * Prepares the Photon client and then joins or creates the specified battle room.
- * Handles leaving existing rooms and potential reconnects.
- * @param {string} roomName - The name of the battle room.
- * @param {object} options - Room options for creation.
- * @param {number} timeout - Overall timeout for the entire operation.
- * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the joined Room object.
- */
- /**
- * Prepares the Photon client and then joins or creates the specified battle room.
- * Handles leaving existing rooms gracefully.
- * @param {string} roomName - The name of the battle room.
- * @param {object} options - Room options for creation.
- * @param {number} timeout - Overall timeout for the entire operation.
- * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the joined Room object.
- */
+
 async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { // Slightly shorter timeout maybe
     debugLog(`[prepareAndJoinBattleRoom] Starting preparation for room: ${roomName}`);
     const overallStartTime = Date.now();
@@ -2029,7 +2016,7 @@ async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { //
         const remainingTime = timeout - (Date.now() - overallStartTime);
         if (remainingTime <= 1000) throw new Error("Not enough time remaining for join/create operation.");
 
-        const joinedRoom = await robustJoinOrCreateRoom(roomName, options, remainingTime);
+        const joinedRoom = await simpleJoinOrCreateRoom(roomName, options, remainingTime); // Use the new function
         debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
         return joinedRoom;
 
