@@ -1161,6 +1161,122 @@
 }
 
 /**
+ * Creates or updates the local currentBattleData based on room properties.
+ * Called on join or when initial properties are received.
+ */
+ function updateLocalBattleDataFromProps(props, roomId) {
+     if (!props || !props[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED]) {
+         debugLog("Cannot update local data: Initial props missing or incomplete.", true);
+         return;
+     }
+     // Prevent re-initializing if data already exists (e.g., if both onJoin and onProps fire)
+     if (currentBattleData) {
+          debugLog("Local battle data already exists, likely skipping update from props.");
+          // If turn index is the ONLY thing changing via props later, handle it here.
+          if (props.hasOwnProperty(ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX) && currentBattleData.currentTurnIndex !== props[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] ) {
+               debugLog("Updating only turn index from props.");
+               currentBattleData.currentTurnIndex = props[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX];
+               showBattleCard(currentBattleData); // Refresh UI for turn index change
+          }
+          return;
+     }
+
+     debugLog("Updating local battle data from room properties...");
+
+     const turnOrderNames = props[ROOM_PROPERTY_KEYS.TURN_ORDER];
+     const combatantsStaticData = props[ROOM_PROPERTY_KEYS.COMBATANTS];
+     const currentTurnIndex = props[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX];
+     const myActorNr = photonClient.myActor()?.actorNr; // Use optional chaining
+
+     if (typeof myActorNr === 'undefined') {
+          debugLog("Error: Cannot get myActorNr, client might not be fully joined.", true);
+          addCombatLogMessage("Error synchronizing player.");
+          return; // Cannot proceed without actor number
+     }
+
+     let localPlayer = null;
+     const localEnemies = [];
+
+     // Reconstruct player and enemy data locally
+     for (const id in combatantsStaticData) {
+         const staticData = combatantsStaticData[id];
+         if (staticData && id == myActorNr) { // It's me!
+              // Reconstruct player data. Assume base stats were calculated before joining.
+              // Fetching full player data AGAIN here might be complex.
+              // Prioritize data from props, assume currentHp starts at maxHp from props.
+              localPlayer = {
+                 // ...(currentBattleData?.player || {}), // Avoid complex merge on initial load
+                 actorNr: myActorNr,
+                 name: staticData.name,
+                 maxHp: staticData.maxHp,
+                 currentHp: staticData.maxHp, // START AT FULL HP from props
+                 ac: staticData.ac,
+                 // --- Get crucial display data if available ---
+                 // These might need to be fetched again or passed differently if not in props
+                 level: 1, // Placeholder - How to get level/class reliably? Maybe set player properties?
+                 class: "Class?", // Placeholder
+                 imageUrl: "/images/character-placeholder.png", // Placeholder
+                 physicalDR: 0, // Placeholder - Recalculate or store in props/player props?
+                 magicalDR: 0, // Placeholder
+                 save: 0, // Placeholder
+                 statusEffects: [] // Initialize empty
+                 // TODO: Re-evaluate how to get full player display stats reliably on join.
+                 // Simplest might be to set them as Player Custom Properties on join.
+              };
+              // Attempt to find richer data from initial calculation if it exists (race condition possible)
+              if (window.playerBattleDataForProps) { // Check if initial data is stored globally temporarily
+                  localPlayer.level = window.playerBattleDataForProps.level || localPlayer.level;
+                  localPlayer.class = window.playerBattleDataForProps.class || localPlayer.class;
+                  localPlayer.imageUrl = window.playerBattleDataForProps.imageUrl || localPlayer.imageUrl;
+                  localPlayer.physicalDR = window.playerBattleDataForProps.physicalDR || localPlayer.physicalDR;
+                  localPlayer.magicalDR = window.playerBattleDataForProps.magicalDR || localPlayer.magicalDR;
+                  localPlayer.save = window.playerBattleDataForProps.save || localPlayer.save;
+              }
+
+         } else if (staticData && !isNaN(parseInt(id))) {
+             // It's another player - basic representation
+              debugLog(`Found other player Actor ${id} in props.`);
+              // Store minimal data for now if needed later
+         } else if (staticData) { // It's an enemy (using instanceId as key)
+             localEnemies.push({
+                 instanceId: id,
+                 name: staticData.name,
+                 maxHp: staticData.maxHp,
+                 currentHp: staticData.maxHp, // START AT FULL HP from props
+                 ac: staticData.ac,
+                 attackBonus: staticData.attackBonus,
+                 attackDamage: staticData.attackDamage,
+                 physicalDR: staticData.physicalDR, // Store the object {amount: X}
+                 magicalDR: staticData.magicalDR,   // Store the object {amount: X}
+                 save: staticData.save || 0,
+                 imageUrl: creatureTable[staticData.templateId]?.imageUrl || "/images/enemy-placeholder.png", // Try to get image URL from local table
+                 statusEffects: [] // Initialize empty
+             });
+         }
+     }
+
+     if (!localPlayer) {
+         debugLog("Error: My player data still not found after processing room props!", true);
+         addCombatLogMessage("Error synchronizing player data.");
+         // Consider trying again shortly? Or leaving the room?
+         return;
+     }
+
+
+     currentBattleData = {
+         roomId: roomId,
+         player: localPlayer,
+         enemies: localEnemies,
+         turnOrder: turnOrderNames,
+         currentTurnIndex: currentTurnIndex
+     };
+
+     debugLog("Successfully updated local battle data:", JSON.stringify(currentBattleData));
+     addCombatLogMessage("Battle synchronized. Ready!");
+     showBattleCard(currentBattleData); // NOW update the UI with the synced state
+ }
+
+/**
  * Handles the reception of an ENEMY_ACTION event from Photon.
  * Updates the local battle state based on the action results and refreshes the UI.
  * @param {object} content - The event data sent by the Master Client.
@@ -3236,7 +3352,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Show initial empty/loading card or wait for properties?
             // Let's show the card structure but maybe disable buttons until state is confirmed.
-             initializeBattleCardUI(); // A function to just show the structure, maybe disable buttons
+            showBattleCard(currentBattleData); // A function to just show the structure, maybe disable buttons
 
 
         } catch (err) {
