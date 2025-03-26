@@ -1648,36 +1648,43 @@ window.showBattleCard = showBattleCard;
   });
 
   async function joinOrCreateRoom(roomName, options) {
-  // Try to join the room
   debugLog("Attempting to join room: " + roomName);
   photonClient.joinRoom(roomName, options);
 
-  // Wait for a short period to see if we have joined the room
   let joined = false;
-  for (let i = 0; i < 15; i++) { // check every 200ms, total ~3 seconds
-    if (photonClient.myRoom()) {
-      joined = true;
-      break;
+  debugLog("Waiting after join attempt for room: " + roomName);
+  for (let i = 0; i < 15; i++) { 
+    if (photonClient.myRoom() && photonClient.myRoom().name === roomName) {
+        joined = true;
+        debugLog("Successfully joined room: " + roomName + " after create attempt.");
+        const currentRoom = photonClient.myRoom();
+        debugLog("Current Room Object (after create): " + JSON.stringify(currentRoom)); // Log the whole object
+        debugLog("Current Room maxPlayers (after create): " + currentRoom.maxPlayers); // Log the specific property
+        break; 
     }
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-
-  // If not joined, try to create the room
+  
   if (!joined) {
-    debugLog("Join failed, creating room: " + roomName);
+    debugLog("Initial join failed or timed out for room: " + roomName + ". Attempting to create.");
     photonClient.createRoom(roomName, options);
-    // Wait again to see if the room was created and joined
+    
+    debugLog("Waiting after create attempt for room: " + roomName);
     for (let i = 0; i < 15; i++) {
-      if (photonClient.myRoom()) {
+      if (photonClient.myRoom() && photonClient.myRoom().name === roomName) { // Check name too
         joined = true;
+        debugLog("Successfully joined room: " + roomName + " after create attempt.");
         break;
       }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
+    
     if (!joined) {
+      debugLog("FATAL: Could not join or create room: " + roomName);
       throw new Error("Could not join or create room: " + roomName);
     }
   }
+  debugLog("Exiting joinOrCreateRoom successfully for: " + roomName);
 }
 
 
