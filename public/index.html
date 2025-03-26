@@ -1948,7 +1948,110 @@ function simpleJoinOrCreateRoom(roomName, options, timeout = 15000) {
     });
 }
 
+/**
+ * Attempts to join a room. If the join doesn't succeed quickly
+ * (likely indicating it doesn't exist), it then attempts to create it.
+ * Uses temporary global handlers.
+ *
+ * @param {string} roomName - The name of the room.
+ * @param {object} options - Room options for creation.
+ * @param {number} joinAttemptTimeout - Max time (ms) to wait for join before assuming failure and trying create.
+ * @param {number} createAttemptTimeout - Max time (ms) to wait for create after join fails.
+ * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object, rejects on error/timeout.
+ */
+ function tryJoinThenCreateRoom(roomName, options, joinAttemptTimeout = 1500, createAttemptTimeout = 10000) {
+    return new Promise((resolve, reject) => {
+        debugLog(`[tryJoinThenCreateRoom] Attempting sequence for room: ${roomName}`);
 
+        const originalOnJoin = photonClient.onJoinRoom;
+        const originalOnError = photonClient.onError;
+        let handlersRestored = false;
+        let overallTimeoutHandle = null;
+        let joinSpecificTimeoutHandle = null;
+        let currentPhase = 'joining'; // 'joining' or 'creating'
+
+        const cleanup = (error = null, room = null) => {
+            if (handlersRestored) return;
+            handlersRestored = true;
+
+            clearTimeout(overallTimeoutHandle);
+            clearTimeout(joinSpecificTimeoutHandle);
+            photonClient.onJoinRoom = originalOnJoin;
+            photonClient.onError = originalOnError;
+            debugLog(`[tryJoinThenCreateRoom] Cleaned up handlers for ${roomName}.`);
+
+            if (error) reject(error);
+            else if (room) resolve(room);
+            else reject(new Error(`[tryJoinThenCreateRoom] Cleanup called unexpectedly for ${roomName}`));
+        };
+
+        // Overall timeout for the entire sequence
+        overallTimeoutHandle = setTimeout(() => {
+            debugLog(`[tryJoinThenCreateRoom] Overall sequence timed out for ${roomName} (Phase: ${currentPhase})`, true);
+            cleanup(new Error(`Overall timeout waiting to join/create room: ${roomName}`));
+        }, joinAttemptTimeout + createAttemptTimeout + 500); // Total time + buffer
+
+        // --- Temporary Handlers ---
+        photonClient.onJoinRoom = (room) => {
+            debugLog(`[tryJoinThenCreateRoom] Global onJoinRoom triggered (Phase: ${currentPhase}) for room: ${room?.name}`);
+            if (room && room.name === roomName) {
+                // SUCCESS! (Could be from join or create attempt)
+                debugLog(`[tryJoinThenCreateRoom] Successfully joined/created target room: ${roomName}`);
+                cleanup(null, room);
+            } else {
+                debugLog(`[tryJoinThenCreateRoom] Joined room "${room?.name}" but expected "${roomName}". Ignoring.`);
+            }
+        };
+
+        photonClient.onError = (errorCode, errorMsg) => {
+            // We are *not* relying on 32758 here anymore.
+            // Any error during join or create is now considered fatal for this attempt.
+            debugLog(`[tryJoinThenCreateRoom] Global onError triggered (Phase: ${currentPhase}). Code: ${errorCode}, Msg: ${errorMsg}`, true);
+            cleanup(new Error(`Photon error during ${currentPhase} room ${roomName}: ${errorMsg} (${errorCode})`));
+        };
+        debugLog(`[tryJoinThenCreateRoom] Temporary global handlers set for ${roomName}.`);
+
+
+        // --- Phase 1: Try to Join ---
+        currentPhase = 'joining';
+        debugLog(`[tryJoinThenCreateRoom] Phase 1: Calling joinRoom: ${roomName}`);
+        const joinResult = photonClient.joinRoom(roomName);
+        debugLog(`[tryJoinThenCreateRoom] joinRoom call returned: ${joinResult}`);
+
+        if (!joinResult) {
+            // joinRoom failed immediately
+            debugLog(`[tryJoinThenCreateRoom] joinRoom call failed immediately. Aborting. Client state: ${photonClient.state}`, true);
+            cleanup(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+            return; // Stop execution
+        }
+
+        // Set a specific timeout for the JOIN attempt
+        joinSpecificTimeoutHandle = setTimeout(() => {
+            // If this timeout fires, it means onJoinRoom did NOT fire quickly enough.
+            // We ASSUME the room doesn't exist and proceed to CREATE.
+            // We *don't* clean up handlers yet, as they are needed for the create phase.
+            debugLog(`[tryJoinThenCreateRoom] Join attempt timed out after ${joinAttemptTimeout}ms. Assuming room doesn't exist. Proceeding to create.`);
+
+            // --- Phase 2: Try to Create ---
+            currentPhase = 'creating';
+            debugLog(`[tryJoinThenCreateRoom] Phase 2: Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+            const createResult = photonClient.createRoom(roomName, options);
+            debugLog(`[tryJoinThenCreateRoom] createRoom call returned: ${createResult}`);
+
+            if (!createResult) {
+                // createRoom failed immediately
+                debugLog(`[tryJoinThenCreateRoom] createRoom call failed immediately. Aborting. Client state: ${photonClient.state}`, true);
+                cleanup(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+            }
+            // If create succeeded, we now wait for onJoinRoom or onError (handled by the global handlers)
+            // The overallTimeoutHandle is still running for this create phase.
+
+        }, joinAttemptTimeout);
+
+        debugLog(`[tryJoinThenCreateRoom] Waiting up to ${joinAttemptTimeout}ms for join success before attempting create...`);
+
+    });
+}
 
 async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { // Slightly shorter timeout maybe
     debugLog(`[prepareAndJoinBattleRoom] Starting preparation for room: ${roomName}`);
@@ -2016,7 +2119,7 @@ async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { //
         const remainingTime = timeout - (Date.now() - overallStartTime);
         if (remainingTime <= 1000) throw new Error("Not enough time remaining for join/create operation.");
 
-        const joinedRoom = await simpleJoinOrCreateRoom(roomName, options, remainingTime); // Use the new function
+        const joinedRoom = await tryJoinThenCreateRoom(roomName, options, remainingJoinTime, remainingCreateTime); // Use the new function
         debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
         return joinedRoom;
 
