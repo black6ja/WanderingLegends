@@ -2570,47 +2570,132 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 // The showBattleCard() function to render the battle UI.
+// Update the showBattleCard function
+
 function showBattleCard(battleData) {
-  const battleCard = document.getElementById("battle-card");
-  battleCard.classList.remove("hidden");
-  
-  // Update player stats.
-  document.getElementById("player-hp").textContent = battleData.player.hp;
-  document.getElementById("player-ac").textContent = battleData.player.ac;
-  document.getElementById("player-image").src = battleData.player.imageUrl || "/images/character-placeholder.png";
-  
-  // Render enemy combatants.
-  const enemyContainer = document.getElementById("enemy-combatants");
-  enemyContainer.innerHTML = "";
-  battleData.enemies.forEach(enemy => {
-    const enemyCard = document.createElement("div");
-    enemyCard.classList.add("combatant", "enemy");
-    enemyCard.innerHTML = `
-      <img src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
-      <div class="stats">
-        <span>${enemy.name}</span>
-        <span>HP: <span>${enemy.hp}</span></span>
-        <span>AC: <span>${enemy.ac}</span></span>
-      </div>
-      <div class="status-effects">
-        <!-- Status effect icons can go here. -->
-      </div>
-    `;
-    enemyContainer.appendChild(enemyCard);
-  });
-  
-  // Update turn order display.
-  const turnOrderBar = document.getElementById("turn-order-bar");
-  turnOrderBar.innerHTML = "";
-  battleData.turnOrder.forEach((name, index) => {
-    const turnItem = document.createElement("span");
-    turnItem.classList.add("turn-item");
-    if (index === battleData.currentTurnIndex) {
-      turnItem.classList.add("active");
+    const battleCard = document.getElementById("battle-card");
+    if (!battleCard) {
+        console.error("Battle card element not found!");
+        return;
     }
-    turnItem.textContent = name;
-    turnOrderBar.appendChild(turnItem);
-  });
+    battleCard.classList.remove("hidden");
+
+    debugLog("[showBattleCard] Updating battle display with data:", battleData);
+
+    // --- Update Player Section ---
+    const player = battleData.player;
+    if (player) {
+        document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
+        document.getElementById("player-name").textContent = player.name || "Player"; // Display name
+        document.getElementById("player-level").textContent = player.level || 1; // Display level
+        document.getElementById("player-class").textContent = player.class || "Class"; // Display class
+        document.getElementById("player-current-hp").textContent = player.currentHp;
+        document.getElementById("player-max-hp").textContent = player.maxHp; // Display Max HP
+        document.getElementById("player-ac").textContent = player.ac;
+        document.getElementById("player-phys-dr").textContent = player.physicalDR; // Display Phys DR
+        document.getElementById("player-mag-dr").textContent = player.magicalDR;   // Display Mag DR
+        document.getElementById("player-save").textContent = player.save;       // Display Save
+
+        // Main Hand Attack Info
+        document.getElementById("player-mh-attacks").textContent = player.mainHand?.numAttacks ?? '?';
+        document.getElementById("player-mh-hit").textContent = player.mainHand?.toHitBonus ?? '?';
+        document.getElementById("player-mh-damage").textContent = player.mainHand?.damageString ?? '?';
+        document.getElementById("player-mh-type").textContent = player.mainHand?.damageType ?? '?';
+
+        // Off Hand Attack Info
+         document.getElementById("player-oh-attacks").textContent = player.offHand?.numAttacks ?? '?';
+        document.getElementById("player-oh-hit").textContent = player.offHand?.toHitBonus ?? '?';
+        document.getElementById("player-oh-damage").textContent = player.offHand?.damageString ?? 'N/A';
+         document.getElementById("player-oh-type").textContent = player.offHand?.damageType ?? 'N/A';
+
+        // Update Player Status Effects (placeholder)
+        const playerStatusDiv = document.getElementById("player-status");
+        playerStatusDiv.innerHTML = ""; // Clear old statuses
+        // TODO: Loop through player.statusEffects and render them
+        if (player.statusEffects && player.statusEffects.length > 0) {
+             // Example: playerStatusDiv.innerHTML = '<span>🔥</span>';
+        }
+
+    } else {
+        console.error("[showBattleCard] Player data missing in battleData!");
+    }
+
+    // --- Update Enemy Section ---
+    const enemyContainer = document.getElementById("enemy-combatants");
+    enemyContainer.innerHTML = ""; // Clear previous enemies
+
+    if (battleData.enemies && battleData.enemies.length > 0) {
+        battleData.enemies.forEach(enemy => {
+            // Create enemy card structure dynamically (or use a template)
+            const enemyCard = document.createElement("div");
+            enemyCard.classList.add("combatant", "enemy");
+            // Set a unique ID based on instanceId if needed for targeting
+            enemyCard.id = `enemy_${enemy.instanceId}`;
+
+            // Basic structure (adapt based on your exact HTML template in the comment)
+            enemyCard.innerHTML = `
+                <img class="enemy-image" src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
+                <h4 class="enemy-name">${enemy.name || 'Enemy'}</h4>
+                <div class="stats">
+                    <span>HP: <span class="enemy-current-hp">${enemy.currentHp}</span> / <span class="enemy-max-hp">${enemy.maxHp}</span></span>
+                    <span>AC: <span class="enemy-ac">${enemy.ac}</span></span>
+                    <span>PhysDR: <span class="enemy-phys-dr">${enemy.physicalDR?.amount ?? 0}</span></span> <!-- Display DR amount -->
+                    <span>MagDR: <span class="enemy-mag-dr">${enemy.magicalDR?.amount ?? 0}</span></span> <!-- Display DR amount -->
+                    <span>Save: <span class="enemy-save">${enemy.save}</span></span>
+                </div>
+                <div class="attack-info">
+                    <span>Attack: +<span class="enemy-attack-bonus">${enemy.attackBonus}</span> | <span class="enemy-attack-damage">${enemy.attackDamage}</span></span>
+                </div>
+                <div class="status-effects enemy-status" id="status_${enemy.instanceId}">
+                    <!-- Status effects for this enemy -->
+                </div>
+            `;
+            enemyContainer.appendChild(enemyCard);
+
+             // Update Enemy Status Effects (placeholder)
+             const enemyStatusDiv = enemyCard.querySelector(`#status_${enemy.instanceId}`);
+             if (enemyStatusDiv) {
+                enemyStatusDiv.innerHTML = ""; // Clear old
+                 // TODO: Loop through enemy.statusEffects and render them
+             }
+        });
+    } else {
+        console.error("[showBattleCard] Enemies data missing or empty in battleData!");
+    }
+
+    // --- Update Turn Order Bar ---
+    const turnOrderBar = document.getElementById("turn-order-bar");
+    turnOrderBar.innerHTML = ""; // Clear old
+    if (battleData.turnOrder && battleData.turnOrder.length > 0) {
+        battleData.turnOrder.forEach((combatantName, index) => {
+            const turnItem = document.createElement("span");
+            turnItem.classList.add("turn-item");
+            // Highlight the active turn
+            if (index === battleData.currentTurnIndex) {
+                turnItem.classList.add("active");
+                 // Also highlight the corresponding combatant card
+                 const activeCombatantId = getCombatantIdByName(battleData, combatantName); // Helper needed
+                 const activeCard = document.getElementById(activeCombatantId);
+                 if(activeCard) activeCard.classList.add('active'); // Ensure 'active' CSS exists for combatant
+            }
+            turnItem.textContent = combatantName;
+            turnOrderBar.appendChild(turnItem);
+        });
+    } else {
+         console.error("[showBattleCard] Turn order data missing or empty in battleData!");
+    }
+}
+
+// Helper function to find combatant ID by name (needed for highlighting)
+function getCombatantIdByName(battleData, name) {
+    if (battleData.player.name === name) {
+        return "player-combatant"; // Assuming player card has this ID
+    }
+    const enemy = battleData.enemies.find(e => e.name === name);
+    if (enemy) {
+        return `enemy_${enemy.instanceId}`; // Use the ID we assigned when creating the card
+    }
+    return null; // Not found
 }
 
 
@@ -3188,11 +3273,8 @@ function showItemCard(item) {
 <div id="battle-card" class="battle-card hidden">
   <div class="battle-header">
     <h2>Battle</h2>
-    <!-- Turn Order Bar: displays the initiative order -->
     <div id="turn-order-bar" class="turn-order-bar">
-      <!-- Example turn items; will be dynamically generated -->
-      <!-- <span class="turn-item active">Player</span>
-      <span class="turn-item">Goblin</span> -->
+      <!-- Turn items dynamically generated -->
     </div>
   </div>
   <div class="battle-body">
@@ -3200,21 +3282,52 @@ function showItemCard(item) {
       <!-- Player Combatant Card -->
       <div class="combatant player" id="player-combatant">
         <img id="player-image" src="/images/character-placeholder.png" alt="Player" />
+         <h4 id="player-name">Player Name</h4> <!-- ADDED NAME -->
+         <p>Level <span id="player-level">1</span> <span id="player-class">Class</span></p> <!-- ADDED LEVEL/CLASS -->
         <div class="stats">
-          <span>HP: <span id="player-hp">100</span></span>
+          <!-- ADDED Max HP -->
+          <span>HP: <span id="player-current-hp">100</span> / <span id="player-max-hp">100</span></span>
           <span>AC: <span id="player-ac">18</span></span>
+           <!-- ADDED DR and Save -->
+           <span>PhysDR: <span id="player-phys-dr">0</span></span>
+           <span>MagDR: <span id="player-mag-dr">0</span></span>
+           <span>Save: <span id="player-save">0</span></span>
         </div>
+         <!-- ADDED Detailed Attack Info -->
+         <div class="attack-info">
+            <div><strong>MH:</strong> <span id="player-mh-attacks">1</span>x | Hit +<span id="player-mh-hit">0</span> | <span id="player-mh-damage">1d4+0</span> (<span id="player-mh-type">type</span>)</div>
+            <div><strong>OH:</strong> <span id="player-oh-attacks">0</span>x | Hit +<span id="player-oh-hit">0</span> | <span id="player-oh-damage">N/A</span> (<span id="player-oh-type">N/A</span>)</div>
+         </div>
         <div class="actions">
           <button id="action-attack">Attack</button>
-          <button id="action-special">Special</button>
+          <button id="action-special" disabled>Special</button> <!-- Disabled for now -->
         </div>
         <div class="status-effects" id="player-status">
           <!-- Status effect icons go here -->
+          <!-- <span class="status-icon burning">🔥</span> -->
         </div>
       </div>
       <!-- Enemy Combatant Cards Container -->
       <div class="combatant enemies" id="enemy-combatants">
-        <!-- Enemy cards will be appended here dynamically -->
+        <!-- Enemy card template below (will be cloned) -->
+         <!--
+         <div class="combatant enemy">
+            <img class="enemy-image" src="/images/enemy-placeholder.png" alt="Enemy" />
+            <h4 class="enemy-name">Enemy Name</h4>
+            <div class="stats">
+                <span>HP: <span class="enemy-current-hp">30</span> / <span class="enemy-max-hp">30</span></span>
+                <span>AC: <span class="enemy-ac">14</span></span>
+                <span>PhysDR: <span class="enemy-phys-dr">0</span></span>
+                <span>MagDR: <span class="enemy-mag-dr">0</span></span>
+                <span>Save: <span class="enemy-save">0</span></span>
+            </div>
+            <div class="attack-info">
+                <span>Attack: +<span class="enemy-attack-bonus">4</span> | <span class="enemy-attack-damage">1d8+2</span></span>
+            </div>
+            <div class="status-effects enemy-status">
+            </div>
+         </div>
+          -->
       </div>
     </div>
   </div>
