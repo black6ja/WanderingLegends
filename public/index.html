@@ -1122,11 +1122,43 @@
  * Advances the local turn index and triggers AI if necessary (on Master Client).
  */
  function handleEndTurnEvent() {
+    // --- ADD LOGGING ---
+    debugLog("--- handleEndTurnEvent START ---"); // <-- ADD
+
     if (!currentBattleData) {
-        debugLog("Received END_TURN event but no local battle data exists.", true);
+        debugLog("handleEndTurnEvent PREVENTED: currentBattleData is null."); // <-- ADD
         addCombatLogMessage("Error: Battle data lost.");
         return;
     }
+
+    const oldIndex = currentBattleData.currentTurnIndex;
+    if (!currentBattleData.turnOrder || currentBattleData.turnOrder.length === 0) {
+         debugLog("handleEndTurnEvent PREVENTED: Invalid turnOrder.", true); // <-- ADD
+         addCombatLogMessage("Error: Turn order missing.");
+         return;
+    }
+    currentBattleData.currentTurnIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
+    const newActiveName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+    debugLog(`Advanced local turn index from ${oldIndex} to ${currentBattleData.currentTurnIndex} (${newActiveName})`); // <-- MODIFY to use new variable
+
+    showBattleCard(currentBattleData);
+
+    if (photonClient.isMasterClient()) {
+        debugLog("handleEndTurnEvent: I am Master Client."); // <-- ADD
+        const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
+        if (activeEnemy) {
+            debugLog(`handleEndTurnEvent: New turn is for enemy ${activeEnemy.name}. Triggering AI.`); // <-- ADD
+            setTimeout(() => {
+                handleEnemyTurn(activeEnemy, currentBattleData.player);
+            }, 750);
+        } else {
+             debugLog(`handleEndTurnEvent: New turn is not for an enemy (${newActiveName}).`); // <-- ADD
+        }
+    } else {
+         debugLog("handleEndTurnEvent: I am not Master Client."); // <-- ADD
+    }
+     debugLog("--- handleEndTurnEvent END ---"); // <-- ADD
+}
 
     // Advance the local turn index
     const oldIndex = currentBattleData.currentTurnIndex;
@@ -2039,6 +2071,7 @@ function debugLog(message, isError = false) {
 
         photonClient.onEvent = function(code, content, actorNr) {
             debugLog(`Photon: Received event ${code} from actor ${actorNr}. Content:`, content);
+            debugLog(`>>> PHOTON EVENT RECEIVED: Code=${code}, Actor=${actorNr}, Content=`, content);
             const senderActor = photonClient.myRoom()?.getActor(actorNr);
             // Try getting a name if you set it as a player property, otherwise use actorNr
             const senderName = senderActor?.getCustomProperty('playerName') || `Actor ${actorNr}`;
@@ -2293,7 +2326,7 @@ function showBattleCard(battleData) {
             }
             // Log message handled elsewhere (handleEndTurnEvent/handleEnemyTurn)
         }
-
+        debugLog(`showBattleCard: Setting button states. isPlayerTurn = ${isPlayerTurn}`); // <-- ADD THIS LINE (around line 1345)
          // --- Enable/Disable Action Buttons Based ONLY on isPlayerTurn ---
          document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
          // Also check if player data exists and has offhand attacks
@@ -2599,6 +2632,73 @@ window.showBattleCard = showBattleCard;
           document.getElementById("inventory-card").classList.add("hidden");
         });
 
+        const endTurnButton = document.getElementById("end-turn"); // Now safely inside DOMContentLoaded
+          if (endTurnButton) {
+              endTurnButton.addEventListener("click", function() {
+                  // --- ADD LOGGING ---
+                  debugLog("End Turn button CLICKED."); // <-- ADD
+
+                  if (!currentBattleData || !photonClient.isJoinedToRoom()) {
+                      debugLog(`End Turn PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}`); // <-- ADD
+                      console.error("Cannot end turn: No battle data or not in room.");
+                      addCombatLogMessage("Cannot end turn now.");
+                      return;
+                  }
+                  if (!photonClient || !photonClient.myActor()) {
+                      debugLog("End Turn PREVENTED: Photon client or actor not ready."); // <-- ADD
+                      console.error("Cannot end turn: Photon client or actor not ready.");
+                      addCombatLogMessage("Error: Connection issue.");
+                      return;
+                  }
+
+                  const myActorNr = photonClient.myActor().actorNr;
+                  const currentTurnIndex = currentBattleData.currentTurnIndex;
+                  if (!currentBattleData.turnOrder || typeof currentTurnIndex !== 'number' || currentTurnIndex < 0 || currentTurnIndex >= currentBattleData.turnOrder.length) {
+                      debugLog(`End Turn PREVENTED: Invalid turn data. Index: ${currentTurnIndex}, Order Length: ${currentBattleData.turnOrder?.length}`); // <-- ADD
+                      console.error("Invalid turn data, cannot end turn.");
+                      addCombatLogMessage("Error: Turn data corrupted.");
+                      return;
+                  }
+                  const activeName = currentBattleData.turnOrder[currentTurnIndex];
+                  const isMyTurn = currentBattleData.player && currentBattleData.player.name === activeName && currentBattleData.player.actorNr === myActorNr;
+
+                  debugLog(`End Turn Check: MyTurn=${isMyTurn}, ActiveName=${activeName}, MyName=${currentBattleData.player?.name}, MyActorNr=${myActorNr}`); // <-- ADD
+
+                  if (isMyTurn) {
+                      addCombatLogMessage(`${currentBattleData.player.name} ends their turn.`);
+                      debugLog("Player clicking End Turn. Sending END_TURN event."); // <-- ADD
+                      photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
+
+                      // Disable buttons locally immediately
+                      document.getElementById('action-attack-mh').disabled = true;
+                      document.getElementById('action-attack-oh').disabled = true;
+                      document.getElementById('action-special').disabled = true;
+                      document.getElementById('action-item').disabled = true;
+                      document.getElementById('end-turn').disabled = true;
+
+                  } else {
+                      addCombatLogMessage("Not your turn!");
+                      debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`); // <-- ADD
+                  }
+              });
+          }
+
+          const attackMhButton = document.getElementById("action-attack-mh");
+          if (attackMhButton) {
+              attackMhButton.addEventListener("click", function() {
+                  // --- ADD LOGGING ---
+                  debugLog("Attack (MH) button CLICKED."); // <-- ADD
+
+                  if (!currentBattleData || !photonClient.isJoinedToRoom() || this.disabled) {
+                        debugLog(`Attack PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}, disabled=${this.disabled}`); // <-- ADD
+                        return;
+                  }
+
+                  addCombatLogMessage("Attack (MH) Clicked - Action NOT YET IMPLEMENTED");
+                  debugLog("Player Attack MH clicked - logic pending.");
+                  // ... (Future implementation) ...
+              });
+          }
 
   });
 
@@ -3173,7 +3273,6 @@ async function forceResetPhoton() {
 }
 
 // Modify the attack-button click event listener to initialize the battle.
-// Modify the attack-button click event listener
 document.addEventListener("DOMContentLoaded", function () {
     const attackBtn = document.getElementById("attack-button");
 
@@ -3365,8 +3464,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         // No finally block to re-enable attackBtn, it stays disabled during battle
     });
-
-    // ... Keep other DOMContentLoaded listeners ...
 });
 
 // Helper function to show the card structure but maybe disable actions
