@@ -708,6 +708,242 @@
   display: none;
 }
 
+/* --- Modern Battle Card Styles --- */
+.modern-battle {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill the screen */
+  width: 100%;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #e0e0e0;
+  font-family: Arial, sans-serif; /* Or keep Cinzel if preferred */
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden; /* Prevent accidental scrolling */
+}
+
+.combat-section {
+  padding: 10px 15px;
+  /* border-bottom: 1px solid rgba(255, 215, 0, 0.2); */ /* Optional separator */
+}
+
+.enemy-section {
+  /* background: rgba(0,0,0, 0.1); */ /* Slightly different bg if desired */
+}
+
+.player-section {
+   /* background: rgba(0,0,0, 0.1); */
+}
+
+.combatant-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 8px;
+}
+/* Reverse order for player */
+.player-section .combatant-info {
+  flex-direction: row-reverse;
+}
+
+.combatant-portrait {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #4a4a6a;
+  background-color: #333; /* Placeholder bg */
+}
+
+.details {
+  flex: 1;
+  text-align: left;
+}
+.player-section .details {
+  text-align: right;
+}
+
+.details h4 {
+  margin: 0 0 4px 0;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #FFD700; /* Gold for names */
+  font-family: 'Cinzel', serif; /* Keep theme font for names */
+}
+
+.details p {
+    margin: 0 0 5px 0;
+    font-size: 0.8em;
+    color: #aaa;
+}
+
+.stats-row {
+  font-size: 0.85em;
+  color: #ccc;
+  display: flex;
+  gap: 15px; /* Space out stats */
+  margin-top: 3px;
+}
+/* Justify right for player stats */
+.player-section .stats-row {
+    justify-content: flex-end;
+}
+.dr-row {
+    color: #a0c0ff; /* Different color for DR */
+}
+
+.hp-bar-container {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.hp-bar {
+  background-color: #444; /* Dark background for the bar */
+  border-radius: 6px;
+  height: 22px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #222;
+}
+
+.hp-fill {
+  background-color: #28a745; /* Green for HP */
+  height: 100%;
+  width: 100%; /* Default to full */
+  border-radius: 5px;
+  transition: width 0.5s ease-in-out;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.enemy-hp-bar .hp-fill {
+    background-color: #dc3545; /* Red for enemy HP */
+}
+
+.hp-text {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-size: 0.8em;
+  font-weight: bold;
+  line-height: 22px; /* Vertically center */
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+  z-index: 1; /* Above fill */
+}
+
+.status-effects {
+  min-height: 24px; /* Ensure space even if empty */
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  /* Example styling for icons if you add them */
+  /* font-size: 1.2em; */
+}
+.player-section .status-effects {
+    justify-content: flex-end; /* Align player statuses right */
+}
+
+.combat-log-area {
+  flex: 1; /* Takes up remaining space */
+  background-color: rgba(0, 0, 0, 0.4);
+  margin: 5px 0;
+  padding: 8px;
+  border-radius: 5px;
+  overflow-y: auto; /* Enable scrolling */
+  border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+#combat-log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.85em;
+  color: #ddd;
+}
+
+#combat-log-list li {
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+}
+#combat-log-list li:last-child {
+    border-bottom: none;
+}
+
+.action-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns for now */
+  gap: 8px;
+  padding: 10px 15px;
+  background-color: rgba(0, 0, 0, 0.3);
+  /* border-top: 1px solid rgba(255, 215, 0, 0.2); */
+}
+
+.action-button {
+  padding: 12px 5px; /* Generous padding */
+  font-size: 0.9em;
+  font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #fff;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.action-button:disabled {
+    background-color: #555 !important;
+    color: #999;
+    cursor: not-allowed;
+}
+.action-button:not(:disabled):active {
+    transform: scale(0.96);
+}
+
+.attack-btn { background-color: #c0392b; } /* Reddish */
+.attack-btn:not(:disabled):hover { background-color: #e74c3c; }
+.special-btn { background-color: #2980b9; } /* Blueish */
+.special-btn:not(:disabled):hover { background-color: #3498db; }
+.item-btn { background-color: #27ae60; } /* Greenish */
+.item-btn:not(:disabled):hover { background-color: #2ecc71; }
+.end-btn { background-color: #7f8c8d; } /* Greyish */
+.end-btn:not(:disabled):hover { background-color: #95a5a6; }
+
+
+/* Turn Order Overlay Style (Example) */
+.turn-order-overlay {
+    position: absolute;
+    top: 50%; /* Position vertically centered */
+    left: 10px;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.6);
+    padding: 5px;
+    border-radius: 8px;
+    z-index: 10; /* Above other content */
+    writing-mode: vertical-lr; /* Display vertically */
+    text-orientation: mixed;
+}
+
+.turn-order-overlay .turn-item {
+    display: block; /* Stack vertically */
+    padding: 4px 2px;
+    color: #ccc;
+    font-size: 0.8em;
+    text-align: center;
+    border-bottom: 1px solid #444; /* Separator */
+}
+.turn-order-overlay .turn-item:last-child {
+    border-bottom: none;
+}
+
+.turn-order-overlay .turn-item.active {
+    color: #FFD700;
+    font-weight: bold;
+}
+
+/* Active Combatant Highlight */
+.combatant.active { /* Add this class via JS */
+    box-shadow: 0 0 15px 3px #FFD700; /* Gold glow */
+    border-color: #FFD700; /* Change border if needed */
+}
 
   </style>
 </head>
@@ -1584,45 +1820,133 @@ function debugLog(message, isError = false) {
       });
 
       function showBattleCard(battleData) {
-  // battleData: an object containing player info, enemy info, turn order, etc.
-  const battleCard = document.getElementById("battle-card");
-  battleCard.classList.remove("hidden");
+    const battleCard = document.getElementById("battle-card");
+    if (!battleCard) return;
+    battleCard.classList.remove("hidden");
 
-  
-  // Clear any existing enemy cards
-  const enemyContainer = document.getElementById("enemy-combatants");
-  enemyContainer.innerHTML = "";
+    debugLog("[showBattleCard] Updating NEW battle display with data:", battleData);
+    addCombatLogMessage("Displaying Battle State..."); // Add initial log message
 
-  // Loop through each enemy in battleData and create an enemy card
-  battleData.enemies.forEach(enemy => {
-    const enemyCard = document.createElement("div");
-    enemyCard.classList.add("combatant", "enemy");
-    enemyCard.innerHTML = `
-      <img src="${enemy.imageUrl || '/images/enemy-placeholder.png'}" alt="${enemy.name}" />
-      <div class="stats">
-        <span>${enemy.name}</span>
-        <span>HP: <span>${enemy.hp}</span></span>
-        <span>AC: <span>${enemy.ac}</span></span>
-      </div>
-      <div class="status-effects">
-        <!-- Here you can add icons for status effects if needed -->
-      </div>
-    `;
-    enemyContainer.appendChild(enemyCard);
-  });
+    // --- Clear previous active highlights ---
+    document.querySelectorAll('.combatant.active').forEach(el => el.classList.remove('active'));
 
-  // Update the turn order bar
-  const turnOrderBar = document.getElementById("turn-order-bar");
-  turnOrderBar.innerHTML = "";
-  battleData.turnOrder.forEach((name, index) => {
-    const turnItem = document.createElement("span");
-    turnItem.classList.add("turn-item");
-    if (index === battleData.currentTurnIndex) {
-      turnItem.classList.add("active");
+
+    // --- Update Player Section ---
+    const player = battleData.player;
+    const playerSection = document.querySelector('.player-section'); // Use querySelector if needed
+    if (player && playerSection) {
+        playerSection.querySelector("#player-image").src = player.imageUrl || "/images/character-placeholder.png";
+        playerSection.querySelector("#player-name").textContent = player.name || "Player";
+        playerSection.querySelector("#player-level").textContent = player.level || 1;
+        playerSection.querySelector("#player-class").textContent = player.class || "Class";
+        playerSection.querySelector("#player-current-hp").textContent = player.currentHp;
+        playerSection.querySelector("#player-max-hp").textContent = player.maxHp;
+        playerSection.querySelector("#player-ac").textContent = player.ac;
+        playerSection.querySelector("#player-phys-dr").textContent = player.physicalDR;
+        playerSection.querySelector("#player-mag-dr").textContent = player.magicalDR;
+        playerSection.querySelector("#player-save").textContent = player.save;
+
+        // Update Player HP Bar
+        const playerHpFill = playerSection.querySelector(".player-hp-bar .hp-fill");
+        const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
+        playerHpFill.style.width = `${Math.max(0, playerHpPercent)}%`; // Set width percentage
+
+        // Update Player Status Effects (Example)
+        const playerStatusDiv = playerSection.querySelector(".player-status");
+        playerStatusDiv.innerHTML = ""; // Clear
+        // player.statusEffects.forEach(effect => { playerStatusDiv.innerHTML += `<span>${effect.icon || '?'}</span>`; });
+
+        // Enable/Disable Off-Hand Attack Button
+        const ohAttackBtn = document.getElementById('action-attack-oh');
+        if (ohAttackBtn) {
+            ohAttackBtn.disabled = !(player.offHand?.numAttacks > 0); // Disable if numAttacks is 0 or N/A
+        }
+
+
+    } else {
+        console.error("[showBattleCard] Player data or player section missing!");
     }
-    turnItem.textContent = name;
-    turnOrderBar.appendChild(turnItem);
-  });
+
+    // --- Update Enemy Section ---
+    const enemyContainer = document.getElementById("enemy-combatants"); // This ID is gone, use enemy-section
+    const enemySection = document.querySelector('.enemy-section');
+    // enemyContainer.innerHTML = ""; // Clear old cards if multiple were possible
+
+    // Assuming only one enemy for now, directly update the elements
+    if (battleData.enemies && battleData.enemies.length > 0 && enemySection) {
+        const enemy = battleData.enemies[0]; // Get the first enemy
+
+        enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
+        enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
+        enemySection.querySelector(".enemy-current-hp").textContent = enemy.currentHp;
+        enemySection.querySelector(".enemy-max-hp").textContent = enemy.maxHp;
+        enemySection.querySelector(".enemy-ac").textContent = enemy.ac;
+        enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
+        enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
+        enemySection.querySelector(".enemy-save").textContent = enemy.save;
+
+        // Update Enemy HP Bar
+        const enemyHpFill = enemySection.querySelector(".enemy-hp-bar .hp-fill");
+        const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
+        enemyHpFill.style.width = `${Math.max(0, enemyHpPercent)}%`;
+
+        // Update Enemy Status Effects (Example)
+        const enemyStatusDiv = enemySection.querySelector(".enemy-status");
+        enemyStatusDiv.innerHTML = ""; // Clear
+        // enemy.statusEffects.forEach(effect => { enemyStatusDiv.innerHTML += `<span>${effect.icon || '?'}</span>`; });
+
+    } else {
+        console.error("[showBattleCard] Enemies data missing or enemy section not found!");
+         if (enemySection) { // Clear enemy section if no enemy data
+             enemySection.style.display = 'none'; // Hide it
+         }
+    }
+
+    // --- Update Turn Order Bar ---
+    const turnOrderBar = document.getElementById("turn-order-bar");
+    turnOrderBar.innerHTML = ""; // Clear old
+    let activeCombatantName = null;
+    if (battleData.turnOrder && battleData.turnOrder.length > 0) {
+        battleData.turnOrder.forEach((combatantName, index) => {
+            const turnItem = document.createElement("span");
+            turnItem.classList.add("turn-item");
+            if (index === battleData.currentTurnIndex) {
+                turnItem.classList.add("active");
+                activeCombatantName = combatantName; // Store the active name
+            }
+            turnItem.textContent = combatantName.substring(0, 10); // Abbreviate if needed
+            turnOrderBar.appendChild(turnItem);
+        });
+
+        // --- Highlight Active Combatant Card ---
+        if(activeCombatantName) {
+            if(battleData.player.name === activeCombatantName && playerSection) {
+                playerSection.classList.add('active'); // Use section highlight now
+                 debugLog(`[showBattleCard] Highlighting player turn.`);
+                 // Enable player action buttons
+                 document.getElementById('action-attack-mh').disabled = false;
+                 document.getElementById('action-attack-oh').disabled = !(player.offHand?.numAttacks > 0);
+                 // document.getElementById('action-special').disabled = false; // If specials exist
+                 // document.getElementById('action-item').disabled = false; // If items exist
+                 document.getElementById('end-turn').disabled = false;
+            } else if (enemySection) {
+                 const enemy = battleData.enemies.find(e => e.name === activeCombatantName);
+                 if (enemy) {
+                    enemySection.classList.add('active'); // Highlight enemy section
+                    debugLog(`[showBattleCard] Highlighting enemy turn.`);
+                    // Disable player action buttons during enemy turn
+                    document.getElementById('action-attack-mh').disabled = true;
+                    document.getElementById('action-attack-oh').disabled = true;
+                    document.getElementById('action-special').disabled = true;
+                    document.getElementById('action-item').disabled = true;
+                    document.getElementById('end-turn').disabled = true; // Or maybe AI auto-ends?
+                 }
+            }
+        }
+
+    } else {
+         console.error("[showBattleCard] Turn order data missing or empty in battleData!");
+    }
 }
 
 // Optional: Attach the function to the global window so it’s available everywhere.
@@ -2575,6 +2899,20 @@ function showBattleCard(battleData) {
     }
     battleCard.classList.remove("hidden");
 
+    function addCombatLogMessage(message) 
+    {
+      const logList = document.getElementById("combat-log-list");
+      if (logList) {
+          const newItem = document.createElement("li");
+          newItem.textContent = message;
+          logList.appendChild(newItem);
+          // Auto-scroll to bottom
+          logList.scrollTop = logList.scrollHeight;
+      } else {
+          console.warn("Combat log list element not found.");
+      }
+    }
+
     debugLog("[showBattleCard] Updating battle display with data:", battleData);
 
     // --- Update Player Section ---
@@ -3265,70 +3603,92 @@ function showItemCard(item) {
 </div>
 
 <!-- Battle Card Overlay -->
-<div id="battle-card" class="battle-card hidden">
-  <div class="battle-header">
-    <h2>Battle</h2>
-    <div id="turn-order-bar" class="turn-order-bar">
-      <!-- Turn items dynamically generated -->
-    </div>
-  </div>
-  <div class="battle-body">
-    <div class="combatants">
-      <!-- Player Combatant Card -->
-      <div class="combatant player" id="player-combatant">
-        <img id="player-image" src="/images/character-placeholder.png" alt="Player" />
-         <h4 id="player-name">Player Name</h4> <!-- ADDED NAME -->
-         <p>Level <span id="player-level">1</span> <span id="player-class">Class</span></p> <!-- ADDED LEVEL/CLASS -->
-        <div class="stats">
-          <!-- ADDED Max HP -->
-          <span>HP: <span id="player-current-hp">100</span> / <span id="player-max-hp">100</span></span>
-          <span>AC: <span id="player-ac">18</span></span>
-           <!-- ADDED DR and Save -->
-           <span>PhysDR: <span id="player-phys-dr">0</span></span>
-           <span>MagDR: <span id="player-mag-dr">0</span></span>
-           <span>Save: <span id="player-save">0</span></span>
-        </div>
-         <!-- ADDED Detailed Attack Info -->
-         <div class="attack-info">
-            <div><strong>MH:</strong> <span id="player-mh-attacks">1</span>x | Hit +<span id="player-mh-hit">0</span> | <span id="player-mh-damage">1d4+0</span> (<span id="player-mh-type">type</span>)</div>
-            <div><strong>OH:</strong> <span id="player-oh-attacks">0</span>x | Hit +<span id="player-oh-hit">0</span> | <span id="player-oh-damage">N/A</span> (<span id="player-oh-type">N/A</span>)</div>
-         </div>
-        <div class="actions">
-          <button id="action-attack">Attack</button>
-          <button id="action-special" disabled>Special</button> <!-- Disabled for now -->
-        </div>
-        <div class="status-effects" id="player-status">
-          <!-- Status effect icons go here -->
-          <!-- <span class="status-icon burning">🔥</span> -->
-        </div>
+<div id="battle-card" class="battle-card modern-battle hidden"> <!-- Added class -->
+
+  <!-- ENEMY AREA -->
+  <div class="combat-section enemy-section">
+      <div class="combatant-info">
+          <div class="details">
+              <h4 class="enemy-name">Enemy Name</h4>
+              <div class="stats-row">
+                  <span>AC: <span class="enemy-ac">0</span></span>
+                  <span>Save: <span class="enemy-save">0</span></span>
+              </div>
+               <div class="stats-row dr-row"> <!-- Specific row for DR -->
+                   <span>P.DR: <span class="enemy-phys-dr">0</span></span>
+                   <span>M.DR: <span class="enemy-mag-dr">0</span></span>
+               </div>
+          </div>
+          <img class="combatant-portrait enemy-image" src="/images/enemy-placeholder.png" alt="Enemy">
       </div>
-      <!-- Enemy Combatant Cards Container -->
-      <div class="combatant enemies" id="enemy-combatants">
-        <!-- Enemy card template below (will be cloned) -->
-         <!--
-         <div class="combatant enemy">
-            <img class="enemy-image" src="/images/enemy-placeholder.png" alt="Enemy" />
-            <h4 class="enemy-name">Enemy Name</h4>
-            <div class="stats">
-                <span>HP: <span class="enemy-current-hp">30</span> / <span class="enemy-max-hp">30</span></span>
-                <span>AC: <span class="enemy-ac">14</span></span>
-                <span>PhysDR: <span class="enemy-phys-dr">0</span></span>
-                <span>MagDR: <span class="enemy-mag-dr">0</span></span>
-                <span>Save: <span class="enemy-save">0</span></span>
-            </div>
-            <div class="attack-info">
-                <span>Attack: +<span class="enemy-attack-bonus">4</span> | <span class="enemy-attack-damage">1d8+2</span></span>
-            </div>
-            <div class="status-effects enemy-status">
-            </div>
-         </div>
-          -->
+      <div class="hp-bar-container">
+          <div class="hp-bar enemy-hp-bar">
+              <div class="hp-fill"></div>
+              <span class="hp-text"><span class="enemy-current-hp">0</span>/<span class="enemy-max-hp">0</span></span>
+          </div>
       </div>
-    </div>
+      <div class="status-effects enemy-status">
+          <!-- Enemy statuses -->
+      </div>
   </div>
-  <div class="battle-footer">
-    <button id="end-turn">End Turn</button>
+
+  <!-- COMBAT LOG AREA -->
+  <div class="combat-log-area">
+      <ul id="combat-log-list">
+          <li>Battle Started!</li>
+          <!-- Log messages will be added here -->
+      </ul>
   </div>
+
+  <!-- PLAYER AREA -->
+  <div class="combat-section player-section">
+       <div class="status-effects player-status">
+           <!-- Player statuses -->
+       </div>
+      <div class="hp-bar-container">
+          <div class="hp-bar player-hp-bar">
+              <div class="hp-fill"></div>
+               <span class="hp-text"><span id="player-current-hp">0</span>/<span id="player-max-hp">0</span></span>
+          </div>
+      </div>
+      <div class="combatant-info">
+          <img id="player-image" class="combatant-portrait" src="/images/character-placeholder.png" alt="Player">
+          <div class="details">
+              <h4 id="player-name">Player Name</h4>
+              <p>Lvl <span id="player-level">1</span> <span id="player-class">Class</span></p>
+              <div class="stats-row">
+                  <span>AC: <span id="player-ac">0</span></span>
+                  <span>Save: <span id="player-save">0</span></span>
+              </div>
+               <div class="stats-row dr-row">
+                   <span>P.DR: <span id="player-phys-dr">0</span></span>
+                   <span>M.DR: <span id="player-mag-dr">0</span></span>
+               </div>
+              <!-- Attack Info (Optional Display - can be shown on button tap?) -->
+              <!--
+              <div class="attack-details-tooltip">
+                  MH: <span id="player-mh-attacks"></span>x +<span id="player-mh-hit"></span> <span id="player-mh-damage"></span><br>
+                  OH: <span id="player-oh-attacks"></span>x +<span id="player-oh-hit"></span> <span id="player-oh-damage"></span>
+              </div>
+               -->
+          </div>
+      </div>
+  </div>
+
+  <!-- ACTION BAR -->
+  <div class="action-bar">
+      <button id="action-attack-mh" class="action-button attack-btn">Attack (MH)</button>
+       <button id="action-attack-oh" class="action-button attack-btn" disabled>Attack (OH)</button>
+       <button id="action-special" class="action-button special-btn" disabled>Special</button>
+      <button id="action-item" class="action-button item-btn" disabled>Item</button>
+      <button id="end-turn" class="action-button end-btn">End Turn</button>
+  </div>
+
+   <!-- Turn Order (Optional - could be overlayed or positioned differently) -->
+   <div id="turn-order-bar" class="turn-order-overlay">
+       <!-- Turn items dynamically generated -->
+   </div>
+
 </div>
 
 <!-- Update creatures on firebase based on spawnData.json
