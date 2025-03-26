@@ -812,29 +812,162 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    function waitForPhotonReady(timeout = 10000) {
-      return new Promise((resolve, reject) => {
-        const READY_STATE_THRESHOLD = 5;
+    // ---------- Photon Utility Functions ----------
+
+/**
+ * Waits for the Photon client to reach a specified state or higher.
+ * @param {number} targetState - The minimum Photon.LoadBalancing.LoadBalancingClient.State to wait for (e.g., 5 for JoinedLobby).
+ * @param {number} timeout - Maximum time to wait in milliseconds.
+ * @returns {Promise<void>} Resolves when the target state is reached, rejects on timeout or disconnect.
+ */
+function waitForPhotonState(targetState = Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, timeout = 10000) {
+    return new Promise((resolve, reject) => {
         const startTime = Date.now();
+        let checkInterval;
 
-        function checkState() {
-          // If 'state' is a function, call it to get the current state
-          const currentState = (photonClient && typeof photonClient.state === 'function')
-            ? photonClient.state()
-            : photonClient.state;
+        const checkState = () => {
+            const currentState = photonClient.state; // Directly access the state property
+            debugLog(`[waitForPhotonState] Checking state: Current=${currentState}, Target=${targetState}`);
 
-          if (photonClient && currentState >= READY_STATE_THRESHOLD) {
-            debugLog("Photon is ready (state " + currentState + ").");
-            resolve();
-          } else if (Date.now() - startTime >= timeout) {
-            reject(new Error("Timed out waiting for Photon to be ready. Current state: " + (photonClient ? currentState : 'undefined')));
-          } else {
-            setTimeout(checkState, 200);
-          }
+            if (currentState >= targetState) {
+                clearInterval(checkInterval);
+                debugLog(`[waitForPhotonState] Target state ${targetState} reached (Current: ${currentState}).`);
+                resolve();
+            } else if (currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnected || currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnecting) {
+                 clearInterval(checkInterval);
+                 debugLog(`[waitForPhotonState] Client disconnected while waiting for state ${targetState}. Current: ${currentState}`, true);
+                 reject(new Error(`Photon client disconnected (state ${currentState}) while waiting for target state ${targetState}.`));
+            } else if (Date.now() - startTime >= timeout) {
+                clearInterval(checkInterval);
+                debugLog(`[waitForPhotonState] Timed out waiting for state ${targetState}. Current state: ${currentState}`, true);
+                reject(new Error(`Timed out waiting for Photon state ${targetState}. Current state: ${currentState}`));
+            }
+        };
+
+        if (photonClient.state >= targetState) {
+             debugLog(`[waitForPhotonState] Already at or above target state ${targetState} (Current: ${photonClient.state}).`);
+             return resolve();
         }
-        checkState();
-      });
+
+        checkInterval = setInterval(checkState, 250); // Check frequently
+    });
+}
+
+/**
+ * Reliably leaves the current Photon room.
+ * @param {number} timeout - Maximum time to wait in milliseconds.
+ * @returns {Promise<void>} Resolves when the room is left, rejects on timeout or error.
+ */
+function robustLeaveRoom(timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        if (!photonClient.isJoinedToRoom()) { // Use the official check
+            debugLog("[robustLeaveRoom] Not currently in a room.");
+            return resolve();
+        }
+
+        debugLog(`[robustLeaveRoom] Attempting to leave room: ${photonClient.myRoom()?.name}`);
+
+        const originalOnLeftRoom = photonClient.onLeftRoom;
+        const originalOnError = photonClient.onError; // Capture onError too
+        let timeoutHandle = null;
+
+        const cleanup = (error = null) => {
+            clearTimeout(timeoutHandle);
+            photonClient.onLeftRoom = originalOnLeftRoom;
+            photonClient.onError = originalOnError; // Restore onError
+            debugLog("[robustLeaveRoom] Cleaned up handlers.");
+            if (error) {
+                reject(error);
+            } else {
+                resolve();
+            }
+        };
+
+        timeoutHandle = setTimeout(() => {
+            debugLog(`[robustLeaveRoom] Timed out waiting to leave room: ${photonClient.myRoom()?.name}`, true);
+            cleanup(new Error(`Timeout waiting to leave room: ${photonClient.myRoom()?.name}`));
+        }, timeout);
+
+        // Temporary handler for successful leave
+        photonClient.onLeftRoom = () => {
+            debugLog("[robustLeaveRoom] Successfully left room via onLeftRoom.");
+            if (originalOnLeftRoom) {
+                try { originalOnLeftRoom.call(photonClient); } catch (e) { debugLog(`Error in originalOnLeftRoom: ${e}`, true); }
+            }
+            cleanup(); // Resolve the promise
+        };
+
+        // Temporary handler for errors during leave
+        photonClient.onError = (errorCode, errorMsg) => {
+             debugLog(`[robustLeaveRoom] onError triggered during leave attempt: ${errorCode} / ${errorMsg}`, true);
+             if (originalOnError) {
+                try { originalOnError.call(photonClient, errorCode, errorMsg); } catch (e) { debugLog(`Error in originalOnError: ${e}`, true); }
+            }
+             // Treat errors during leave as failure
+             cleanup(new Error(`Photon error while leaving room: ${errorMsg} (${errorCode})`));
+        };
+
+        // Initiate the leave operation
+        if (!photonClient.leaveRoom()) {
+             // This usually means the client wasn't in a state where it could leave (e.g., not connected)
+             debugLog("[robustLeaveRoom] photonClient.leaveRoom() returned false immediately.", true);
+             cleanup(new Error("leaveRoom() call failed immediately. Client might not be connected or joined."));
+        } else {
+            debugLog("[robustLeaveRoom] leaveRoom() called successfully. Waiting for onLeftRoom...");
+        }
+    });
+}
+
+/**
+ * Forces a disconnect and reconnect, waiting for JoinedLobby state.
+ * @returns {Promise<void>}
+ */
+async function forcePhotonReconnect() {
+    debugLog("[forcePhotonReconnect] Forcing Photon disconnect...");
+    photonClient.disconnect();
+
+    // Give it a moment to fully disconnect before reconnecting
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    debugLog("[forcePhotonReconnect] Reconnecting Photon...");
+    // Assuming connectToRegionMaster is the correct way you connect
+    if (!photonClient.connectToRegionMaster("us")) {
+         debugLog("[forcePhotonReconnect] connectToRegionMaster call failed immediately.", true);
+         throw new Error("Photon connectToRegionMaster call failed immediately.");
     }
+
+    // Wait until we are back in the lobby
+    debugLog("[forcePhotonReconnect] Waiting for JoinedLobby state after reconnect...");
+    try {
+        await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 15000); // Increased timeout for reconnect
+        debugLog("[forcePhotonReconnect] Reconnect successful, reached JoinedLobby.");
+    } catch (error) {
+        debugLog("[forcePhotonReconnect] Failed to reach JoinedLobby after forced reconnect.", true);
+        throw new Error(`Failed to reach JoinedLobby after forced reconnect: ${error.message}`);
+    }
+    // Note: You might need to re-attach critical global Photon event handlers here
+    // if they were cleared or if the photonClient instance was fully replaced.
+    // Based on your code, it seems you re-attach them in forceResetPhoton, which is good.
+}
+
+// Keep your original `debugLog` function
+function debugLog(message, isError = false) {
+  const debugDiv = document.getElementById("debugPanel");
+  // Basic check to prevent errors if the panel isn't there
+  if (debugDiv) {
+      const p = document.createElement("p");
+      p.textContent = message;
+      if (isError) p.style.color = "red"; // Make errors stand out
+      debugDiv.appendChild(p);
+      // Auto-scroll
+      debugDiv.scrollTop = debugDiv.scrollHeight;
+  }
+  if (isError) {
+      console.error("DEBUG:", message);
+  } else {
+      console.log("DEBUG:", message);
+  }
+}
     
     // ---------- Debug Logging ----------
     function debugLog(message) {
@@ -1668,159 +1801,186 @@ window.showBattleCard = showBattleCard;
 
   });
 
-  function joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout = 10000) {
+  /**
+ * Reliably joins a Photon room, creating it if it doesn't exist.
+ * @param {string} roomName - The name of the room to join or create.
+ * @param {object} options - Room options (e.g., { maxPlayers: 2, isOpen: true, isVisible: true }).
+ * @param {number} timeout - Maximum time to wait in milliseconds.
+ * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object when joined/created, rejects on error or timeout.
+ */
+function robustJoinOrCreateRoom(roomName, options, timeout = 15000) {
     return new Promise((resolve, reject) => {
-        debugLog(`[joinOrCreateRoomV2_Prop] Attempting join/create for room: ${roomName}`);
+        debugLog(`[robustJoinOrCreateRoom] Attempting join/create for room: ${roomName}`);
 
-        // --- Store original handlers ---
+        const originalOnJoinRoom = photonClient.onJoinRoom;
         const originalOnError = photonClient.onError;
-        const originalOnActorJoin = photonClient.onActorJoin;
-
         let timeoutHandle = null;
-        let state = 'joining'; // Track if we are joining or creating
+        let didCreate = false; // Flag to know if we are in the create phase
 
-        const cleanupAndRestore = (error = null, result = null) => {
+        const cleanup = (error = null, room = null) => {
             clearTimeout(timeoutHandle);
-            // Restore original handlers
+            photonClient.onJoinRoom = originalOnJoinRoom;
             photonClient.onError = originalOnError;
-            photonClient.onActorJoin = originalOnActorJoin;
-            debugLog(`[joinOrCreateRoomV2_Prop] Handlers restored for ${roomName}.`);
-
-            // Resolve or reject the promise
+            debugLog(`[robustJoinOrCreateRoom] Cleaned up handlers for ${roomName}.`);
             if (error) {
                 reject(error);
+            } else if (room) {
+                resolve(room);
             } else {
-                resolve(result);
+                // Should not happen, but safeguard
+                reject(new Error(`[robustJoinOrCreateRoom] Cleanup called without error or room for ${roomName}`));
             }
         };
 
         timeoutHandle = setTimeout(() => {
-            debugLog(`[joinOrCreateRoomV2_Prop] Timed out waiting for join/create: ${roomName}`, true);
-            cleanupAndRestore(new Error(`Timed out waiting to join or create room: ${roomName}`));
+            debugLog(`[robustJoinOrCreateRoom] Timed out waiting for join/create: ${roomName}`, true);
+            cleanup(new Error(`Timed out waiting to join or create room: ${roomName}`));
         }, timeout);
 
-        // --- Temporary onActorJoin Handler ---
-        photonClient.onActorJoin = (actor) => {
-            // Call original handler first if it exists
-            if (originalOnActorJoin) {
-                try {
-                    originalOnActorJoin.call(photonClient, actor);
-                } catch (e) {
-                     debugLog(`Error in originalOnActorJoin: ${e}`, true);
-                }
+        // Temporary handler for successful join/create
+        photonClient.onJoinRoom = (room) => {
+            debugLog(`[robustJoinOrCreateRoom] onJoinRoom successfully triggered for room: ${room?.name}.`);
+             if (originalOnJoinRoom) {
+                try { originalOnJoinRoom.call(photonClient, room); } catch (e) { debugLog(`Error in originalOnJoinRoom: ${e}`, true); }
             }
-
-            // Check if it's our local actor joining the target room
-            if (actor.isLocal) {
-                const currentRoom = photonClient.myRoom();
-                // We only care if we successfully join the room we intended
-                if (currentRoom && currentRoom.name === roomName) {
-                     debugLog(`[joinOrCreateRoomV2_Prop] Successfully joined room via onActorJoin: ${roomName}. MaxPlayers: ${currentRoom.maxPlayers}, PlayerCount: ${currentRoom.playerCount}`);
-                     cleanupAndRestore(null, currentRoom); // Success! Resolve the promise.
-                } else {
-                     debugLog(`[joinOrCreateRoomV2_Prop] onActorJoin for local player, but room name mismatch or room null. Target: ${roomName}, Current: ${currentRoom?.name}`);
-                     // Don't resolve yet, could be join for a different room
-                }
+            // Crucially, check if we joined the *correct* room
+            if (room && room.name === roomName) {
+                debugLog(`[robustJoinOrCreateRoom] Successfully joined/created target room: ${roomName}`);
+                cleanup(null, room); // Resolve the promise with the room object
+            } else {
+                 debugLog(`[robustJoinOrCreateRoom] Joined room "${room?.name}" but expected "${roomName}". Ignoring.`, true);
+                 // Do not resolve or reject, let the timeout handle it if the correct join never happens.
+                 // This prevents resolving early if the client somehow joins another room unexpectedly.
             }
-             // Don't need to do anything special for remote actors joining here
         };
 
-        // --- Temporary onError Handler ---
-        // --- Temporary onError Handler ---
-photonClient.onError = (errorCode, errorMsg) => {
-    // **** ADD MORE LOGGING HERE ****
-    debugLog(`[joinOrCreateRoomV2_Prop] TEMP onError triggered. Code: ${errorCode}, Msg: ${errorMsg}, Current Handler State Var: '${state}', Photon Client State: ${photonClient.state}`);
+        // Temporary handler for errors during join/create
+        photonClient.onError = (errorCode, errorMsg) => {
+            debugLog(`[robustJoinOrCreateRoom] onError triggered. Code: ${errorCode}, Msg: ${errorMsg}, In Create Phase: ${didCreate}`);
+            if (originalOnError) {
+                try { originalOnError.call(photonClient, errorCode, errorMsg); } catch (e) { debugLog(`Error in originalOnError: ${e}`, true); }
+            }
 
-    if (originalOnError) {
-         try {
-            originalOnError.call(photonClient, errorCode, errorMsg);
-         } catch (e) {
-             debugLog(`Error in originalOnError: ${e}`, true);
-         }
-    }
+            // Photon Error Code for "Game does not exist"
+            const GAME_DOES_NOT_EXIST = 32758;
 
-    debugLog(`[joinOrCreateRoomV2_Prop] Checking condition: state === 'joining' (${state === 'joining'}) && errorCode === 32758 (${errorCode === 32758})`);
+            if (!didCreate && errorCode === GAME_DOES_NOT_EXIST) {
+                // Join failed because the room doesn't exist, now try to create it.
+                debugLog(`[robustJoinOrCreateRoom] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
+                didCreate = true; // Mark that we are now in the create phase
 
-    if (state === 'joining' && errorCode === 32758) { // GameDoesNotExist during join attempt
-        debugLog(`[joinOrCreateRoomV2_Prop] Condition MET. Join failed (GameDoesNotExist), attempting create: ${roomName}`); // More specific log
-        state = 'creating'; // Switch state
+                debugLog(`[robustJoinOrCreateRoom] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+                const createResult = photonClient.createRoom(roomName, options);
+                debugLog(`[robustJoinOrCreateRoom] createRoom call returned: ${createResult}`);
 
-        // --- Try to Create ---
-        debugLog(`[joinOrCreateRoomV2_Prop] PRE-CREATE Check: Photon client state should be 5: ${photonClient.state}`);
-        debugLog(`[joinOrCreateRoomV2_Prop] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
-        const createResult = photonClient.createRoom(roomName, options);
-        debugLog(`[joinOrCreateRoomV2_Prop] createRoom call returned: ${createResult}`); // Log the immediate result
+                if (!createResult) {
+                    // createRoom failed immediately (e.g., client disconnected)
+                    debugLog(`[robustJoinOrCreateRoom] photonClient.createRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
+                    cleanup(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+                }
+                // If createRoom returns true, we now wait for the onJoinRoom handler to be called.
 
-        if (!createResult) {
-            debugLog(`[joinOrCreateRoomV2_Prop] photonClient.createRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
-            cleanupAndRestore(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
-        }
-         // If createRoom call succeeds (returns true), we now wait for onActorJoin
-
-    } else {
-        // Condition NOT met or other error
-        debugLog(`[joinOrCreateRoomV2_Prop] Condition NOT MET or other error. Operation failed (State: ${state}) for room ${roomName}: ${errorCode} / ${errorMsg}. Not attempting create or already failed.`, true);
-        cleanupAndRestore(new Error(`Failed operation (${state}) on room ${roomName}: ${errorMsg} (${errorCode})`));
-    }
-};
+            } else {
+                // Any other error (or error during create phase) is fatal for this attempt.
+                debugLog(`[robustJoinOrCreateRoom] Unrecoverable error or error during create phase. Code: ${errorCode}, Msg: ${errorMsg}`, true);
+                cleanup(new Error(`Photon error during join/create room ${roomName}: ${errorMsg} (${errorCode})`));
+            }
+        };
 
         // --- Start the process: Try to Join ---
-        debugLog(`[joinOrCreateRoomV2_Prop] Calling joinRoom: ${roomName}`);
-        state = 'joining';
-        if (!photonClient.joinRoom(roomName, options)) {
-             // joinRoom itself returned false (e.g., not connected)
-             debugLog(`[joinOrCreateRoomV2_Prop] photonClient.joinRoom call returned false immediately for ${roomName}.`, true);
-             cleanupAndRestore(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+        debugLog(`[robustJoinOrCreateRoom] Calling joinRoom: ${roomName}`);
+        if (!photonClient.joinRoom(roomName)) { // Pass options only to createRoom if needed, joinRoom often doesn't need them or uses different ones. Check Photon docs.
+             // joinRoom failed immediately
+             debugLog(`[robustJoinOrCreateRoom] photonClient.joinRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
+             cleanup(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
         }
-        // Now we wait for onActorJoin or the temporary onError handler
+        // Now we wait for onJoinRoom or the temporary onError handler
     });
 }
 
 
-async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
-  try {
-    if (photonClient.myRoom()) {
-      debugLog("Photon client is already in a room. Initiating leave process...");
-      await leaveCurrentRoom();
-      debugLog("Left the previous room. Waiting for Photon to be ready...");
-      await waitForPhotonReady();
-    }
-  } catch (e) {
-    debugLog("Failed to leave room normally: " + e.message, true);
-    debugLog("Forcing Photon disconnect and reconnect...");
-    await forceResetPhoton();
-  }
-  // Now that the client is in a clean state, attempt to join or create the battle room.
-  return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
-}
+/**
+ * Prepares the Photon client and then joins or creates the specified battle room.
+ * Handles leaving existing rooms and potential reconnects.
+ * @param {string} roomName - The name of the battle room.
+ * @param {object} options - Room options for creation.
+ * @param {number} timeout - Overall timeout for the entire operation.
+ * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the joined Room object.
+ */
+ async function prepareAndJoinBattleRoom(roomName, options, timeout = 25000) {
+    debugLog(`[prepareAndJoinBattleRoom] Starting preparation for room: ${roomName}`);
+    const overallStartTime = Date.now();
 
-
-
-function leaveCurrentRoom() {
-  return new Promise((resolve, reject) => {
-    if (!photonClient.myRoom()) {
-      // Already not in a room.
-      return resolve();
-    }
-    let resolved = false;
-    const originalOnLeftRoom = photonClient.onLeftRoom;
-    photonClient.onLeftRoom = function () {
-      debugLog("Photon client left the current room.");
-      resolved = true;
-      // Restore the original handler.
-      photonClient.onLeftRoom = originalOnLeftRoom;
-      resolve();
+    const checkTimeout = () => {
+        if (Date.now() - overallStartTime > timeout) {
+            throw new Error(`Overall timeout (${timeout}ms) exceeded during prepareAndJoinBattleRoom for ${roomName}`);
+        }
     };
-    debugLog("Calling photonClient.leaveRoom()...");
-    photonClient.leaveRoom();
-    // Wait for 10 seconds; if no onLeftRoom, reject.
-    setTimeout(() => {
-      if (!resolved) {
-        reject(new Error("Timeout waiting to leave the current room"));
-      }
-    }, 10000);
-  });
+
+    try {
+        // 1. Ensure Client is Connected and in Lobby
+        debugLog("[prepareAndJoinBattleRoom] Ensuring client is connected and in lobby...");
+        checkTimeout();
+        // Wait for JoinedLobby state initially
+        await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 10000);
+        debugLog("[prepareAndJoinBattleRoom] Client is in lobby.");
+
+        // 2. Check if Already in a Room
+        if (photonClient.isJoinedToRoom()) {
+            const currentRoom = photonClient.myRoom();
+            debugLog(`[prepareAndJoinBattleRoom] Client is currently in room: ${currentRoom?.name}`);
+
+            if (currentRoom?.name === roomName) {
+                // Already in the target room!
+                debugLog(`[prepareAndJoinBattleRoom] Already in the target room: ${roomName}. Success!`);
+                return currentRoom;
+            } else {
+                // In a different room, attempt to leave gracefully
+                debugLog(`[prepareAndJoinBattleRoom] In a different room. Attempting graceful leave...`);
+                checkTimeout();
+                try {
+                    await robustLeaveRoom(10000); // Allow 10s for graceful leave
+                    debugLog("[prepareAndJoinBattleRoom] Successfully left previous room.");
+                    // Need to wait for lobby state again after leaving
+                    checkTimeout();
+                    debugLog("[prepareAndJoinBattleRoom] Waiting for lobby state after leaving room...");
+                    await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 5000);
+                    debugLog("[prepareAndJoinBattleRoom] Re-entered lobby.");
+                } catch (leaveError) {
+                    debugLog(`[prepareAndJoinBattleRoom] Graceful leave failed: ${leaveError.message}. Attempting forced reconnect.`, true);
+                    checkTimeout();
+                    await forcePhotonReconnect(); // Last resort: force reconnect
+                }
+            }
+        } else {
+             debugLog("[prepareAndJoinBattleRoom] Client is not currently in a room.");
+        }
+
+        // 3. Join or Create the Target Room
+        debugLog(`[prepareAndJoinBattleRoom] Proceeding to join/create target room: ${roomName}`);
+        checkTimeout();
+        // Calculate remaining time for the join/create operation
+        const remainingTimeout = timeout - (Date.now() - overallStartTime);
+        if (remainingTimeout <= 0) throw new Error("Not enough time remaining for join/create operation.");
+
+        const joinedRoom = await robustJoinOrCreateRoom(roomName, options, remainingTimeout);
+        debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
+        return joinedRoom;
+
+    } catch (error) {
+        debugLog(`[prepareAndJoinBattleRoom] Error during preparation/join for room ${roomName}: ${error.message}`, true);
+        // Ensure state is somewhat reasonable after failure, maybe force reconnect if needed?
+        if (!photonClient.isConnectedToMaster() && !photonClient.isConnecting()) {
+             debugLog("[prepareAndJoinBattleRoom] Client seems disconnected after error, attempting reconnect...", true);
+             try { await forcePhotonReconnect(); } catch (reconnectErr) { debugLog(`[prepareAndJoinBattleRoom] Post-error reconnect failed: ${reconnectErr.message}`, true); }
+        }
+        throw error; // Re-throw the error to be caught by the caller
+    }
 }
+
+
+
+
 
 async function forceResetPhoton() {
   return new Promise((resolve) => {
@@ -1891,25 +2051,24 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
-    // Make sure photonClient is accessible in this scope (it likely is if it's global)
-    // Ensure joinOrCreateRoomV2 function is defined before this listener runs.
-
-    attackBtn.addEventListener("click", async function () {
-        debugLog("Attack button clicked."); // Log start
+    attackBtn.addEventListener("click", async function () { // Make the handler async
+        debugLog("Attack button clicked.");
+        attackBtn.disabled = true; // Disable button during operation
         document.getElementById("creature-card").classList.add("hidden");
 
         const creatureSpawn = currentSpawnForBattle;
         if (!creatureSpawn) {
-            console.error("No creature spawn data available for battle.");
             debugLog("Attack aborted: No currentSpawnForBattle.", true);
+            alert("Error: No creature selected for battle.");
+            attackBtn.disabled = false;
             return;
         }
 
         const user = firebase.auth().currentUser;
         if (!user) {
-            console.error("No authenticated user found.");
             debugLog("Attack aborted: No authenticated user.", true);
             alert("You must be logged in to battle.");
+            attackBtn.disabled = false;
             return;
         }
         const uid = user.uid;
@@ -1928,45 +2087,44 @@ document.addEventListener("DOMContentLoaded", function () {
             const activeChar = playerData[activeCharKey];
             debugLog(`Active character found: ${activeChar.name} (${activeCharKey})`);
 
-            debugLog("Waiting for Photon to be ready...");
-            await waitForPhotonReady(); // Ensure Photon client is connected and ready
-            debugLog("Photon is ready. Proceeding with room join/create.");
-
-            // Construct room name (ensure creatureId is preferred)
+            // Construct room name
             const creatureIdentifier = creatureSpawn.creatureId || creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
-            const roomName = "battle_" + creatureIdentifier;
+            const roomName = "battle_" + creatureIdentifier + "_" + Date.now(); // Add timestamp for uniqueness if needed
             debugLog(`Generated room name: ${roomName}`);
+            const roomOptions = { maxPlayers: 2, isOpen: true, isVisible: true }; // Example options
 
-            debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
-            const joinedRoom = await prepareAndJoinBattleRoom(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
-            debugLog(`Joined room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
+            debugLog(`Calling prepareAndJoinBattleRoom for room: ${roomName}`);
+            // Use the new robust function - await its completion
+            const joinedRoom = await prepareAndJoinBattleRoom(roomName, roomOptions);
+            // If prepareAndJoinBattleRoom fails, it will throw an error caught below
+
+            debugLog(`Successfully prepared and joined room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
             // --- Proceed with battle setup ONLY AFTER successful join ---
             debugLog("Calculating initiative...");
             const playerInitiative = Math.floor(Math.random() * 20) + 1;
-            const enemyInitiative = Math.floor(Math.random() * 20) + 1; // Consider adding enemy Dex mod later
+            const enemyInitiative = Math.floor(Math.random() * 20) + 1;
             const turnOrder = (playerInitiative >= enemyInitiative)
                 ? [activeChar.name, creatureSpawn.creatureName]
                 : [creatureSpawn.creatureName, activeChar.name];
             debugLog(`Initiative rolled. Player: ${playerInitiative}, Enemy: ${enemyInitiative}. Turn order: ${turnOrder.join(', ')}`);
 
             currentBattleData = {
-                roomId: joinedRoom.name, // Store room name for reference
+                roomId: joinedRoom.name,
                 player: {
                     id: activeCharKey,
-                    actorNr: photonClient.myActor().actorNr, // Store Photon Actor Number
+                    actorNr: photonClient.myActor().actorNr,
                     name: activeChar.name,
-                    hp: activeChar.stats.hp, // Use current HP if tracked, else max HP
+                    hp: activeChar.stats.hp,
                     ac: activeChar.stats.ac,
                     imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
                     initiative: playerInitiative
                 },
                 enemies: [{
-                    // Use a unique ID for the enemy instance in this battle if needed
                     instanceId: creatureSpawn.creatureId ? `${creatureSpawn.creatureId}_${Date.now()}` : `enemy_${Date.now()}`,
-                    templateId: creatureSpawn.creatureId || "unknown", // ID from creature table
+                    templateId: creatureSpawn.creatureId || "unknown",
                     name: creatureSpawn.creatureName,
-                    hp: creatureSpawn.stats.hp, // Starting HP
+                    hp: creatureSpawn.stats.hp,
                     ac: creatureSpawn.stats.ac,
                     imageUrl: creatureSpawn.imageUrl,
                     initiative: enemyInitiative
@@ -1974,23 +2132,23 @@ document.addEventListener("DOMContentLoaded", function () {
                 turnOrder: turnOrder,
                 currentTurnIndex: 0
             };
-            debugLog("currentBattleData prepared: " + JSON.stringify(currentBattleData)); // Be cautious if objects become complex
+            debugLog("currentBattleData prepared: " + JSON.stringify(currentBattleData));
 
             // --- TODO: Raise Photon Event to Share Initial State ---
-            // Example: Send player info and enemy info so the other player (if joining) gets the setup
-            // const initialBattleStateEventData = { ... }; // Prepare data
-            // photonClient.raiseEvent(EVENT_CODE_BATTLE_START, initialBattleStateEventData, { receivers: Photon.LoadBalancing.Constants.ReceiverGroup.All });
+            // photonClient.raiseEvent(EVENT_CODE_BATTLE_START, currentBattleData, { receivers: Photon.LoadBalancing.Constants.ReceiverGroup.Others });
             // debugLog("Raised Battle Start event (placeholder).");
 
             debugLog("Showing battle card UI.");
             showBattleCard(currentBattleData); // Update the UI
 
         } catch (err) {
-            // Catch errors from waitForPhotonReady, Firebase fetch, or joinOrCreateRoomV2
+            // Catch errors from Firebase fetch, prepareAndJoinBattleRoom, etc.
             console.error("Error starting battle:", err);
             debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
             alert("Could not start battle: " + err.message);
             // Maybe hide loading indicators or provide feedback
+        } finally {
+             attackBtn.disabled = false; // Re-enable button regardless of success/failure
         }
     });
 });
