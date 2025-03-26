@@ -1727,7 +1727,8 @@ window.showBattleCard = showBattleCard;
 
         // --- Temporary onError Handler ---
         photonClient.onError = (errorCode, errorMsg) => {
-            // Call original handler first if it exists
+          debugLog(`[joinOrCreateRoomV2_Prop] onError triggered. Code: ${errorCode}, Msg: ${errorMsg}`);
+
             if (originalOnError) {
                  try {
                     originalOnError.call(photonClient, errorCode, errorMsg);
@@ -1814,19 +1815,35 @@ function leaveCurrentRoom() {
   });
 }
 
-function forceResetPhoton() {
+async function forceResetPhoton() {
   return new Promise((resolve) => {
     debugLog("Forcing Photon disconnect...");
     photonClient.disconnect();
-    // Wait 3 seconds to allow disconnect.
+
     setTimeout(() => {
       debugLog("Reconnecting Photon...");
       photonClient.connectToRegionMaster("us");
-      // Wait until Photon is ready (using your waitForPhotonReady helper)
+
+      // Re-attach handlers after reconnect
+      photonClient.onStateChange = (state) => {
+        debugLog("Photon: State changed to " + state);
+        if (state >= 5) {
+          document.getElementById("attack-button").disabled = false;
+        }
+      };
+
+      photonClient.onError = function (errorCode, errorMsg) {
+        debugLog("Photon Error: " + errorCode + " / " + errorMsg, true);
+      };
+
+      // Add your other handlers back here (onEvent, onActorJoin, etc.)
+      // photonClient.onActorJoin = ...
+
       waitForPhotonReady().then(() => resolve());
     }, 3000);
   });
 }
+
 
 
 
