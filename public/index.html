@@ -1589,11 +1589,6 @@ function debugLog(message, isError = false) {
   battleCard.classList.remove("hidden");
 
   
-  // Update player stats
-  document.getElementById("player-hp").textContent = battleData.player.hp;
-  document.getElementById("player-ac").textContent = battleData.player.ac;
-  document.getElementById("player-image").src = battleData.player.imageUrl || "/images/character-placeholder.png";
-
   // Clear any existing enemy cards
   const enemyContainer = document.getElementById("enemy-combatants");
   enemyContainer.innerHTML = "";
