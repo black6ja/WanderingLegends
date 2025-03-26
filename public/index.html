@@ -2226,112 +2226,329 @@ async function forceResetPhoton() {
   window.showBattleCard = showBattleCard;
 }
 
+/**
+ * Calculates effective player combat stats based on base data and equipped items,
+ * handling different weapon configurations.
+ * @param {object} baseStats - Player's base stats (inc. attacksPerRound).
+ * @param {object} equipment - Player's equipped items { mainHand: {itemId: '...'}, offHand: ..., ... }.
+ * @param {object} itemsData - An object mapping item IDs to their full data from the 'items' node.
+ * @returns {object} An object containing calculated effective combat stats.
+ */
+ function calculateEffectivePlayerStats(baseStats, equipment, itemsData) {
+    // --- Initial Setup ---
+    let effective = {
+        ac: baseStats.ac || 10,
+        maxHp: baseStats.hp || 10,
+        physicalDR: baseStats.physicalDR || 0,
+        magicalDR: baseStats.magicalDR || 0,
+        save: baseStats.save || 0,
+        level: baseStats.level || 1,
+        name: baseStats.name || "Player",
+        class: baseStats.class || "Adventurer",
+        imageUrl: `/images/classes/${(baseStats.class || 'adventurer').toLowerCase()}.png`,
+        // --- Attack Details (Initialize with Unarmed) ---
+        mainHand: {
+            numAttacks: baseStats.attacksPerRound?.mainHand || 1,
+            toHitBonus: 0, // Base unarmed
+            damageString: "1d4+0", // Base unarmed
+            damageType: "bludgeoning" // Base unarmed
+        },
+        offHand: {
+            numAttacks: baseStats.attacksPerRound?.offHand || 0, // Respect class base for off-hand potential
+            toHitBonus: 0, // Base unarmed
+            damageString: "1d4+0", // Base unarmed
+            damageType: "bludgeoning" // Base unarmed
+        }
+    };
+    let accessoryBonus = { hit: 0, damage: 0 }; // Accumulate general bonuses
+    let mainHandItem = null;
+    let offHandItem = null;
+    let armorItem = null;
+    let accessoryItem = null;
+    let isTwoHanding = false;
+    let isShielding = false;
+
+    debugLog(`[calculateStats] Base Stats: AC=${effective.ac} HP=${effective.maxHp} PhysDR=${effective.physicalDR} MagDR=${effective.magicalDR} Save=${effective.save} MHAtk=${effective.mainHand.numAttacks} OHAtk=${effective.offHand.numAttacks}`);
+
+    if (!equipment) {
+        debugLog("[calculateStats] No equipment data found. Using base/unarmed stats.");
+        return effective;
+    }
+
+    // --- Identify Equipped Items ---
+    if (equipment.mainHand?.itemId && itemsData[equipment.mainHand.itemId]) {
+        mainHandItem = itemsData[equipment.mainHand.itemId];
+        debugLog(`[calculateStats] Found Main Hand: ${mainHandItem.name}`);
+        if (mainHandItem.category === 'weapon' && mainHandItem.isTwoHanded) {
+            isTwoHanding = true;
+            debugLog(`[calculateStats] Main hand weapon is Two-Handed.`);
+        }
+    }
+    if (!isTwoHanding && equipment.offHand?.itemId && itemsData[equipment.offHand.itemId]) {
+        // Only consider offHand if not two-handing main weapon
+        offHandItem = itemsData[equipment.offHand.itemId];
+        debugLog(`[calculateStats] Found Off Hand: ${offHandItem.name}`);
+        if (offHandItem.category === 'shield') {
+            isShielding = true;
+            debugLog(`[calculateStats] Off hand item is a Shield.`);
+        }
+    } else if (isTwoHanding) {
+         debugLog(`[calculateStats] Off hand slot ignored due to Two-Handed main weapon.`);
+    }
+    if (equipment.armor?.itemId && itemsData[equipment.armor.itemId]) {
+        armorItem = itemsData[equipment.armor.itemId];
+         debugLog(`[calculateStats] Found Armor: ${armorItem.name}`);
+    }
+    if (equipment.accessory?.itemId && itemsData[equipment.accessory.itemId]) {
+        accessoryItem = itemsData[equipment.accessory.itemId];
+         debugLog(`[calculateStats] Found Accessory: ${accessoryItem.name}`);
+    }
+
+    // --- Apply Non-Weapon Bonuses (Armor, Shield AC, Accessory) ---
+    if (armorItem) {
+        effective.ac = armorItem.ac || effective.ac; // Armor sets AC, doesn't add
+        if (armorItem.hp) effective.maxHp += armorItem.hp;
+        if (armorItem.drBonus) { effective.physicalDR += armorItem.drBonus; effective.magicalDR += armorItem.drBonus; }
+        if (armorItem.physicalDR) effective.physicalDR += armorItem.physicalDR;
+        if (armorItem.magicalDR) effective.magicalDR += armorItem.magicalDR;
+        if (armorItem.saveBonus) effective.save += armorItem.saveBonus;
+         if (armorItem.save) effective.save += armorItem.save;
+    }
+    if (isShielding && offHandItem) {
+        effective.ac += offHandItem.ac || 0; // Shields ADD AC
+        if (offHandItem.hp) effective.maxHp += offHandItem.hp;
+        if (offHandItem.drBonus) { effective.physicalDR += offHandItem.drBonus; effective.magicalDR += offHandItem.drBonus; }
+         if (offHandItem.physicalDR) effective.physicalDR += offHandItem.physicalDR;
+         if (offHandItem.magicalDR) effective.magicalDR += offHandItem.magicalDR;
+        if (offHandItem.saveBonus) effective.save += offHandItem.saveBonus;
+         if (offHandItem.save) effective.save += offHandItem.save;
+    }
+    if (accessoryItem) {
+        if (accessoryItem.ac) effective.ac += accessoryItem.ac;
+        if (accessoryItem.hp) effective.maxHp += accessoryItem.hp;
+        if (accessoryItem.drBonus) { effective.physicalDR += accessoryItem.drBonus; effective.magicalDR += accessoryItem.drBonus; }
+         if (accessoryItem.physicalDR) effective.physicalDR += accessoryItem.physicalDR;
+         if (accessoryItem.magicalDR) effective.magicalDR += accessoryItem.magicalDR;
+        if (accessoryItem.saveBonus) effective.save += accessoryItem.saveBonus;
+         if (accessoryItem.save) effective.save += accessoryItem.save;
+        // Store general accessory atk/dmg bonuses separately
+        accessoryBonus.hit += accessoryItem.plusToHit || 0;
+        accessoryBonus.damage += accessoryItem.plusToDamage || 0;
+    }
+
+    // --- Determine Attack Stats based on Weapon Setup ---
+
+    // ** Main Hand **
+    if (mainHandItem && mainHandItem.category === 'weapon') {
+        effective.mainHand.toHitBonus = mainHandItem.plusToHit || 0;
+        // Combine base damage bonus and accessory bonus
+        const totalDamageBonusMH = (mainHandItem.plusToDamage || 0) + accessoryBonus.damage;
+        effective.mainHand.damageString = `${mainHandItem.damageDice || '1d4'}${totalDamageBonusMH >= 0 ? '+' : ''}${totalDamageBonusMH}`;
+        effective.mainHand.damageType = mainHandItem.damageType || 'bludgeoning';
+        if (mainHandItem.grantsExtraAttack) {
+            effective.mainHand.numAttacks += 1;
+        }
+    } else {
+        // Unarmed Main Hand - Apply accessory bonuses only
+        effective.mainHand.toHitBonus = 0; // Base is 0
+        const totalDamageBonusMH = 0 + accessoryBonus.damage; // Base damage bonus is 0
+        effective.mainHand.damageString = `1d4${totalDamageBonusMH >= 0 ? '+' : ''}${totalDamageBonusMH}`;
+        effective.mainHand.damageType = 'bludgeoning';
+        // No extra attacks if unarmed
+    }
+    // Add general accessory hit bonus
+    effective.mainHand.toHitBonus += accessoryBonus.hit;
+
+
+    // ** Off Hand **
+    if (isTwoHanding || isShielding) {
+        // Cannot use Off Hand
+        effective.offHand.numAttacks = 0;
+        effective.offHand.toHitBonus = 0;
+        effective.offHand.damageString = "N/A";
+        effective.offHand.damageType = "N/A";
+    } else if (offHandItem && offHandItem.category === 'weapon') {
+        // Dual Wielding a weapon
+        effective.offHand.numAttacks = baseStats.attacksPerRound?.offHand || 0; // Start with class base
+         if (effective.offHand.numAttacks > 0) { // Only apply weapon stats if base allows off-hand attack
+            effective.offHand.toHitBonus = offHandItem.plusToHit || 0;
+            const totalDamageBonusOH = (offHandItem.plusToDamage || 0) + accessoryBonus.damage;
+            effective.offHand.damageString = `${offHandItem.damageDice || '1d4'}${totalDamageBonusOH >= 0 ? '+' : ''}${totalDamageBonusOH}`;
+            effective.offHand.damageType = offHandItem.damageType || 'bludgeoning';
+            if (offHandItem.grantsExtraAttack) {
+                effective.offHand.numAttacks += 1;
+            }
+        } else {
+             // Base class doesn't get off-hand attacks, even if holding weapon
+             effective.offHand.numAttacks = 0;
+             effective.offHand.toHitBonus = 0;
+             effective.offHand.damageString = "N/A";
+             effective.offHand.damageType = "N/A";
+        }
+    } else {
+        // Off-hand is free (or holding non-weapon/non-shield), use Unarmed stats if base attacks > 0
+        if (effective.offHand.numAttacks > 0) {
+            effective.offHand.toHitBonus = 0; // Base unarmed
+             const totalDamageBonusOH = 0 + accessoryBonus.damage; // Base unarmed damage bonus 0
+            effective.offHand.damageString = `1d4${totalDamageBonusOH >= 0 ? '+' : ''}${totalDamageBonusOH}`;
+            effective.offHand.damageType = 'bludgeoning';
+            // No extra attacks if unarmed
+        } else {
+            // Base class gets 0 off-hand attacks anyway
+            effective.offHand.toHitBonus = 0;
+            effective.offHand.damageString = "N/A";
+            effective.offHand.damageType = "N/A";
+        }
+    }
+     // Add general accessory hit bonus to offhand if it's being used
+     if (effective.offHand.numAttacks > 0){
+        effective.offHand.toHitBonus += accessoryBonus.hit;
+     }
+
+
+    // --- Final Clamping/Adjustments ---
+    effective.physicalDR = Math.max(0, effective.physicalDR);
+    effective.magicalDR = Math.max(0, effective.magicalDR);
+    effective.save = Math.max(0, effective.save);
+    // Ensure numAttacks isn't negative (shouldn't happen with this logic, but safe)
+    effective.mainHand.numAttacks = Math.max(0, effective.mainHand.numAttacks);
+    effective.offHand.numAttacks = Math.max(0, effective.offHand.numAttacks);
+
+
+    debugLog(`[calculateStats] Effective Stats: AC=${effective.ac} HP=${effective.maxHp} PhysDR=${effective.physicalDR} MagDR=${effective.magicalDR} Save=${effective.save}`);
+    debugLog(`[calculateStats] MH: ${effective.mainHand.numAttacks}x Hit+${effective.mainHand.toHitBonus} Dmg:${effective.mainHand.damageString} Type:${effective.mainHand.damageType}`);
+    debugLog(`[calculateStats] OH: ${effective.offHand.numAttacks}x Hit+${effective.offHand.toHitBonus} Dmg:${effective.offHand.damageString} Type:${effective.offHand.damageType}`);
+
+    return effective;
+}
+
 // Modify the attack-button click event listener to initialize the battle.
 document.addEventListener("DOMContentLoaded", function () {
     const attackBtn = document.getElementById("attack-button");
-    if (!attackBtn) {
-        console.warn("⚠️ attack-button not found in DOM.");
-        return;
-    }
+    // ... (rest of your DOMContentLoaded, ensure this listener is correctly placed)
 
-    attackBtn.addEventListener("click", async function () { // Make the handler async
+    attackBtn.addEventListener("click", async function () {
         debugLog("Attack button clicked.");
-        attackBtn.disabled = true; // Disable button during operation
+        attackBtn.disabled = true;
         document.getElementById("creature-card").classList.add("hidden");
 
         const creatureSpawn = currentSpawnForBattle;
-        if (!creatureSpawn) {
-            debugLog("Attack aborted: No currentSpawnForBattle.", true);
-            alert("Error: No creature selected for battle.");
-            attackBtn.disabled = false;
-            return;
-        }
+        // ... (checks for creatureSpawn, user) ...
 
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            debugLog("Attack aborted: No authenticated user.", true);
-            alert("You must be logged in to battle.");
-            attackBtn.disabled = false;
-            return;
-        }
-        const uid = user.uid;
+        const uid = firebase.auth().currentUser.uid;
 
         try {
-            debugLog("Fetching player data for UID: " + uid);
-            const snapshot = await database.ref(`players/${uid}`).once("value");
-            if (!snapshot.exists()) {
-                 throw new Error(`Player data not found for UID: ${uid}`);
-            }
-            const playerData = snapshot.val();
+            // --- Fetch ALL necessary data upfront ---
+            debugLog("Fetching player data, inventory, and items...");
+            const playerSnapshot = await database.ref(`players/${uid}`).once("value");
+            if (!playerSnapshot.exists()) throw new Error(`Player data not found for UID: ${uid}`);
+            const playerData = playerSnapshot.val();
+
             const activeCharKey = playerData.activeCharacter;
-            if (!activeCharKey || !playerData[activeCharKey]) {
-                 throw new Error(`Active character not found or invalid for UID: ${uid}`);
+            if (!activeCharKey || !playerData[activeCharKey]) throw new Error(`Active character not found or invalid for UID: ${uid}`);
+            const activeCharBaseData = playerData[activeCharKey]; // Base stats, name, class, inventory refs
+
+            // Fetch all item details needed
+            const itemIdsToFetch = new Set();
+            const inventory = activeCharBaseData.inventory || { equipment: {}, bag: {} };
+            if (inventory.equipment) {
+                Object.values(inventory.equipment).forEach(equip => {
+                    if (equip?.itemId) itemIdsToFetch.add(equip.itemId);
+                });
             }
-            const activeChar = playerData[activeCharKey];
-            debugLog(`Active character found: ${activeChar.name} (${activeCharKey})`);
+            // We might need bag items later for 'Use Item' action, but for now, just equipment.
 
-            // Construct room name
+            const itemPromises = Array.from(itemIdsToFetch).map(itemId =>
+                database.ref(`items/${itemId}`).once('value').then(snap => ({ id: itemId, data: snap.val() }))
+            );
+            const itemResults = await Promise.all(itemPromises);
+            const itemsData = itemResults.reduce((acc, itemResult) => {
+                if (itemResult.data) {
+                    acc[itemResult.id] = itemResult.data;
+                } else {
+                     debugLog(`Warning: Failed to fetch item data for ID: ${itemResult.id}`, true);
+                }
+                return acc;
+            }, {});
+            debugLog(`Fetched details for ${Object.keys(itemsData).length} equipped items.`);
+            // --- End data fetching ---
+
+            // --- Calculate Effective Stats ---
+            const playerEffectiveStats = calculateEffectivePlayerStats(activeCharBaseData.stats, inventory.equipment, itemsData);
+             // Augment with details not in base stats (like name, class if needed)
+             playerEffectiveStats.name = activeCharBaseData.name;
+             playerEffectiveStats.class = activeCharBaseData.class;
+             playerEffectiveStats.imageUrl = `/images/classes/${activeCharBaseData.class.toLowerCase()}.png`; // Get image URL
+
+            // --- Prepare Room Join ---
+            // ... (room name generation, call prepareAndJoinBattleRoom) ...
             const creatureIdentifier = creatureSpawn.creatureId || creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
-            const roomName = "battle_" + creatureIdentifier + "_" + Date.now(); // Add timestamp for uniqueness if needed
+            const roomName = "battle_" + creatureIdentifier + "_" + Date.now();
+            const roomOptions = { maxPlayers: 2, isOpen: true, isVisible: true };
             debugLog(`Generated room name: ${roomName}`);
-            const roomOptions = { maxPlayers: 2, isOpen: true, isVisible: true }; // Example options
-
             debugLog(`Calling prepareAndJoinBattleRoom for room: ${roomName}`);
-            // Use the new robust function - await its completion
             const joinedRoom = await prepareAndJoinBattleRoom(roomName, roomOptions);
-            // If prepareAndJoinBattleRoom fails, it will throw an error caught below
+            debugLog(`Successfully prepared and joined room: ${joinedRoom.name}...`);
 
-            debugLog(`Successfully prepared and joined room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
-            // --- Proceed with battle setup ONLY AFTER successful join ---
-            debugLog("Calculating initiative...");
-            const playerInitiative = Math.floor(Math.random() * 20) + 1;
-            const enemyInitiative = Math.floor(Math.random() * 20) + 1;
-            const turnOrder = (playerInitiative >= enemyInitiative)
-                ? [activeChar.name, creatureSpawn.creatureName]
-                : [creatureSpawn.creatureName, activeChar.name];
-            debugLog(`Initiative rolled. Player: ${playerInitiative}, Enemy: ${enemyInitiative}. Turn order: ${turnOrder.join(', ')}`);
+            // --- Create currentBattleData using EFFECTIVE stats ---
+            debugLog("Calculating initiative and creating battle data...");
+            const playerInitiative = Math.floor(Math.random() * 20) + 1; // TODO: Add Dex mod later if available
+            const enemyStats = creatureSpawn.stats; // Stats from the spawn point
+            const enemyInitiative = enemyStats.initiative || Math.floor(Math.random() * 20) + 1;
+
+             // Combine effective stats with battle-specific info
+             const playerBattleData = {
+                 ...playerEffectiveStats, // Includes calculated AC, MaxHP, DRs, Save, ToHit, Damage, Level, Name, Class, ImageUrl etc.
+                 id: activeCharKey,
+                 actorNr: photonClient.myActor().actorNr,
+                 currentHp: playerEffectiveStats.maxHp, // Start at full HP
+                 initiative: playerInitiative,
+                 statusEffects: [] // Placeholder for status effects
+             };
+
+             const enemyBattleData = {
+                 templateId: creatureSpawn.creatureId || "unknown",
+                 instanceId: `${creatureSpawn.creatureId || 'enemy'}_${Date.now()}`,
+                 name: creatureSpawn.creatureName || "Creature",
+                 imageUrl: creatureSpawn.imageUrl || "/images/enemy-placeholder.png",
+                 ac: enemyStats.ac || 10,
+                 maxHp: enemyStats.hp || 10,
+                 currentHp: enemyStats.hp || 10, // Start at full HP
+                 physicalDR: enemyStats.physicalDR || { amount: 0 }, // Store the DR object
+                 magicalDR: enemyStats.magicalDR || { amount: 0 },   // Store the DR object
+                 save: enemyStats.save || 0,
+                 attackBonus: enemyStats.attackBonus || 0,
+                 attackDamage: enemyStats.attackDamage || "1d4+0",
+                 initiative: enemyInitiative,
+                 statusEffects: [] // Placeholder
+             };
+
+
+            const turnOrderNames = (playerInitiative >= enemyInitiative)
+                ? [playerBattleData.name, enemyBattleData.name]
+                : [enemyBattleData.name, playerBattleData.name];
 
             currentBattleData = {
                 roomId: joinedRoom.name,
-                player: {
-                    id: activeCharKey,
-                    actorNr: photonClient.myActor().actorNr,
-                    name: activeChar.name,
-                    hp: activeChar.stats.hp,
-                    ac: activeChar.stats.ac,
-                    imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
-                    initiative: playerInitiative
-                },
-                enemies: [{
-                    instanceId: creatureSpawn.creatureId ? `${creatureSpawn.creatureId}_${Date.now()}` : `enemy_${Date.now()}`,
-                    templateId: creatureSpawn.creatureId || "unknown",
-                    name: creatureSpawn.creatureName,
-                    hp: creatureSpawn.stats.hp,
-                    ac: creatureSpawn.stats.ac,
-                    imageUrl: creatureSpawn.imageUrl,
-                    initiative: enemyInitiative
-                }],
-                turnOrder: turnOrder,
+                player: playerBattleData,
+                enemies: [enemyBattleData], // Array of enemies
+                turnOrder: turnOrderNames,
                 currentTurnIndex: 0
             };
-            debugLog("currentBattleData prepared: " + JSON.stringify(currentBattleData));
+            debugLog("currentBattleData created with effective stats: " + JSON.stringify(currentBattleData));
 
-            // --- TODO: Raise Photon Event to Share Initial State ---
-            // photonClient.raiseEvent(EVENT_CODE_BATTLE_START, currentBattleData, { receivers: Photon.LoadBalancing.Constants.ReceiverGroup.Others });
-            // debugLog("Raised Battle Start event (placeholder).");
+            // --- TODO: Raise Photon Event if needed ---
 
             debugLog("Showing battle card UI.");
             showBattleCard(currentBattleData); // Update the UI
 
         } catch (err) {
-            // Catch errors from Firebase fetch, prepareAndJoinBattleRoom, etc.
             console.error("Error starting battle:", err);
             debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
             alert("Could not start battle: " + err.message);
-            // Maybe hide loading indicators or provide feedback
         } finally {
-             attackBtn.disabled = false; // Re-enable button regardless of success/failure
+             attackBtn.disabled = false;
         }
     });
 });
