@@ -1769,6 +1769,32 @@ window.showBattleCard = showBattleCard;
 }
 
 
+async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
+  // If the Photon client is already in a room, leave it first.
+  if (photonClient.myRoom()) {
+    debugLog("Photon client is already in a room. Leaving the current room...");
+    photonClient.leaveRoom();
+
+    // Wait until the client is no longer in a room
+    await new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        if (!photonClient.myRoom()) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+      // Optionally, you could add a timeout here if needed.
+    });
+
+    // Optionally, wait until Photon is fully ready (in the lobby).
+    await waitForPhotonReady();
+  }
+
+  // Now that we’re sure we’re not already in a room, attempt join/create.
+  return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
+}
+
+
   function showCreatureCard(spawn) {
   currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
   const card = document.getElementById('creature-card');
@@ -1852,10 +1878,9 @@ document.addEventListener("DOMContentLoaded", function () {
             const roomName = "battle_" + creatureIdentifier;
             debugLog(`Generated room name: ${roomName}`);
 
-            // *** USE THE NEW V2 FUNCTION ***
             debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
-            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
-            debugLog(`Successfully completed joinOrCreateRoomV2_PropertyAssignment. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
+            const joinedRoom = await prepareAndJoinBattleRoom(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
+            debugLog(`Joined room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
             // --- Proceed with battle setup ONLY AFTER successful join ---
             debugLog("Calculating initiative...");
