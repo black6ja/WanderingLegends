@@ -1780,9 +1780,6 @@ async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
   return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
 }
 
-  // Now that we’re sure we’re not already in a room, attempt join/create.
-  return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
-}
 
 function leaveCurrentRoom() {
   return new Promise((resolve, reject) => {
@@ -1807,6 +1804,7 @@ function leaveCurrentRoom() {
     }, 10000);
   });
 }
+
 
 
   function showCreatureCard(spawn) {
