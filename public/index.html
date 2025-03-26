@@ -1726,36 +1726,43 @@ window.showBattleCard = showBattleCard;
         };
 
         // --- Temporary onError Handler ---
-        photonClient.onError = (errorCode, errorMsg) => {
-          debugLog(`[joinOrCreateRoomV2_Prop] onError triggered. Code: ${errorCode}, Msg: ${errorMsg}`);
+        // --- Temporary onError Handler ---
+photonClient.onError = (errorCode, errorMsg) => {
+    // **** ADD MORE LOGGING HERE ****
+    debugLog(`[joinOrCreateRoomV2_Prop] TEMP onError triggered. Code: ${errorCode}, Msg: ${errorMsg}, Current Handler State Var: '${state}', Photon Client State: ${photonClient.state}`);
 
-            if (originalOnError) {
-                 try {
-                    originalOnError.call(photonClient, errorCode, errorMsg);
-                 } catch (e) {
-                     debugLog(`Error in originalOnError: ${e}`, true);
-                 }
-            }
+    if (originalOnError) {
+         try {
+            originalOnError.call(photonClient, errorCode, errorMsg);
+         } catch (e) {
+             debugLog(`Error in originalOnError: ${e}`, true);
+         }
+    }
 
-            if (state === 'joining' && errorCode === 32758) { // GameDoesNotExist during join attempt
-                debugLog(`[joinOrCreateRoomV2_Prop] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
-                state = 'creating'; // Switch state
+    debugLog(`[joinOrCreateRoomV2_Prop] Checking condition: state === 'joining' (${state === 'joining'}) && errorCode === 32758 (${errorCode === 32758})`);
 
-                // --- Try to Create ---
-                debugLog(`[joinOrCreateRoomV2_Prop] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
-                if (!photonClient.createRoom(roomName, options)) {
-                    // createRoom itself returned false (e.g., not connected)
-                    debugLog(`[joinOrCreateRoomV2_Prop] photonClient.createRoom call returned false immediately for ${roomName}.`, true);
-                    cleanupAndRestore(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
-                }
-                 // If createRoom call succeeds, we now wait for onActorJoin or an error during creation
+    if (state === 'joining' && errorCode === 32758) { // GameDoesNotExist during join attempt
+        debugLog(`[joinOrCreateRoomV2_Prop] Condition MET. Join failed (GameDoesNotExist), attempting create: ${roomName}`); // More specific log
+        state = 'creating'; // Switch state
 
-            } else {
-                // Any other error (during join or create) is fatal for this attempt
-                debugLog(`[joinOrCreateRoomV2_Prop] Operation failed (State: ${state}) for room ${roomName}: ${errorCode} / ${errorMsg}`, true);
-                cleanupAndRestore(new Error(`Failed operation (${state}) on room ${roomName}: ${errorMsg} (${errorCode})`));
-            }
-        };
+        // --- Try to Create ---
+        debugLog(`[joinOrCreateRoomV2_Prop] PRE-CREATE Check: Photon client state should be 5: ${photonClient.state}`);
+        debugLog(`[joinOrCreateRoomV2_Prop] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+        const createResult = photonClient.createRoom(roomName, options);
+        debugLog(`[joinOrCreateRoomV2_Prop] createRoom call returned: ${createResult}`); // Log the immediate result
+
+        if (!createResult) {
+            debugLog(`[joinOrCreateRoomV2_Prop] photonClient.createRoom call returned false immediately for ${roomName}. Client state: ${photonClient.state}`, true);
+            cleanupAndRestore(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+        }
+         // If createRoom call succeeds (returns true), we now wait for onActorJoin
+
+    } else {
+        // Condition NOT met or other error
+        debugLog(`[joinOrCreateRoomV2_Prop] Condition NOT MET or other error. Operation failed (State: ${state}) for room ${roomName}: ${errorCode} / ${errorMsg}. Not attempting create or already failed.`, true);
+        cleanupAndRestore(new Error(`Failed operation (${state}) on room ${roomName}: ${errorMsg} (${errorCode})`));
+    }
+};
 
         // --- Start the process: Try to Join ---
         debugLog(`[joinOrCreateRoomV2_Prop] Calling joinRoom: ${roomName}`);
