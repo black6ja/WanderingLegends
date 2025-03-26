@@ -2113,15 +2113,30 @@ async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { //
         }
 
         // --- Step 3: Join or Create the Target Room ---
-        const joinCreateTimeout = overallStartTime + timeout; // Use remaining time
-        debugLog(`[prepareAndJoinBattleRoom] Proceeding to join/create target room: ${roomName}`);
-        checkTimeout(joinCreateTimeout); // Ensure some time is left
-        const remainingTime = timeout - (Date.now() - overallStartTime);
-        if (remainingTime <= 1000) throw new Error("Not enough time remaining for join/create operation.");
+const joinCreateTimeout = overallStartTime + timeout; // Use remaining time
+debugLog(`[prepareAndJoinBattleRoom] Proceeding to join/create target room: ${roomName}`);
+checkTimeout(joinCreateTimeout); // Ensure some time is left
 
-        const joinedRoom = await tryJoinThenCreateRoom(roomName, options, joinAttemptDuration, createAttemptDuration);
-        debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
-        return joinedRoom;
+// *** DEFINE THE VARIABLE CLEARLY HERE ***
+const joinAttemptDuration = 1500; // Duration for the join attempt (e.g., 1.5 seconds)
+// *** ADD LOGGING TO CONFIRM ***
+debugLog(`[prepareAndJoinBattleRoom] Defined joinAttemptDuration: ${joinAttemptDuration}`);
+
+const timeElapsedSoFar = Date.now() - overallStartTime;
+// Calculate remaining time for create attempt
+const createAttemptDuration = timeout - timeElapsedSoFar - joinAttemptDuration - 500; // Add buffer
+
+debugLog(`[prepareAndJoinBattleRoom] Calculated createAttemptDuration: ${createAttemptDuration}`);
+
+if (createAttemptDuration <= 1000) { // Ensure at least 1s for create attempt
+    throw new Error(`Not enough time remaining for create operation. Needed >1000ms, have ${createAttemptDuration}ms.`);
+}
+
+// Pass the durations correctly
+const joinedRoom = await tryJoinThenCreateRoom(roomName, options, joinAttemptDuration, createAttemptDuration); // Use the new function
+
+debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
+return joinedRoom;
 
     } catch (error) {
         debugLog(`[prepareAndJoinBattleRoom] Error during operation for room ${roomName}: ${error.message}`, true);
