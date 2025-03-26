@@ -1756,9 +1756,6 @@ window.showBattleCard = showBattleCard;
             }
         };
 
-        debugLog(`[joinOrCreateRoomV2] Photon state before joinRoom: ${photonClient.state}`);
-
-
         // --- Start the process: Try to Join ---
         debugLog(`[joinOrCreateRoomV2_Prop] Calling joinRoom: ${roomName}`);
         state = 'joining';
@@ -1769,10 +1766,8 @@ window.showBattleCard = showBattleCard;
         }
         // Now we wait for onActorJoin or the temporary onError handler
     });
-  }
+}
 
-
-  
 
   function showCreatureCard(spawn) {
   currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
@@ -1859,8 +1854,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // *** USE THE NEW V2 FUNCTION ***
             debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
-            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2, isOpen: true, isVisible: true }, 15000);
-
+            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
             debugLog(`Successfully completed joinOrCreateRoomV2_PropertyAssignment. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
             // --- Proceed with battle setup ONLY AFTER successful join ---
