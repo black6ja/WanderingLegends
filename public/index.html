@@ -1647,6 +1647,40 @@ window.showBattleCard = showBattleCard;
 
   });
 
+  async function joinOrCreateRoom(roomName, options) {
+  // Try to join the room
+  debugLog("Attempting to join room: " + roomName);
+  photonClient.joinRoom(roomName, options);
+
+  // Wait for a short period to see if we have joined the room
+  let joined = false;
+  for (let i = 0; i < 15; i++) { // check every 200ms, total ~3 seconds
+    if (photonClient.myRoom()) {
+      joined = true;
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
+  // If not joined, try to create the room
+  if (!joined) {
+    debugLog("Join failed, creating room: " + roomName);
+    photonClient.createRoom(roomName, options);
+    // Wait again to see if the room was created and joined
+    for (let i = 0; i < 15; i++) {
+      if (photonClient.myRoom()) {
+        joined = true;
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    if (!joined) {
+      throw new Error("Could not join or create room: " + roomName);
+    }
+  }
+}
+
+
   function showCreatureCard(spawn) {
   currentSpawnForBattle = spawn; // Store the spawn for later use in the battle
   const card = document.getElementById('creature-card');
@@ -1705,8 +1739,8 @@ document.addEventListener("DOMContentLoaded", function () {
       await waitForPhotonReady();
 
       const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
-      // Use joinRoom instead of joinOrCreateRoom:
-      photonClient.joinRoom(roomName, { maxPlayers: 2 });
+  
+      await joinOrCreateRoom(roomName, { maxPlayers: 2 });
 
       const playerInitiative = Math.floor(Math.random() * 20) + 1;
       const enemyInitiative = Math.floor(Math.random() * 20) + 1;
