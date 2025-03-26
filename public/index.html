@@ -1770,15 +1770,22 @@ window.showBattleCard = showBattleCard;
 
 
 async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
-  if (photonClient.myRoom()) {
-    debugLog("Photon client is already in a room. Initiating leave process...");
-    await leaveCurrentRoom(); // Wait until we have fully left the room.
-    debugLog("Left the previous room. Waiting for Photon to be ready...");
-    await waitForPhotonReady(); // Ensure Photon is in a ready state (in the lobby).
+  try {
+    if (photonClient.myRoom()) {
+      debugLog("Photon client is already in a room. Initiating leave process...");
+      await leaveCurrentRoom();
+      debugLog("Left the previous room. Waiting for Photon to be ready...");
+      await waitForPhotonReady();
+    }
+  } catch (e) {
+    debugLog("Failed to leave room normally: " + e.message, true);
+    debugLog("Forcing Photon disconnect and reconnect...");
+    await forceResetPhoton();
   }
-  // Now attempt to join or create the battle room.
+  // Now that the client is in a clean state, attempt to join or create the battle room.
   return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
 }
+
 
 
 function leaveCurrentRoom() {
@@ -1787,21 +1794,37 @@ function leaveCurrentRoom() {
       // Already not in a room.
       return resolve();
     }
-    // Store any existing onLeftRoom handler.
+    let resolved = false;
     const originalOnLeftRoom = photonClient.onLeftRoom;
-    // Set a temporary handler to resolve when the room is left.
-    photonClient.onLeftRoom = function() {
+    photonClient.onLeftRoom = function () {
       debugLog("Photon client left the current room.");
+      resolved = true;
       // Restore the original handler.
       photonClient.onLeftRoom = originalOnLeftRoom;
       resolve();
     };
     debugLog("Calling photonClient.leaveRoom()...");
     photonClient.leaveRoom();
-    // Optionally, add a timeout if needed.
+    // Wait for 10 seconds; if no onLeftRoom, reject.
     setTimeout(() => {
-      reject(new Error("Timeout waiting to leave the current room"));
+      if (!resolved) {
+        reject(new Error("Timeout waiting to leave the current room"));
+      }
     }, 10000);
+  });
+}
+
+function forceResetPhoton() {
+  return new Promise((resolve) => {
+    debugLog("Forcing Photon disconnect...");
+    photonClient.disconnect();
+    // Wait 3 seconds to allow disconnect.
+    setTimeout(() => {
+      debugLog("Reconnecting Photon...");
+      photonClient.connectToRegionMaster("us");
+      // Wait until Photon is ready (using your waitForPhotonReady helper)
+      waitForPhotonReady().then(() => resolve());
+    }, 3000);
   });
 }
 
