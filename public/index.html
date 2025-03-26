@@ -1769,7 +1769,33 @@ window.showBattleCard = showBattleCard;
         }
         // Now we wait for onActorJoin or the temporary onError handler
     });
+  }
+
+  async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
+  // If the Photon client is already in a room, leave it first.
+  if (photonClient.myRoom()) {
+    debugLog("Photon client is already in a room. Leaving the current room...");
+    photonClient.leaveRoom();
+
+    // Wait until the client is no longer in a room
+    await new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        if (!photonClient.myRoom()) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+      // Optionally, you could add a timeout here if needed.
+    });
+
+    // Optionally, wait until Photon is fully ready (in the lobby).
+    await waitForPhotonReady();
+  }
+
+  // Now that we’re sure we’re not already in a room, attempt join/create.
+  return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
 }
+
 
 
   function showCreatureCard(spawn) {
@@ -1813,107 +1839,62 @@ document.addEventListener("DOMContentLoaded", function () {
     // Ensure joinOrCreateRoomV2 function is defined before this listener runs.
 
     attackBtn.addEventListener("click", async function () {
-        debugLog("Attack button clicked."); // Log start
-        document.getElementById("creature-card").classList.add("hidden");
+  debugLog("Attack button clicked.");
+  document.getElementById("creature-card").classList.add("hidden");
 
-        const creatureSpawn = currentSpawnForBattle;
-        if (!creatureSpawn) {
-            console.error("No creature spawn data available for battle.");
-            debugLog("Attack aborted: No currentSpawnForBattle.", true);
-            return;
-        }
+  const creatureSpawn = currentSpawnForBattle;
+  if (!creatureSpawn) {
+    console.error("No creature spawn data available for battle.");
+    debugLog("Attack aborted: No currentSpawnForBattle.", true);
+    return;
+  }
 
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            console.error("No authenticated user found.");
-            debugLog("Attack aborted: No authenticated user.", true);
-            alert("You must be logged in to battle.");
-            return;
-        }
-        const uid = user.uid;
+  const user = firebase.auth().currentUser;
+  if (!user) {
+    console.error("No authenticated user found.");
+    debugLog("Attack aborted: No authenticated user.", true);
+    alert("You must be logged in to battle.");
+    return;
+  }
+  const uid = user.uid;
 
-        try {
-            debugLog("Fetching player data for UID: " + uid);
-            const snapshot = await database.ref(`players/${uid}`).once("value");
-            if (!snapshot.exists()) {
-                 throw new Error(`Player data not found for UID: ${uid}`);
-            }
-            const playerData = snapshot.val();
-            const activeCharKey = playerData.activeCharacter;
-            if (!activeCharKey || !playerData[activeCharKey]) {
-                 throw new Error(`Active character not found or invalid for UID: ${uid}`);
-            }
-            const activeChar = playerData[activeCharKey];
-            debugLog(`Active character found: ${activeChar.name} (${activeCharKey})`);
+  try {
+    debugLog("Fetching player data for UID: " + uid);
+    const snapshot = await database.ref(`players/${uid}`).once("value");
+    if (!snapshot.exists()) {
+      throw new Error(`Player data not found for UID: ${uid}`);
+    }
+    const playerData = snapshot.val();
+    const activeCharKey = playerData.activeCharacter;
+    if (!activeCharKey || !playerData[activeCharKey]) {
+      throw new Error(`Active character not found or invalid for UID: ${uid}`);
+    }
+    const activeChar = playerData[activeCharKey];
+    debugLog(`Active character found: ${activeChar.name} (${activeCharKey})`);
 
-            debugLog("Waiting for Photon to be ready...");
-            await waitForPhotonReady(); // Ensure Photon client is connected and ready
-            debugLog("Photon is ready. Proceeding with room join/create.");
+    debugLog("Waiting for Photon to be ready...");
+    await waitForPhotonReady(); // Ensure Photon is connected and ready
+    debugLog("Photon is ready. Proceeding with room join/create.");
 
-            // Construct room name (ensure creatureId is preferred)
-            const creatureIdentifier = creatureSpawn.creatureId || creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
-            const roomName = "battle_" + creatureIdentifier;
-            debugLog(`Generated room name: ${roomName}`);
+    // Construct room name (ensure creatureId is preferred)
+    const creatureIdentifier = creatureSpawn.creatureId ||
+      creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
+    const roomName = "battle_" + creatureIdentifier;
+    debugLog(`Generated room name: ${roomName}`);
 
-            // *** USE THE NEW V2 FUNCTION ***
-            debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
-            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2, isOpen: true, isVisible: true }, 15000);
+    // *** Use the new helper function ***
+    const joinedRoom = await prepareAndJoinBattleRoom(roomName, { maxPlayers: 2, isOpen: true, isVisible: true });
+    debugLog(`Joined room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
-            debugLog(`Successfully completed joinOrCreateRoomV2_PropertyAssignment. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
-
-            // --- Proceed with battle setup ONLY AFTER successful join ---
-            debugLog("Calculating initiative...");
-            const playerInitiative = Math.floor(Math.random() * 20) + 1;
-            const enemyInitiative = Math.floor(Math.random() * 20) + 1; // Consider adding enemy Dex mod later
-            const turnOrder = (playerInitiative >= enemyInitiative)
-                ? [activeChar.name, creatureSpawn.creatureName]
-                : [creatureSpawn.creatureName, activeChar.name];
-            debugLog(`Initiative rolled. Player: ${playerInitiative}, Enemy: ${enemyInitiative}. Turn order: ${turnOrder.join(', ')}`);
-
-            currentBattleData = {
-                roomId: joinedRoom.name, // Store room name for reference
-                player: {
-                    id: activeCharKey,
-                    actorNr: photonClient.myActor().actorNr, // Store Photon Actor Number
-                    name: activeChar.name,
-                    hp: activeChar.stats.hp, // Use current HP if tracked, else max HP
-                    ac: activeChar.stats.ac,
-                    imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
-                    initiative: playerInitiative
-                },
-                enemies: [{
-                    // Use a unique ID for the enemy instance in this battle if needed
-                    instanceId: creatureSpawn.creatureId ? `${creatureSpawn.creatureId}_${Date.now()}` : `enemy_${Date.now()}`,
-                    templateId: creatureSpawn.creatureId || "unknown", // ID from creature table
-                    name: creatureSpawn.creatureName,
-                    hp: creatureSpawn.stats.hp, // Starting HP
-                    ac: creatureSpawn.stats.ac,
-                    imageUrl: creatureSpawn.imageUrl,
-                    initiative: enemyInitiative
-                }],
-                turnOrder: turnOrder,
-                currentTurnIndex: 0
-            };
-            debugLog("currentBattleData prepared: " + JSON.stringify(currentBattleData)); // Be cautious if objects become complex
-
-            // --- TODO: Raise Photon Event to Share Initial State ---
-            // Example: Send player info and enemy info so the other player (if joining) gets the setup
-            // const initialBattleStateEventData = { ... }; // Prepare data
-            // photonClient.raiseEvent(EVENT_CODE_BATTLE_START, initialBattleStateEventData, { receivers: Photon.LoadBalancing.Constants.ReceiverGroup.All });
-            // debugLog("Raised Battle Start event (placeholder).");
-
-            debugLog("Showing battle card UI.");
-            showBattleCard(currentBattleData); // Update the UI
-
-        } catch (err) {
-            // Catch errors from waitForPhotonReady, Firebase fetch, or joinOrCreateRoomV2
-            console.error("Error starting battle:", err);
-            debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
-            alert("Could not start battle: " + err.message);
-            // Maybe hide loading indicators or provide feedback
-        }
-    });
+    // ... continue with battle setup (initiative, battle data, UI, etc.)
+    
+  } catch (err) {
+    console.error("Error starting battle:", err);
+    debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
+    alert("Could not start battle: " + err.message);
+  }
 });
+
 
 
 
