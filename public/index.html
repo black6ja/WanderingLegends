@@ -1668,43 +1668,91 @@ window.showBattleCard = showBattleCard;
 
   });
 
-  async function joinOrCreateRoom(roomName, options) {
-  debugLog("Attempting to join room: " + roomName);
-  photonClient.joinRoom(roomName, options);
+  function joinOrCreateRoomV2(roomName, options, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        debugLog(`[joinOrCreateRoomV2] Attempting join/create for room: ${roomName}`);
 
-  let joined = false;
-  debugLog("Waiting after join attempt for room: " + roomName);
-  for (let i = 0; i < 15; i++) { 
-    if (photonClient.myRoom() && photonClient.myRoom().name === roomName) {
-        joined = true;
-        debugLog("Successfully joined room: " + roomName + " after create attempt.");
-        const currentRoom = photonClient.myRoom();
-        debugLog("Current Room (after create) Name: " + currentRoom.name);
-        break; 
-    }
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-  
-  if (!joined) {
-    debugLog("Initial join failed or timed out for room: " + roomName + ". Attempting to create.");
-    photonClient.createRoom(roomName, options);
-    
-    debugLog("Waiting after create attempt for room: " + roomName);
-    for (let i = 0; i < 15; i++) {
-      if (photonClient.myRoom() && photonClient.myRoom().name === roomName) { // Check name too
-        joined = true;
-        debugLog("Successfully joined room: " + roomName + " after create attempt.");
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
-    if (!joined) {
-      debugLog("FATAL: Could not join or create room: " + roomName);
-      throw new Error("Could not join or create room: " + roomName);
-    }
-  }
-  debugLog("Exiting joinOrCreateRoom successfully for: " + roomName);
+        let joinErrorListener = null;
+        let createErrorListener = null;
+        let actorJoinListener = null;
+        let timeoutHandle = null;
+
+        const cleanupListeners = () => {
+            clearTimeout(timeoutHandle);
+            if (joinErrorListener) photonClient.removeListener('onError', joinErrorListener);
+            if (createErrorListener) photonClient.removeListener('onError', createErrorListener);
+            if (actorJoinListener) photonClient.removeListener('onActorJoin', actorJoinListener);
+            joinErrorListener = null;
+            createErrorListener = null;
+            actorJoinListener = null;
+            debugLog(`[joinOrCreateRoomV2] Listeners cleaned up for ${roomName}.`);
+        };
+
+        timeoutHandle = setTimeout(() => {
+            debugLog(`[joinOrCreateRoomV2] Timed out waiting for join/create: ${roomName}`, true);
+            cleanupListeners();
+            reject(new Error(`Timed out waiting to join or create room: ${roomName}`));
+        }, timeout);
+
+        // Listener for successful join (applies after join OR create)
+        actorJoinListener = (actor) => {
+            if (actor.isLocal) {
+                const currentRoom = photonClient.myRoom();
+                if (currentRoom && currentRoom.name === roomName) {
+                    debugLog(`[joinOrCreateRoomV2] Successfully joined room via onActorJoin: ${roomName}. MaxPlayers: ${currentRoom.maxPlayers}, PlayerCount: ${currentRoom.playerCount}`);
+                    cleanupListeners();
+                    resolve(currentRoom); // Resolve the promise with the room object
+                } else {
+                     debugLog(`[joinOrCreateRoomV2] onActorJoin for local player, but room name mismatch or room null. Target: ${roomName}, Current: ${currentRoom?.name}`);
+                     // Keep listening, might be join for a different room if things went wrong
+                }
+            }
+        };
+        photonClient.addListener('onActorJoin', actorJoinListener);
+
+        // --- Step 1: Try to Join ---
+        joinErrorListener = (errorCode, errorMsg) => {
+            if (errorCode === 32758) { // GameDoesNotExist
+                debugLog(`[joinOrCreateRoomV2] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
+                // Remove join error listener, we don't need it anymore
+                if (joinErrorListener) photonClient.removeListener('onError', joinErrorListener);
+                joinErrorListener = null;
+
+                // --- Step 2: Try to Create ---
+                createErrorListener = (createErrorCode, createErrorMsg) => {
+                    // Any error during create is fatal for this attempt
+                    debugLog(`[joinOrCreateRoomV2] Create failed for room ${roomName}: ${createErrorCode} / ${createErrorMsg}`, true);
+                    cleanupListeners();
+                    reject(new Error(`Failed to create room ${roomName}: ${createErrorMsg} (${createErrorCode})`));
+                };
+                photonClient.addListener('onError', createErrorListener); // Add listener *before* calling create
+
+                debugLog(`[joinOrCreateRoomV2] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+                if (!photonClient.createRoom(roomName, options)) {
+                     // createRoom itself returned false (e.g., not connected state)
+                    debugLog(`[joinOrCreateRoomV2] photonClient.createRoom call returned false immediately for ${roomName}.`, true);
+                    cleanupListeners();
+                    reject(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+                }
+                 // Now we wait for onActorJoin or the createErrorListener
+            } else {
+                // Any other error during the initial join is fatal
+                debugLog(`[joinOrCreateRoomV2] Join failed for room ${roomName} (Non-32758 error): ${errorCode} / ${errorMsg}`, true);
+                cleanupListeners();
+                reject(new Error(`Failed to join room ${roomName}: ${errorMsg} (${errorCode})`));
+            }
+        };
+        photonClient.addListener('onError', joinErrorListener); // Add listener *before* calling join
+
+        debugLog(`[joinOrCreateRoomV2] Calling joinRoom: ${roomName}`);
+        if (!photonClient.joinRoom(roomName, options)) {
+            // joinRoom itself returned false (e.g., not connected state)
+             debugLog(`[joinOrCreateRoomV2] photonClient.joinRoom call returned false immediately for ${roomName}.`, true);
+             cleanupListeners();
+             reject(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+        }
+         // Now we wait for onActorJoin or the joinErrorListener
+    });
 }
 
 
@@ -1739,70 +1787,116 @@ window.showBattleCard = showBattleCard;
 
 // Modify the attack-button click event listener to initialize the battle.
 document.addEventListener("DOMContentLoaded", function () {
-  const attackBtn = document.getElementById("attack-button");
-  if (!attackBtn) {
-    console.warn("⚠️ attack-button not found in DOM.");
-    return;
-  }
-
-  attackBtn.addEventListener("click", async function () {
-    document.getElementById("creature-card").classList.add("hidden");
-
-    const creatureSpawn = currentSpawnForBattle;
-    if (!creatureSpawn) {
-      console.error("No creature spawn data available for battle.");
-      return;
+    const attackBtn = document.getElementById("attack-button");
+    if (!attackBtn) {
+        console.warn("⚠️ attack-button not found in DOM.");
+        return;
     }
 
-    const uid = firebase.auth().currentUser.uid;
+    // Make sure photonClient is accessible in this scope (it likely is if it's global)
+    // Ensure joinOrCreateRoomV2 function is defined before this listener runs.
 
-    try {
-      const snapshot = await database.ref(`players/${uid}`).once("value");
-      const playerData = snapshot.val();
-      const activeCharKey = playerData.activeCharacter;
-      const activeChar = playerData[activeCharKey];
+    attackBtn.addEventListener("click", async function () {
+        debugLog("Attack button clicked."); // Log start
+        document.getElementById("creature-card").classList.add("hidden");
 
-      // Wait for Photon to be ready
-      await waitForPhotonReady();
+        const creatureSpawn = currentSpawnForBattle;
+        if (!creatureSpawn) {
+            console.error("No creature spawn data available for battle.");
+            debugLog("Attack aborted: No currentSpawnForBattle.", true);
+            return;
+        }
 
-      const roomName = "battle_" + (creatureSpawn.creatureId || "enemy1");
-  
-      await joinOrCreateRoom(roomName, { maxPlayers: 2 });
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.error("No authenticated user found.");
+            debugLog("Attack aborted: No authenticated user.", true);
+            alert("You must be logged in to battle.");
+            return;
+        }
+        const uid = user.uid;
 
-      const playerInitiative = Math.floor(Math.random() * 20) + 1;
-      const enemyInitiative = Math.floor(Math.random() * 20) + 1;
-      const turnOrder = (playerInitiative >= enemyInitiative)
-        ? [activeChar.name, creatureSpawn.creatureName]
-        : [creatureSpawn.creatureName, activeChar.name];
+        try {
+            debugLog("Fetching player data for UID: " + uid);
+            const snapshot = await database.ref(`players/${uid}`).once("value");
+            if (!snapshot.exists()) {
+                 throw new Error(`Player data not found for UID: ${uid}`);
+            }
+            const playerData = snapshot.val();
+            const activeCharKey = playerData.activeCharacter;
+            if (!activeCharKey || !playerData[activeCharKey]) {
+                 throw new Error(`Active character not found or invalid for UID: ${uid}`);
+            }
+            const activeChar = playerData[activeCharKey];
+            debugLog(`Active character found: ${activeChar.name} (${activeCharKey})`);
 
-      currentBattleData = {
-        player: {
-          id: activeCharKey,
-          name: activeChar.name,
-          hp: activeChar.stats.hp,
-          ac: activeChar.stats.ac,
-          imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
-          initiative: playerInitiative
-        },
-        enemies: [{
-          id: creatureSpawn.creatureId || "enemy1",
-          name: creatureSpawn.creatureName,
-          hp: creatureSpawn.stats.hp,
-          ac: creatureSpawn.stats.ac,
-          imageUrl: creatureSpawn.imageUrl,
-          initiative: enemyInitiative
-        }],
-        turnOrder: turnOrder,
-        currentTurnIndex: 0
-      };
+            debugLog("Waiting for Photon to be ready...");
+            await waitForPhotonReady(); // Ensure Photon client is connected and ready
+            debugLog("Photon is ready. Proceeding with room join/create.");
 
-      showBattleCard(currentBattleData);
+            // Construct room name (ensure creatureId is preferred)
+            const creatureIdentifier = creatureSpawn.creatureId || creatureSpawn.creatureName?.replace(/\s+/g, '_') || 'unknown_creature';
+            const roomName = "battle_" + creatureIdentifier;
+            debugLog(`Generated room name: ${roomName}`);
 
-    } catch (err) {
-      console.error("Error starting battle:", err);
-      alert("Could not start battle: " + err.message);
-    }
-  });
+            // *** USE THE NEW V2 FUNCTION ***
+            debugLog(`Calling joinOrCreateRoomV2 for room: ${roomName}`);
+            const joinedRoom = await joinOrCreateRoomV2(roomName, { maxPlayers: 2 }); // Pass options
+            // If the promise resolves, we are successfully in the room.
+            debugLog(`Successfully completed joinOrCreateRoomV2. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
+
+            // --- Proceed with battle setup ONLY AFTER successful join ---
+            debugLog("Calculating initiative...");
+            const playerInitiative = Math.floor(Math.random() * 20) + 1;
+            const enemyInitiative = Math.floor(Math.random() * 20) + 1; // Consider adding enemy Dex mod later
+            const turnOrder = (playerInitiative >= enemyInitiative)
+                ? [activeChar.name, creatureSpawn.creatureName]
+                : [creatureSpawn.creatureName, activeChar.name];
+            debugLog(`Initiative rolled. Player: ${playerInitiative}, Enemy: ${enemyInitiative}. Turn order: ${turnOrder.join(', ')}`);
+
+            currentBattleData = {
+                roomId: joinedRoom.name, // Store room name for reference
+                player: {
+                    id: activeCharKey,
+                    actorNr: photonClient.myActor().actorNr, // Store Photon Actor Number
+                    name: activeChar.name,
+                    hp: activeChar.stats.hp, // Use current HP if tracked, else max HP
+                    ac: activeChar.stats.ac,
+                    imageUrl: `/images/classes/${activeChar.class.toLowerCase()}.png`,
+                    initiative: playerInitiative
+                },
+                enemies: [{
+                    // Use a unique ID for the enemy instance in this battle if needed
+                    instanceId: creatureSpawn.creatureId ? `${creatureSpawn.creatureId}_${Date.now()}` : `enemy_${Date.now()}`,
+                    templateId: creatureSpawn.creatureId || "unknown", // ID from creature table
+                    name: creatureSpawn.creatureName,
+                    hp: creatureSpawn.stats.hp, // Starting HP
+                    ac: creatureSpawn.stats.ac,
+                    imageUrl: creatureSpawn.imageUrl,
+                    initiative: enemyInitiative
+                }],
+                turnOrder: turnOrder,
+                currentTurnIndex: 0
+            };
+            debugLog("currentBattleData prepared: " + JSON.stringify(currentBattleData)); // Be cautious if objects become complex
+
+            // --- TODO: Raise Photon Event to Share Initial State ---
+            // Example: Send player info and enemy info so the other player (if joining) gets the setup
+            // const initialBattleStateEventData = { ... }; // Prepare data
+            // photonClient.raiseEvent(EVENT_CODE_BATTLE_START, initialBattleStateEventData, { receivers: Photon.LoadBalancing.Constants.ReceiverGroup.All });
+            // debugLog("Raised Battle Start event (placeholder).");
+
+            debugLog("Showing battle card UI.");
+            showBattleCard(currentBattleData); // Update the UI
+
+        } catch (err) {
+            // Catch errors from waitForPhotonReady, Firebase fetch, or joinOrCreateRoomV2
+            console.error("Error starting battle:", err);
+            debugLog(`Error starting battle: ${err.message}. Stack: ${err.stack}`, true);
+            alert("Could not start battle: " + err.message);
+            // Maybe hide loading indicators or provide feedback
+        }
+    });
 });
 
 
