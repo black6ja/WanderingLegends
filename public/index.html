@@ -1668,90 +1668,103 @@ window.showBattleCard = showBattleCard;
 
   });
 
-  function joinOrCreateRoomV2(roomName, options, timeout = 10000) {
+  function joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout = 10000) {
     return new Promise((resolve, reject) => {
-        debugLog(`[joinOrCreateRoomV2] Attempting join/create for room: ${roomName}`);
+        debugLog(`[joinOrCreateRoomV2_Prop] Attempting join/create for room: ${roomName}`);
 
-        let joinErrorListener = null;
-        let createErrorListener = null;
-        let actorJoinListener = null;
+        // --- Store original handlers ---
+        const originalOnError = photonClient.onError;
+        const originalOnActorJoin = photonClient.onActorJoin;
+
         let timeoutHandle = null;
+        let state = 'joining'; // Track if we are joining or creating
 
-        const cleanupListeners = () => {
+        const cleanupAndRestore = (error = null, result = null) => {
             clearTimeout(timeoutHandle);
-            if (joinErrorListener) photonClient.removeListener('onError', joinErrorListener);
-            if (createErrorListener) photonClient.removeListener('onError', createErrorListener);
-            if (actorJoinListener) photonClient.removeListener('onActorJoin', actorJoinListener);
-            joinErrorListener = null;
-            createErrorListener = null;
-            actorJoinListener = null;
-            debugLog(`[joinOrCreateRoomV2] Listeners cleaned up for ${roomName}.`);
+            // Restore original handlers
+            photonClient.onError = originalOnError;
+            photonClient.onActorJoin = originalOnActorJoin;
+            debugLog(`[joinOrCreateRoomV2_Prop] Handlers restored for ${roomName}.`);
+
+            // Resolve or reject the promise
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result);
+            }
         };
 
         timeoutHandle = setTimeout(() => {
-            debugLog(`[joinOrCreateRoomV2] Timed out waiting for join/create: ${roomName}`, true);
-            cleanupListeners();
-            reject(new Error(`Timed out waiting to join or create room: ${roomName}`));
+            debugLog(`[joinOrCreateRoomV2_Prop] Timed out waiting for join/create: ${roomName}`, true);
+            cleanupAndRestore(new Error(`Timed out waiting to join or create room: ${roomName}`));
         }, timeout);
 
-        // Listener for successful join (applies after join OR create)
-        actorJoinListener = (actor) => {
+        // --- Temporary onActorJoin Handler ---
+        photonClient.onActorJoin = (actor) => {
+            // Call original handler first if it exists
+            if (originalOnActorJoin) {
+                try {
+                    originalOnActorJoin.call(photonClient, actor);
+                } catch (e) {
+                     debugLog(`Error in originalOnActorJoin: ${e}`, true);
+                }
+            }
+
+            // Check if it's our local actor joining the target room
             if (actor.isLocal) {
                 const currentRoom = photonClient.myRoom();
+                // We only care if we successfully join the room we intended
                 if (currentRoom && currentRoom.name === roomName) {
-                    debugLog(`[joinOrCreateRoomV2] Successfully joined room via onActorJoin: ${roomName}. MaxPlayers: ${currentRoom.maxPlayers}, PlayerCount: ${currentRoom.playerCount}`);
-                    cleanupListeners();
-                    resolve(currentRoom); // Resolve the promise with the room object
+                     debugLog(`[joinOrCreateRoomV2_Prop] Successfully joined room via onActorJoin: ${roomName}. MaxPlayers: ${currentRoom.maxPlayers}, PlayerCount: ${currentRoom.playerCount}`);
+                     cleanupAndRestore(null, currentRoom); // Success! Resolve the promise.
                 } else {
-                     debugLog(`[joinOrCreateRoomV2] onActorJoin for local player, but room name mismatch or room null. Target: ${roomName}, Current: ${currentRoom?.name}`);
-                     // Keep listening, might be join for a different room if things went wrong
+                     debugLog(`[joinOrCreateRoomV2_Prop] onActorJoin for local player, but room name mismatch or room null. Target: ${roomName}, Current: ${currentRoom?.name}`);
+                     // Don't resolve yet, could be join for a different room
                 }
             }
+             // Don't need to do anything special for remote actors joining here
         };
-        photonClient.addListener('onActorJoin', actorJoinListener);
 
-        // --- Step 1: Try to Join ---
-        joinErrorListener = (errorCode, errorMsg) => {
-            if (errorCode === 32758) { // GameDoesNotExist
-                debugLog(`[joinOrCreateRoomV2] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
-                // Remove join error listener, we don't need it anymore
-                if (joinErrorListener) photonClient.removeListener('onError', joinErrorListener);
-                joinErrorListener = null;
+        // --- Temporary onError Handler ---
+        photonClient.onError = (errorCode, errorMsg) => {
+            // Call original handler first if it exists
+            if (originalOnError) {
+                 try {
+                    originalOnError.call(photonClient, errorCode, errorMsg);
+                 } catch (e) {
+                     debugLog(`Error in originalOnError: ${e}`, true);
+                 }
+            }
 
-                // --- Step 2: Try to Create ---
-                createErrorListener = (createErrorCode, createErrorMsg) => {
-                    // Any error during create is fatal for this attempt
-                    debugLog(`[joinOrCreateRoomV2] Create failed for room ${roomName}: ${createErrorCode} / ${createErrorMsg}`, true);
-                    cleanupListeners();
-                    reject(new Error(`Failed to create room ${roomName}: ${createErrorMsg} (${createErrorCode})`));
-                };
-                photonClient.addListener('onError', createErrorListener); // Add listener *before* calling create
+            if (state === 'joining' && errorCode === 32758) { // GameDoesNotExist during join attempt
+                debugLog(`[joinOrCreateRoomV2_Prop] Join failed (GameDoesNotExist), attempting create: ${roomName}`);
+                state = 'creating'; // Switch state
 
-                debugLog(`[joinOrCreateRoomV2] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
+                // --- Try to Create ---
+                debugLog(`[joinOrCreateRoomV2_Prop] Calling createRoom: ${roomName} with options: ${JSON.stringify(options)}`);
                 if (!photonClient.createRoom(roomName, options)) {
-                     // createRoom itself returned false (e.g., not connected state)
-                    debugLog(`[joinOrCreateRoomV2] photonClient.createRoom call returned false immediately for ${roomName}.`, true);
-                    cleanupListeners();
-                    reject(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+                    // createRoom itself returned false (e.g., not connected)
+                    debugLog(`[joinOrCreateRoomV2_Prop] photonClient.createRoom call returned false immediately for ${roomName}.`, true);
+                    cleanupAndRestore(new Error(`createRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
                 }
-                 // Now we wait for onActorJoin or the createErrorListener
+                 // If createRoom call succeeds, we now wait for onActorJoin or an error during creation
+
             } else {
-                // Any other error during the initial join is fatal
-                debugLog(`[joinOrCreateRoomV2] Join failed for room ${roomName} (Non-32758 error): ${errorCode} / ${errorMsg}`, true);
-                cleanupListeners();
-                reject(new Error(`Failed to join room ${roomName}: ${errorMsg} (${errorCode})`));
+                // Any other error (during join or create) is fatal for this attempt
+                debugLog(`[joinOrCreateRoomV2_Prop] Operation failed (State: ${state}) for room ${roomName}: ${errorCode} / ${errorMsg}`, true);
+                cleanupAndRestore(new Error(`Failed operation (${state}) on room ${roomName}: ${errorMsg} (${errorCode})`));
             }
         };
-        photonClient.addListener('onError', joinErrorListener); // Add listener *before* calling join
 
-        debugLog(`[joinOrCreateRoomV2] Calling joinRoom: ${roomName}`);
+        // --- Start the process: Try to Join ---
+        debugLog(`[joinOrCreateRoomV2_Prop] Calling joinRoom: ${roomName}`);
+        state = 'joining';
         if (!photonClient.joinRoom(roomName, options)) {
-            // joinRoom itself returned false (e.g., not connected state)
-             debugLog(`[joinOrCreateRoomV2] photonClient.joinRoom call returned false immediately for ${roomName}.`, true);
-             cleanupListeners();
-             reject(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
+             // joinRoom itself returned false (e.g., not connected)
+             debugLog(`[joinOrCreateRoomV2_Prop] photonClient.joinRoom call returned false immediately for ${roomName}.`, true);
+             cleanupAndRestore(new Error(`joinRoom call failed immediately for ${roomName}. Client state: ${photonClient.state}`));
         }
-         // Now we wait for onActorJoin or the joinErrorListener
+        // Now we wait for onActorJoin or the temporary onError handler
     });
 }
 
@@ -1840,10 +1853,9 @@ document.addEventListener("DOMContentLoaded", function () {
             debugLog(`Generated room name: ${roomName}`);
 
             // *** USE THE NEW V2 FUNCTION ***
-            debugLog(`Calling joinOrCreateRoomV2 for room: ${roomName}`);
-            const joinedRoom = await joinOrCreateRoomV2(roomName, { maxPlayers: 2 }); // Pass options
-            // If the promise resolves, we are successfully in the room.
-            debugLog(`Successfully completed joinOrCreateRoomV2. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
+            debugLog(`Calling joinOrCreateRoomV2_PropertyAssignment for room: ${roomName}`);
+            const joinedRoom = await joinOrCreateRoomV2_PropertyAssignment(roomName, { maxPlayers: 2 }); // Pass options
+            debugLog(`Successfully completed joinOrCreateRoomV2_PropertyAssignment. Joined Room: ${joinedRoom.name}, MaxPlayers: ${joinedRoom.maxPlayers}, PlayerCount: ${joinedRoom.playerCount}`);
 
             // --- Proceed with battle setup ONLY AFTER successful join ---
             debugLog("Calculating initiative...");
