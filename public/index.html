@@ -1288,6 +1288,27 @@
         debugLog("Error initializing Photon: " + error.message, true);
       }
 
+      photonClient.onActorJoin = function(actor) {
+          debugLog("[onActorJoin] Actor Nr: " + actor.actorNr + (actor.isLocal ? " (Local)" : "") + " joined room: " + photonClient.myRoom()?.name);
+
+          // IMPORTANT: Check properties *here* if the local player joined
+          if (actor.isLocal) {
+              const currentRoom = photonClient.myRoom();
+              if (currentRoom) {
+                  debugLog("[onActorJoin - Local] Room Check - Name: " + currentRoom.name +
+                            ", maxPlayers: " + currentRoom.maxPlayers +
+                            ", playerCount: " + currentRoom.playerCount);
+                  // You might trigger the next step of your battle setup from here
+                  // e.g., call showBattleCard or enable UI elements
+              } else {
+                  debugLog("[onActorJoin - Local] Error: Could not get current room!");
+              }
+          } else {
+              // Another player joined, update UI if needed
+              debugLog("[onActorJoin - Remote] Remote Actor joined. Current playerCount: " + photonClient.myRoom()?.playerCount);
+          }
+      };
+
       // Setup Player Marker & Action Zone
       let playerMarker = L.marker([0, 0], {
         icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
@@ -1659,8 +1680,6 @@ window.showBattleCard = showBattleCard;
         debugLog("Successfully joined room: " + roomName + " after create attempt.");
         const currentRoom = photonClient.myRoom();
         debugLog("Current Room (after create) Name: " + currentRoom.name);
-        debugLog("Current Room (after create) maxPlayers: " + currentRoom.maxPlayers);
-        debugLog("Current Room (after create) playerCount: " + currentRoom.playerCount);
         break; 
     }
     await new Promise(resolve => setTimeout(resolve, 200));
