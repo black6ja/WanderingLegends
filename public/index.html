@@ -1770,28 +1770,42 @@ window.showBattleCard = showBattleCard;
 
 
 async function prepareAndJoinBattleRoom(roomName, options, timeout = 15000) {
-  // If the Photon client is already in a room, leave it first.
   if (photonClient.myRoom()) {
-    debugLog("Photon client is already in a room. Leaving the current room...");
-    photonClient.leaveRoom();
-
-    // Wait until the client is no longer in a room
-    await new Promise((resolve, reject) => {
-      const checkInterval = setInterval(() => {
-        if (!photonClient.myRoom()) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 100);
-      // Optionally, you could add a timeout here if needed.
-    });
-
-    // Optionally, wait until Photon is fully ready (in the lobby).
-    await waitForPhotonReady();
+    debugLog("Photon client is already in a room. Initiating leave process...");
+    await leaveCurrentRoom(); // Wait until we have fully left the room.
+    debugLog("Left the previous room. Waiting for Photon to be ready...");
+    await waitForPhotonReady(); // Ensure Photon is in a ready state (in the lobby).
   }
+  // Now attempt to join or create the battle room.
+  return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
+}
 
   // Now that we’re sure we’re not already in a room, attempt join/create.
   return joinOrCreateRoomV2_PropertyAssignment(roomName, options, timeout);
+}
+
+function leaveCurrentRoom() {
+  return new Promise((resolve, reject) => {
+    if (!photonClient.myRoom()) {
+      // Already not in a room.
+      return resolve();
+    }
+    // Store any existing onLeftRoom handler.
+    const originalOnLeftRoom = photonClient.onLeftRoom;
+    // Set a temporary handler to resolve when the room is left.
+    photonClient.onLeftRoom = function() {
+      debugLog("Photon client left the current room.");
+      // Restore the original handler.
+      photonClient.onLeftRoom = originalOnLeftRoom;
+      resolve();
+    };
+    debugLog("Calling photonClient.leaveRoom()...");
+    photonClient.leaveRoom();
+    // Optionally, add a timeout if needed.
+    setTimeout(() => {
+      reject(new Error("Timeout waiting to leave the current room"));
+    }, 10000);
+  });
 }
 
 
