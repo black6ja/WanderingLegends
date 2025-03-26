@@ -2119,7 +2119,7 @@ async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { //
         const remainingTime = timeout - (Date.now() - overallStartTime);
         if (remainingTime <= 1000) throw new Error("Not enough time remaining for join/create operation.");
 
-        const joinedRoom = await tryJoinThenCreateRoom(roomName, options, remainingJoinTime, remainingCreateTime); // Use the new function
+        const joinedRoom = await tryJoinThenCreateRoom(roomName, options, joinAttemptDuration, createAttemptDuration);
         debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
         return joinedRoom;
 
