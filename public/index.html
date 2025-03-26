@@ -820,33 +820,81 @@
  * @param {number} timeout - Maximum time to wait in milliseconds.
  * @returns {Promise<void>} Resolves when the target state is reached, rejects on timeout or disconnect.
  */
-function waitForPhotonState(targetState = Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, timeout = 10000) {
+/**
+ * Waits for the Photon client to reach a specified state or higher.
+ * @param {number} targetState - The minimum Photon.LoadBalancing.LoadBalancingClient.State to wait for.
+ * @param {number} timeout - Maximum time to wait in milliseconds.
+ * @param {string} context - A string identifier for logging purposes (e.g., 'InitialCheck', 'AfterLeave').
+ * @returns {Promise<number>} Resolves with the reached state number, rejects on timeout or disconnect.
+ */
+ function waitForPhotonState(targetState = Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, timeout = 10000, context = 'Default') {
     return new Promise((resolve, reject) => {
         const startTime = Date.now();
         let checkInterval;
+        const logPrefix = `[waitForPhotonState-${context}]`; // Add context to logs
 
-        const checkState = () => {
-            const currentState = photonClient.state; // Directly access the state property
-            debugLog(`[waitForPhotonState] Checking state: Current=${currentState}, Target=${targetState}`);
-
-            if (currentState >= targetState) {
-                clearInterval(checkInterval);
-                debugLog(`[waitForPhotonState] Target state ${targetState} reached (Current: ${currentState}).`);
-                resolve();
-            } else if (currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnected || currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnecting) {
-                 clearInterval(checkInterval);
-                 debugLog(`[waitForPhotonState] Client disconnected while waiting for state ${targetState}. Current: ${currentState}`, true);
-                 reject(new Error(`Photon client disconnected (state ${currentState}) while waiting for target state ${targetState}.`));
-            } else if (Date.now() - startTime >= timeout) {
-                clearInterval(checkInterval);
-                debugLog(`[waitForPhotonState] Timed out waiting for state ${targetState}. Current state: ${currentState}`, true);
-                reject(new Error(`Timed out waiting for Photon state ${targetState}. Current state: ${currentState}`));
+        const getStateValue = () => {
+            try {
+                const stateProp = photonClient.state;
+                if (typeof stateProp === 'function') {
+                    // If it's a function, call it
+                    const stateVal = stateProp.call(photonClient); // Ensure correct 'this' context
+                    if (typeof stateVal === 'number') {
+                         //debugLog(`${logPrefix} Accessed state via state() -> ${stateVal}`);
+                         return stateVal;
+                    } else {
+                         debugLog(`${logPrefix} WARNING: state() did not return a number, got: ${typeof stateVal}`, true);
+                         return null; // Indicate unable to get valid state
+                    }
+                } else if (typeof stateProp === 'number') {
+                     // If it's already a number, use it
+                     //debugLog(`${logPrefix} Accessed state via property -> ${stateProp}`);
+                     return stateProp;
+                } else {
+                    // If it's neither, log a warning
+                    debugLog(`${logPrefix} WARNING: photonClient.state is neither number nor function, it is: ${typeof stateProp}`, true);
+                    return null; // Indicate unable to get valid state
+                }
+            } catch (error) {
+                debugLog(`${logPrefix} Error accessing photonClient.state: ${error}`, true);
+                return null; // Indicate error
             }
         };
 
-        if (photonClient.state >= targetState) {
-             debugLog(`[waitForPhotonState] Already at or above target state ${targetState} (Current: ${photonClient.state}).`);
-             return resolve();
+
+        const checkState = () => {
+            const currentState = getStateValue();
+            // Only log periodic check if state is still null or not met
+            // if (currentState === null || currentState < targetState) {
+            //     debugLog(`${logPrefix} Checking state: Current=${currentState}, Target=${targetState}`);
+            // }
+
+
+            if (currentState === null) {
+                 // Error or unexpected type already logged by getStateValue
+                 // Let timeout handle it unless specific error handling is needed here
+            } else if (currentState >= targetState) {
+                clearInterval(checkInterval);
+                debugLog(`${logPrefix} Target state ${targetState} reached (Current: ${currentState}).`);
+                resolve(currentState); // Resolve with the state number
+            } else if (currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnected || currentState === Photon.LoadBalancing.LoadBalancingClient.State.Disconnecting) {
+                clearInterval(checkInterval);
+                debugLog(`${logPrefix} Client disconnected while waiting for state ${targetState}. Current: ${currentState}`, true);
+                reject(new Error(`Photon client disconnected (state ${currentState}) while waiting for target state ${targetState}. Context: ${context}`));
+            } else if (Date.now() - startTime >= timeout) {
+                clearInterval(checkInterval);
+                // Log the final value it saw before timeout
+                const finalStateValue = getStateValue();
+                debugLog(`${logPrefix} Timed out waiting for state ${targetState}. Last recorded state value: ${finalStateValue}`, true);
+                reject(new Error(`Timed out waiting for Photon state ${targetState}. Last recorded state value: ${finalStateValue}. Context: ${context}`));
+            }
+        };
+
+        // Initial check
+        const initialCurrentState = getStateValue();
+        if (initialCurrentState !== null && initialCurrentState >= targetState) {
+            debugLog(`${logPrefix} Already at or above target state ${targetState} (Current: ${initialCurrentState}).`);
+            return resolve(initialCurrentState);
         }
 
         checkInterval = setInterval(checkState, 250); // Check frequently
@@ -1907,73 +1955,93 @@ function robustJoinOrCreateRoom(roomName, options, timeout = 15000) {
  * @param {number} timeout - Overall timeout for the entire operation.
  * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the joined Room object.
  */
- async function prepareAndJoinBattleRoom(roomName, options, timeout = 25000) {
+ /**
+ * Prepares the Photon client and then joins or creates the specified battle room.
+ * Handles leaving existing rooms gracefully.
+ * @param {string} roomName - The name of the battle room.
+ * @param {object} options - Room options for creation.
+ * @param {number} timeout - Overall timeout for the entire operation.
+ * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the joined Room object.
+ */
+async function prepareAndJoinBattleRoom(roomName, options, timeout = 20000) { // Slightly shorter timeout maybe
     debugLog(`[prepareAndJoinBattleRoom] Starting preparation for room: ${roomName}`);
     const overallStartTime = Date.now();
 
-    const checkTimeout = () => {
-        if (Date.now() - overallStartTime > timeout) {
+    const checkTimeout = (operationTimeout) => {
+        const elapsed = Date.now() - overallStartTime;
+        if (elapsed > timeout) {
             throw new Error(`Overall timeout (${timeout}ms) exceeded during prepareAndJoinBattleRoom for ${roomName}`);
+        }
+        if (elapsed > operationTimeout) {
+             throw new Error(`Operation specific timeout exceeded for ${roomName}`);
         }
     };
 
     try {
-        // 1. Ensure Client is Connected and in Lobby
+        // --- Step 1: Ensure Client is Connected and in Lobby ---
+        const lobbyWaitTimeout = overallStartTime + 8000; // 8s for initial lobby check
         debugLog("[prepareAndJoinBattleRoom] Ensuring client is connected and in lobby...");
-        checkTimeout();
-        // Wait for JoinedLobby state initially
-        await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 10000);
-        debugLog("[prepareAndJoinBattleRoom] Client is in lobby.");
+        checkTimeout(lobbyWaitTimeout);
+        await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 8000, 'InitialLobbyCheck');
+        debugLog("[prepareAndJoinBattleRoom] Client confirmed in lobby.");
 
-        // 2. Check if Already in a Room
+        // --- Step 2: Handle Existing Room ---
         if (photonClient.isJoinedToRoom()) {
             const currentRoom = photonClient.myRoom();
             debugLog(`[prepareAndJoinBattleRoom] Client is currently in room: ${currentRoom?.name}`);
 
             if (currentRoom?.name === roomName) {
-                // Already in the target room!
                 debugLog(`[prepareAndJoinBattleRoom] Already in the target room: ${roomName}. Success!`);
                 return currentRoom;
             } else {
-                // In a different room, attempt to leave gracefully
-                debugLog(`[prepareAndJoinBattleRoom] In a different room. Attempting graceful leave...`);
-                checkTimeout();
-                try {
-                    await robustLeaveRoom(10000); // Allow 10s for graceful leave
+                // In a different room, must leave.
+                const leaveTimeout = overallStartTime + 15000; // Allow up to 7s after lobby check for leave
+                 debugLog(`[prepareAndJoinBattleRoom] In a different room. Attempting graceful leave...`);
+                 checkTimeout(leaveTimeout);
+                 try {
+                    // Use robustLeaveRoom - if this fails, the whole process fails.
+                    await robustLeaveRoom(7000); // 7 seconds timeout for leave itself
                     debugLog("[prepareAndJoinBattleRoom] Successfully left previous room.");
-                    // Need to wait for lobby state again after leaving
-                    checkTimeout();
+
+                    // IMPORTANT: Wait for lobby state *again* after leaving
+                    const postLeaveLobbyTimeout = overallStartTime + 18000; // Allow 3s after leave to re-enter lobby
                     debugLog("[prepareAndJoinBattleRoom] Waiting for lobby state after leaving room...");
-                    await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 5000);
-                    debugLog("[prepareAndJoinBattleRoom] Re-entered lobby.");
-                } catch (leaveError) {
-                    debugLog(`[prepareAndJoinBattleRoom] Graceful leave failed: ${leaveError.message}. Attempting forced reconnect.`, true);
-                    checkTimeout();
-                    await forcePhotonReconnect(); // Last resort: force reconnect
-                }
+                    checkTimeout(postLeaveLobbyTimeout);
+                    await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 3000, 'PostLeaveLobbyCheck');
+                    debugLog("[prepareAndJoinBattleRoom] Re-entered lobby after leaving.");
+
+                 } catch (leaveError) {
+                      debugLog(`[prepareAndJoinBattleRoom] Graceful leave failed: ${leaveError.message}. Aborting operation.`, true);
+                      // *** CHANGE: Instead of forced reconnect, just throw the error ***
+                      throw new Error(`Failed to leave previous room '${currentRoom?.name}': ${leaveError.message}`);
+                 }
             }
         } else {
              debugLog("[prepareAndJoinBattleRoom] Client is not currently in a room.");
+             // Ensure we are still in lobby state even if not in a room
+             await waitForPhotonState(Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby, 1000, 'NotInRoomLobbyCheck');
         }
 
-        // 3. Join or Create the Target Room
+        // --- Step 3: Join or Create the Target Room ---
+        const joinCreateTimeout = overallStartTime + timeout; // Use remaining time
         debugLog(`[prepareAndJoinBattleRoom] Proceeding to join/create target room: ${roomName}`);
-        checkTimeout();
-        // Calculate remaining time for the join/create operation
-        const remainingTimeout = timeout - (Date.now() - overallStartTime);
-        if (remainingTimeout <= 0) throw new Error("Not enough time remaining for join/create operation.");
+        checkTimeout(joinCreateTimeout); // Ensure some time is left
+        const remainingTime = timeout - (Date.now() - overallStartTime);
+        if (remainingTime <= 1000) throw new Error("Not enough time remaining for join/create operation.");
 
-        const joinedRoom = await robustJoinOrCreateRoom(roomName, options, remainingTimeout);
+        const joinedRoom = await robustJoinOrCreateRoom(roomName, options, remainingTime);
         debugLog(`[prepareAndJoinBattleRoom] Successfully joined/created room: ${joinedRoom.name}`);
         return joinedRoom;
 
     } catch (error) {
-        debugLog(`[prepareAndJoinBattleRoom] Error during preparation/join for room ${roomName}: ${error.message}`, true);
-        // Ensure state is somewhat reasonable after failure, maybe force reconnect if needed?
-        if (!photonClient.isConnectedToMaster() && !photonClient.isConnecting()) {
-             debugLog("[prepareAndJoinBattleRoom] Client seems disconnected after error, attempting reconnect...", true);
-             try { await forcePhotonReconnect(); } catch (reconnectErr) { debugLog(`[prepareAndJoinBattleRoom] Post-error reconnect failed: ${reconnectErr.message}`, true); }
-        }
+        debugLog(`[prepareAndJoinBattleRoom] Error during operation for room ${roomName}: ${error.message}`, true);
+        // Log final state if possible
+        try {
+             const finalState = photonClient.state;
+             const finalStateValue = typeof finalState === 'function' ? finalState() : finalState;
+             debugLog(`[prepareAndJoinBattleRoom] State at time of error: ${finalStateValue}`);
+        } catch (e) { /* ignore */ }
+
         throw error; // Re-throw the error to be caught by the caller
     }
 }
