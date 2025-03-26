@@ -1992,20 +1992,30 @@ function simpleJoinOrCreateRoom(roomName, options, timeout = 15000) {
         }, joinAttemptTimeout + createAttemptTimeout + 500); // Total time + buffer
 
         // --- Temporary Handlers ---
-        photonClient.onJoinRoom = (room) => {
-            debugLog(`[tryJoinThenCreateRoom] Global onJoinRoom triggered (Phase: ${currentPhase}) for room: ${room?.name}`);
-            if (room && room.name === roomName) {
-                // SUCCESS! (Could be from join or create attempt)
-                debugLog(`[tryJoinThenCreateRoom] Successfully joined/created target room: ${roomName}`);
-                cleanup(null, room);
-            } else {
-                debugLog(`[tryJoinThenCreateRoom] Joined room "${room?.name}" but expected "${roomName}". Ignoring.`);
+        photonClient.onJoinRoom = (room) => { // Parameter 'room' might be unreliable initially
+            // *** MODIFICATION START ***
+            const currentRoom = photonClient.myRoom(); // Get the room object directly from the client
+            debugLog(`[tryJoinThenCreateRoom] Global onJoinRoom triggered (Phase: ${currentPhase}). Parameter room name: ${room?.name}, Client myRoom name: ${currentRoom?.name}`);
+
+            // Check BOTH the parameter AND the client's current room
+            if (currentRoom && currentRoom.name === roomName) {
+                // Use the reliable currentRoom from the client
+                debugLog(`[tryJoinThenCreateRoom] Confirmed in target room via myRoom(): ${currentRoom.name}`);
+                cleanup(null, currentRoom); // SUCCESS! Resolve with the correct room object.
+            } else if (room && room.name === roomName) {
+                 // Fallback: If parameter room looks correct (less likely based on logs)
+                 debugLog(`[tryJoinThenCreateRoom] Confirmed in target room via event parameter: ${room.name}`);
+                 cleanup(null, room); // SUCCESS!
             }
+            else {
+                 debugLog(`[tryJoinThenCreateRoom] Joined room "${currentRoom?.name}" (myRoom) / "${room?.name}" (param) but expected "${roomName}". Ignoring this join event.`);
+                 // Still waiting for the correct room or timeout
+            }
+            // *** MODIFICATION END ***
         };
 
         photonClient.onError = (errorCode, errorMsg) => {
-            // We are *not* relying on 32758 here anymore.
-            // Any error during join or create is now considered fatal for this attempt.
+            // ... onError handler remains the same ...
             debugLog(`[tryJoinThenCreateRoom] Global onError triggered (Phase: ${currentPhase}). Code: ${errorCode}, Msg: ${errorMsg}`, true);
             cleanup(new Error(`Photon error during ${currentPhase} room ${roomName}: ${errorMsg} (${errorCode})`));
         };
