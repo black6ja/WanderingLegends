@@ -1178,6 +1178,7 @@ function sendEndTurn() {
 
 
 
+
 /**
  * Handles the reception of an END_TURN event from Photon.
  * Advances the local turn index and triggers AI if necessary (on Master Client).
@@ -1202,7 +1203,6 @@ function sendEndTurn() {
       if (success) {
         debugLog("Room properties updated successfully.");
         currentBattleData.currentTurnIndex = newIndex;
-        debugLog("Current Turn Order: " + JSON.stringify(currentBattleData.turnOrder));
         const newActiveName = currentBattleData.turnOrder[newIndex];
         debugLog("New active combatant: " + newActiveName);
 
@@ -1215,7 +1215,7 @@ function sendEndTurn() {
             } catch (e) {
               debugLog("Error during handleEnemyTurn: " + e);
             }
-          }, 750);
+          }, 750);  // Short delay to allow the UI to update
         } else {
           debugLog("Master Client: New turn is for player " + newActiveName + ". Waiting for player action.");
         }
@@ -2100,28 +2100,20 @@ function debugLog(message, isError = false) {
 
 
         photonClient.onEvent = function(code, content, actorNr) {
-            debugLog(`Photon: Received event ${code} from actor ${actorNr}. Content:`, content);
-            debugLog(`>>> PHOTON EVENT RECEIVED: Code=${code}, Actor=${actorNr}, Content=`, content);
-            const senderActor = photonClient.myRoom()?.getActor(actorNr);
-            // Try getting a name if you set it as a player property, otherwise use actorNr
-            const senderName = senderActor?.getCustomProperty('playerName') || `Actor ${actorNr}`;
-
-            switch (code) {
-                case BATTLE_EVENT_CODES.END_TURN:
-                    // Call the handler function (defined elsewhere)
-                    handleEndTurnEvent();
-                    break;
-                case BATTLE_EVENT_CODES.ENEMY_ACTION:
-                    // Call the handler function (defined elsewhere)
-                    handleEnemyActionEvent(content, senderName);
-                    break;
-                // case BATTLE_EVENT_CODES.PLAYER_ATTACK: // Example for later
-                //     handlePlayerAttackEvent(content, senderName);
-                //     break;
-                default:
-                    debugLog(`Received unhandled event code: ${code}`);
-            }
+          debugLog("Photon onEvent: code=" + code + ", actorNr=" + actorNr + ", content=" + JSON.stringify(content));
+          switch (code) {
+            case BATTLE_EVENT_CODES.END_TURN:
+              handleEndTurnEvent();
+              break;
+            case BATTLE_EVENT_CODES.ENEMY_ACTION:
+              handleEnemyActionEvent(content, actorNr);
+              break;
+            // ... other event cases
+            default:
+              debugLog("Unhandled event code: " + code);
+          }
         };
+
 
         photonClient.onLeftRoom = function() {
             debugLog("Photon: Left room.");
@@ -2390,19 +2382,58 @@ function showBattleCard(battleData) {
   debugLog("Starting enemy turn for " + enemy.name);
   try {
     addCombatLogMessage(enemy.name + " is taking action...");
-    // Simulate enemy AI processing – replace this with your actual enemy logic
+    // Simulate enemy processing; replace with actual logic.
     await delay(500);
     
-    // (Optional: Insert your enemy action calculations and state updates here)
+    // (Insert your enemy action logic here; make sure it's non-blocking.)
     
     addCombatLogMessage(enemy.name + " ends their turn.");
     debugLog("Enemy turn for " + enemy.name + " complete.");
-    // Instead of raising an event here, update turn index directly via the master client function:
+    
+    // Instead of raising an event here, directly update the turn index
     endTurnForEnemy();
   } catch (e) {
     debugLog("Error in enemy turn: " + e);
   }
 }
+
+function endTurnForEnemy() {
+  if (!photonClient.isMasterClient()) {
+    debugLog("endTurnForEnemy: Only master client should update turn index.");
+    return;
+  }
+  const oldIndex = currentBattleData.currentTurnIndex;
+  const newIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
+  debugLog("Master Client: Ending enemy turn. Updating turn index from " + oldIndex + " to " + newIndex);
+  let newProps = {};
+  newProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = newIndex;
+
+  photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
+    if (success) {
+      debugLog("Room properties updated successfully after enemy turn.");
+      currentBattleData.currentTurnIndex = newIndex;
+      const newActiveName = currentBattleData.turnOrder[newIndex];
+      debugLog("New active combatant after enemy turn: " + newActiveName);
+      // If the new active combatant is an enemy, trigger its AI
+      const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
+      if (activeEnemy) {
+        debugLog("Master Client: It's now " + activeEnemy.name + "'s turn. Triggering enemy AI...");
+        setTimeout(() => {
+          try {
+            handleEnemyTurn(activeEnemy, currentBattleData.player);
+          } catch (e) {
+            debugLog("Error during handleEnemyTurn: " + e);
+          }
+        }, 750);
+      } else {
+        debugLog("Master Client: New turn is for player " + newActiveName + ". Waiting for player action.");
+      }
+    } else {
+      debugLog("Failed to update room properties after enemy turn: " + errorMsg);
+    }
+  });
+}
+
 
 function endTurnForEnemy() {
   if (!photonClient.isMasterClient()) {
