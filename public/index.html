@@ -1195,7 +1195,7 @@ function sendEndTurn() {
     debugLog(`Advanced local turn index to ${currentBattleData.currentTurnIndex} (${newActiveName})`);
 
     // Update the UI to show the new turn state
-    showBattleCard(currentBattleData); // UI update happens first
+    //showBattleCard(currentBattleData); // UI update happens first
 
     // --- MASTER CLIENT: Check if AI needs to be triggered ---
     if (photonClient.isMasterClient()) {
@@ -1396,7 +1396,7 @@ function handleEnemyActionEvent(content, senderName) {
      }
 
      // Refresh the UI with the updated state (e.g., new HP)
-     showBattleCard(currentBattleData);
+     //showBattleCard(currentBattleData);
 }
 
     // ---------- Photon Utility Functions ----------
