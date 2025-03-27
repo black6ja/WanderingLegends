@@ -3465,6 +3465,49 @@ function addCombatLogMessage(message)
       }
     }
 
+// Function to show and populate the character card overlay
+function showCharacterCard() {
+  const uid = firebase.auth().currentUser.uid;
+  // Retrieve the active character's data
+  database.ref(`players/${uid}`).once('value').then(snapshot => {
+    const data = snapshot.val();
+    const activeCharacterKey = data.activeCharacter;
+    if (activeCharacterKey) {
+      const characterData = data[activeCharacterKey];
+      if (characterData) {
+        // Update image, name, and class as before
+        document.getElementById('character-card-image').src = `/images/classes/${characterData.class.toLowerCase()}.png`;
+        document.getElementById('character-card-name').textContent = characterData.name;
+        document.getElementById('character-card-class').textContent = characterData.class;
+        document.getElementById('character-card-hp').textContent = characterData.stats.hp || 0;
+        document.getElementById('character-card-ac').textContent = characterData.stats.ac || 0;
+        document.getElementById('character-card-save').textContent = characterData.stats.save || 0;
+        document.getElementById('character-card-physdr').textContent = characterData.stats.physicalDR || 0;
+        document.getElementById('character-card-magdr').textContent = characterData.stats.magicalDR || 0;
+        document.getElementById('character-card-mainAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.mainHand) || 0;
+        document.getElementById('character-card-offAttacks').textContent = 
+          (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
+        
+        // *** New: Update Level and XP display ***
+        const currentLevel = characterData.stats.level || 1;
+        const currentXP = characterData.stats.xp || 0;
+        // Look up the required XP for the next level in the global table:
+        const nextLevel = currentLevel + 1;
+        const xpRequired = globalLevelTable[String(nextLevel)] ? globalLevelTable[String(nextLevel)].xpRequired : "Max";
+
+        document.getElementById('character-card-level').textContent = currentLevel;
+        document.getElementById('character-card-xp').textContent = currentXP;
+        document.getElementById('character-card-xpRequired').textContent = xpRequired;
+        
+        // Show the overlay (remove hidden class)
+        document.getElementById('character-card-overlay').classList.remove('hidden');
+      }
+    }
+  }).catch(error => {
+    console.error("Error fetching active character data:", error);
+  });
+}
 
 
 function renderInventoryUI(inventory) {
