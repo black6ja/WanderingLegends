@@ -1116,6 +1116,66 @@
  function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+function handleEndTurnEvent() {
+  debugLog("--- handleEndTurnEvent START ---");
+
+  if (!currentBattleData) {
+    debugLog("handleEndTurnEvent aborted: currentBattleData is null.");
+    addCombatLogMessage("Error: Battle data lost.");
+    return;
+  }
+
+  if (photonClient.isMasterClient()) {
+    const oldIndex = currentBattleData.currentTurnIndex;
+    const newIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
+    
+    // Update Photon room properties with the new turn index
+    let newProps = {};
+    newProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = newIndex;
+    photonClient.myRoom().setCustomProperties(newProps);
+    
+    debugLog(`Master Client updated turn index to ${newIndex}.`);
+    
+    const newActiveName = currentBattleData.turnOrder[newIndex];
+    const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
+    
+    if (activeEnemy) {
+      debugLog(`Master Client: It's now ${activeEnemy.name}'s turn. Triggering AI...`);
+      setTimeout(() => {
+        // Trigger enemy AI turn
+        handleEnemyTurn(activeEnemy, currentBattleData.player);
+      }, 750);
+    } else {
+      debugLog(`Master Client: New turn is for player ${newActiveName}. Waiting for player action.`);
+    }
+  } else {
+    debugLog("Non-master client: waiting for turn update from master client.");
+  }
+}
+
+
+function sendEndTurn() {
+  if (!currentBattleData) {
+    debugLog("sendEndTurn aborted: currentBattleData is null.");
+    return;
+  }
+
+  const activePlayerName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+
+  if (activePlayerName !== currentBattleData.player.name) {
+    debugLog("sendEndTurn rejected: Not your turn to end.");
+    return;
+  }
+
+  photonClient.raiseEvent(
+    BATTLE_EVENT_CODES.END_TURN,
+    null,
+    { receivers: Photon.LoadBalancing.EventReceiver.All }
+  );
+
+  debugLog("sendEndTurn: END_TURN event dispatched.");
+}
+
 
 /**
  * Handles the reception of an END_TURN event from Photon.
@@ -2605,54 +2665,56 @@ window.showBattleCard = showBattleCard;
 
         const endTurnButton = document.getElementById("end-turn"); // Now safely inside DOMContentLoaded
           if (endTurnButton) {
-              endTurnButton.addEventListener("click", function() {
-                  // --- ADD LOGGING ---
-                  debugLog("End Turn button CLICKED."); // <-- ADD
+            endTurnButton.addEventListener("click", function() {
+              debugLog("End Turn button CLICKED.");
 
-                  if (!currentBattleData || !photonClient.isJoinedToRoom()) {
-                      debugLog(`End Turn PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}`); // <-- ADD
-                      console.error("Cannot end turn: No battle data or not in room.");
-                      addCombatLogMessage("Cannot end turn now.");
-                      return;
-                  }
-                  if (!photonClient || !photonClient.myActor()) {
-                      debugLog("End Turn PREVENTED: Photon client or actor not ready."); // <-- ADD
-                      console.error("Cannot end turn: Photon client or actor not ready.");
-                      addCombatLogMessage("Error: Connection issue.");
-                      return;
-                  }
+              if (!currentBattleData || !photonClient.isJoinedToRoom()) {
+                debugLog(`End Turn PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}`);
+                console.error("Cannot end turn: No battle data or not in room.");
+                addCombatLogMessage("Cannot end turn now.");
+                return;
+              }
+              if (!photonClient || !photonClient.myActor()) {
+                debugLog("End Turn PREVENTED: Photon client or actor not ready.");
+                console.error("Cannot end turn: Photon client or actor not ready.");
+                addCombatLogMessage("Error: Connection issue.");
+                return;
+              }
 
-                  const myActorNr = photonClient.myActor().actorNr;
-                  const currentTurnIndex = currentBattleData.currentTurnIndex;
-                  if (!currentBattleData.turnOrder || typeof currentTurnIndex !== 'number' || currentTurnIndex < 0 || currentTurnIndex >= currentBattleData.turnOrder.length) {
-                      debugLog(`End Turn PREVENTED: Invalid turn data. Index: ${currentTurnIndex}, Order Length: ${currentBattleData.turnOrder?.length}`); // <-- ADD
-                      console.error("Invalid turn data, cannot end turn.");
-                      addCombatLogMessage("Error: Turn data corrupted.");
-                      return;
-                  }
-                  const activeName = currentBattleData.turnOrder[currentTurnIndex];
-                  const isMyTurn = currentBattleData.player && currentBattleData.player.name === activeName && currentBattleData.player.actorNr === myActorNr;
+              const myActorNr = photonClient.myActor().actorNr;
+              const currentTurnIndex = currentBattleData.currentTurnIndex;
+              if (!currentBattleData.turnOrder || typeof currentTurnIndex !== 'number' || currentTurnIndex < 0 || currentTurnIndex >= currentBattleData.turnOrder.length) {
+                debugLog(`End Turn PREVENTED: Invalid turn data. Index: ${currentTurnIndex}, Order Length: ${currentBattleData.turnOrder?.length}`);
+                console.error("Invalid turn data, cannot end turn.");
+                addCombatLogMessage("Error: Turn data corrupted.");
+                return;
+              }
 
-                  debugLog(`End Turn Check: MyTurn=${isMyTurn}, ActiveName=${activeName}, MyName=${currentBattleData.player?.name}, MyActorNr=${myActorNr}`); // <-- ADD
+              const activeName = currentBattleData.turnOrder[currentTurnIndex];
+              const isMyTurn = currentBattleData.player &&
+                                currentBattleData.player.name === activeName &&
+                                currentBattleData.player.actorNr === myActorNr;
 
-                  if (isMyTurn) {
-                      addCombatLogMessage(`${currentBattleData.player.name} ends their turn.`);
-                      debugLog("Player clicking End Turn. Sending END_TURN event."); // <-- ADD
-                      photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
+              debugLog(`End Turn Check: MyTurn=${isMyTurn}, ActiveName=${activeName}, MyName=${currentBattleData.player?.name}, MyActorNr=${myActorNr}`);
 
-                      // Disable buttons locally immediately
-                      document.getElementById('action-attack-mh').disabled = true;
-                      document.getElementById('action-attack-oh').disabled = true;
-                      document.getElementById('action-special').disabled = true;
-                      document.getElementById('action-item').disabled = true;
-                      document.getElementById('end-turn').disabled = true;
+              if (isMyTurn) {
+                addCombatLogMessage(`${currentBattleData.player.name} ends their turn.`);
+                debugLog("Player clicking End Turn. Calling sendEndTurn().");
+                sendEndTurn();
 
-                  } else {
-                      addCombatLogMessage("Not your turn!");
-                      debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`); // <-- ADD
-                  }
-              });
+                // Disable buttons locally immediately
+                document.getElementById('action-attack-mh').disabled = true;
+                document.getElementById('action-attack-oh').disabled = true;
+                document.getElementById('action-special').disabled = true;
+                document.getElementById('action-item').disabled = true;
+                document.getElementById('end-turn').disabled = true;
+              } else {
+                addCombatLogMessage("Not your turn!");
+                debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`);
+              }
+            });
           }
+
 
           const attackMhButton = document.getElementById("action-attack-mh");
           if (attackMhButton) {
@@ -3490,7 +3552,7 @@ function showCharacterCard() {
           (characterData.stats.attacksPerRound && characterData.stats.attacksPerRound.offHand) || 0;
         
         // *** New: Update Level and XP display ***
-        const currentLevel = characterData.stats.level || 1;
+        const currentLevel = characterData.stats.level || 1; 
         const currentXP = characterData.stats.xp || 0;
         // Look up the required XP for the next level in the global table:
         const nextLevel = currentLevel + 1;
