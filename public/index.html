@@ -1167,12 +1167,7 @@ function sendEndTurn() {
     return;
   }
 
-  photonClient.raiseEvent(
-    BATTLE_EVENT_CODES.END_TURN,
-    null,
-    // { receivers: Photon.LoadBalancing.EventReceiverGroup.All } // OLD - Incorrect Path
-    { receivers: Photon.LoadBalancing.Constants.EventReceiverGroup.All } // NEW - Correct Path
-  );
+  photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
 
   debugLog("sendEndTurn: END_TURN event dispatched.");
 }
