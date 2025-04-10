@@ -2363,45 +2363,6 @@ function showBattleCard(battleData) {
   }
 }
 
-
-function endTurnForEnemy() {
-  if (!photonClient.isMasterClient()) {
-    debugLog("endTurnForEnemy: Only master client should update turn index.");
-    return;
-  }
-  const oldIndex = currentBattleData.currentTurnIndex;
-  const newIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
-  debugLog("Master Client: Ending enemy turn. Updating turn index from " + oldIndex + " to " + newIndex);
-  let newProps = {};
-  newProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = newIndex;
-
-  photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
-    if (success) {
-      debugLog("Room properties updated successfully after enemy turn.");
-      currentBattleData.currentTurnIndex = newIndex;
-      const newActiveName = currentBattleData.turnOrder[newIndex];
-      debugLog("New active combatant after enemy turn: " + newActiveName);
-      // If the new active combatant is an enemy, trigger its AI
-      const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
-      if (activeEnemy) {
-        debugLog("Master Client: It's now " + activeEnemy.name + "'s turn. Triggering enemy AI...");
-        setTimeout(() => {
-          try {
-            handleEnemyTurn(activeEnemy, currentBattleData.player);
-          } catch (e) {
-            debugLog("Error during handleEnemyTurn: " + e);
-          }
-        }, 750);
-      } else {
-        debugLog("Master Client: New turn is for player " + newActiveName + ". Waiting for player action.");
-      }
-    } else {
-      debugLog("Failed to update room properties after enemy turn: " + errorMsg);
-    }
-  });
-}
-
-
 function endTurnForEnemy() {
   if (!photonClient.isMasterClient()) {
     debugLog("endTurnForEnemy: Only master client should update turn index.");
