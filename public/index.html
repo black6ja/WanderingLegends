@@ -1983,6 +1983,8 @@ function debugLog(message, isError = false) {
     // ---------- Initialize Game Logic ----------
     async function initializeGame() {
   debugLog("Initializing game logic...");
+  
+  // Initialize the Leaflet map
   let map = L.map("map").setView([37.7749, -122.4194], 13);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -1990,6 +1992,7 @@ function debugLog(message, isError = false) {
   }).addTo(map);
   debugLog("Leaflet map loaded.");
 
+  // Load game data from Firebase
   await loadSpawnData();
   await loadCreatureTable();
   await electSpawnManager();
@@ -1999,30 +2002,36 @@ function debugLog(message, isError = false) {
 
   // Retrieve the active character's data to update the portrait image
   const uid = firebase.auth().currentUser.uid;
-  database.ref(`players/${uid}`).once('value').then(snapshot => {
-    const data = snapshot.val();
-    // Expecting the active character key is stored as a property 'activeCharacter'
-    const activeCharacterKey = data.activeCharacter;
-    if (activeCharacterKey) {
-      const activeCharacterData = data[activeCharacterKey];
-      if (activeCharacterData && activeCharacterData.class) {
-        const portraitURL = `/images/classes/${activeCharacterData.class.toLowerCase()}.png`;
-        document.getElementById('character-portrait').src = portraitURL;
+  database.ref(`players/${uid}`).once('value')
+    .then(snapshot => {
+      const data = snapshot.val();
+      // Expecting the active character key is stored as a property 'activeCharacter'
+      const activeCharacterKey = data.activeCharacter;
+      if (activeCharacterKey) {
+        const activeCharacterData = data[activeCharacterKey];
+        if (activeCharacterData && activeCharacterData.class) {
+          const portraitURL = `/images/classes/${activeCharacterData.class.toLowerCase()}.png`;
+          document.getElementById('character-portrait').src = portraitURL;
+        }
       }
-    }
-  }).catch(error => {
-    console.error("Error fetching active character data:", error);
-  });
+    })
+    .catch(error => {
+      console.error("Error fetching active character data:", error);
+    });
 
-  // Inside initializeGame function...
+  // --- Photon Client Initialization and Turn Manager Integration ---
   try {
     const photonAppId = "ada47d27-2453-4f9a-8ee6-b9d0f7127500";
-    photonClient = new Photon.LoadBalancing.LoadBalancingClient(Photon.ConnectionProtocol.Wss, photonAppId, "1.0");
+    photonClient = new Photon.LoadBalancing.LoadBalancingClient(
+      Photon.ConnectionProtocol.Wss,
+      photonAppId,
+      "1.0"
+    );
 
-    // -----vvvvv THIS IS WHERE YOU ADD/MODIFY THE HANDLERS vvvvv-----
+    // Set Photon event handlers
     photonClient.onStateChange = function (state) {
       debugLog("Photon: State changed to " + state);
-      // ... existing logic ...
+      // ... any additional logic you need ...
     };
 
     photonClient.onError = function(errorCode, errorMsg) {
@@ -2041,46 +2050,68 @@ function debugLog(message, isError = false) {
     };
 
     // === TURN MANAGER INSTANTIATION START ===
-    // Instantiate the Turn Manager using your photonClient.
-    // This example passes a simple callback that updates the "end-turn" button.
+    // Instantiate the TurnManager with the current photonClient.
+    // The callback updates the UI (in this example, enabling/disabling the "end-turn" button).
     let turnManager = new TurnManager(photonClient, function(turnData) {
       console.log("Turn changed. Active player:", turnData.activePlayer, "Is my turn:", turnData.isMyTurn);
-      // Example: Enable/disable the "end-turn" button based on whether it's your turn.
+      // Update UI elements based on turn status:
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
+      // You may also update other button states or display a turn-order indicator.
     });
     // === TURN MANAGER INSTANTIATION END ===
 
-    // Continue setting up additional Photon event handlers:
+    // Additional Photon event handlers
+
     photonClient.onJoinRoom = function(room) {
       debugLog(`Photon: Joined Room ${room.name}. Player count: ${room.playerCount}. IsMaster: ${photonClient.isMasterClient()}`);
       addCombatLogMessage(`Joined battle room: ${room.name}`);
-      // Additional onJoinRoom logic…
+
+      // Attempt to get initial battle state from room properties
+      const props = room.getCustomProperties();
+      if (props && props[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED]) {
+        debugLog("Battle state found in room properties on join.");
+        updateLocalBattleDataFromProps(props, room.name);
+      } else if (room.playerCount > 1) {
+        debugLog("Joined existing room, waiting for initial state via onPropertiesChanged.");
+        addCombatLogMessage("Synchronizing battle state...");
+        initializeBattleCardUI(); // Show empty structure while waiting
+      } else {
+        debugLog("First player in room. Initial properties will be set shortly.");
+        initializeBattleCardUI(); // Show empty structure
+      }
+    };
+
+    photonClient.onActorJoin = function(actor) {
+      debugLog(`Photon: Actor ${actor.actorNr} joined room ${photonClient.myRoom()?.name}.`);
+      addCombatLogMessage(`Actor ${actor.actorNr} joined the battle.`);
+      // Optionally, resend state if needed (better to rely on room properties).
     };
 
     photonClient.onPropertiesChanged = function(changedProps) {
-      debugLog("Photon: Room properties changed: " + JSON.stringify(changedProps));
-      // Delegate turn–related property changes to the Turn Manager.
+      console.log("Photon: Room properties changed:", changedProps);
+      // Delegate turn-related property updates to the Turn Manager.
       if (changedProps.turnOrder !== undefined || changedProps.currentTurnIndex !== undefined) {
         turnManager.updateFromRoomProps(changedProps);
       }
     };
 
-    photonClient.onEvent = function(code, content, actorNr) {
-      debugLog(`[Photon] onEvent received: code=${code}, actorNr=${actorNr}, content=${JSON.stringify(content)}`);
+    photonClient.onEvent = function (code, content, actorNr) {
+      console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
       if (code === BATTLE_EVENT_CODES.END_TURN) {
-        debugLog("[Photon] END_TURN event received. Processing...");
-        // Only the Master client updates the turn state.
+        // Only the Master client updates the turn; other clients wait for properties update.
         if (photonClient.isMasterClient()) {
           turnManager.advanceTurn();
         }
       }
-      // Handle other events as needed…
+      // Handle other events as necessary…
     };
 
     photonClient.onLeftRoom = function() {
       debugLog("Photon: Left room.");
       addCombatLogMessage("Left battle room.");
-      // Clean up UI and state as needed…
+      // Clean up UI and reset battle state.
+      document.getElementById("battle-card").classList.add("hidden");
+      currentBattleData = null;
     };
 
     debugLog("Connecting to Photon...");
@@ -2088,325 +2119,216 @@ function debugLog(message, isError = false) {
   } catch (error) {
     debugLog("Error initializing Photon: " + error.message, true);
   }
+  // --- End Photon Client Initialization and Turn Manager Integration ---
 
-  // Continue with additional initializations like setting up map markers, location tracking, etc.
-  // ...
-}
+  // Setup Player Marker & Action Zone on the Map
+  let playerMarker = L.marker([0, 0], {
+    icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
+  }).addTo(map);
+  let playerActionZone = L.circle([0, 0], {
+    color: "blue",
+    fillColor: "rgba(0, 0, 255, 0.3)",
+    fillOpacity: 0.3,
+    radius: 300
+  }).addTo(map);
+  let autoCenter = true;
+  map.on("movestart", function() { autoCenter = false; });
 
+  function updatePlayerMarker(lat, lng) {
+    playerMarker.setLatLng([lat, lng]);
+    playerActionZone.setLatLng([lat, lng]);
+    debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+  }
 
-        // --- ADD THE FOLLOWING HANDLERS HERE ---
+  // Start tracking player location; pass generateSpawns as a callback.
+  startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
 
-        photonClient.onJoinRoom = function(room) {
-            debugLog(`Photon: Joined Room ${room.name}. Player count: ${room.playerCount}. IsMaster: ${photonClient.isMasterClient()}`);
-            addCombatLogMessage(`Joined battle room: ${room.name}`);
-
-            // Attempt to get initial state from properties
-            const props = room.getCustomProperties();
-            if (props && props[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED]) {
-                debugLog("Battle state found in room properties on join.");
-                // Call the helper function (defined elsewhere) to build local state
-                updateLocalBattleDataFromProps(props, room.name);
-            } else if (room.playerCount > 1) {
-                // We joined an existing room, but state isn't in props YET.
-                debugLog("Joined existing room, waiting for initial state via onPropertiesChanged.");
-                addCombatLogMessage("Synchronizing battle state...");
-                // UI should ideally show a loading/syncing state
-                initializeBattleCardUI(); // Show empty structure while waiting
-            } else {
-                // We are the first player (playerCount === 1).
-                // The 'attackBtn' listener logic will set the properties soon.
-                debugLog("First player in room. Initial properties will be set shortly.");
-                 initializeBattleCardUI(); // Show empty structure
-            }
-        };
-
-        photonClient.onActorJoin = function(actor) {
-            // Keep your existing onActorJoin logic if needed, or just log
-            debugLog(`Photon: Actor ${actor.actorNr} joined room ${photonClient.myRoom()?.name}.`);
-             addCombatLogMessage(`Actor ${actor.actorNr} joined the battle.`);
-             // Optional: If Master Client, maybe resend state? (Relying on props is often better)
-        };
-
-        photonClient.onPropertiesChanged = function(changedProps) {
-          console.log("Photon: Room properties changed:", changedProps);
-          // If the custom properties include turn order data, let the TurnManager handle it.
-          if (changedProps.turnOrder !== undefined || changedProps.currentTurnIndex !== undefined) {
-            turnManager.updateFromRoomProps(changedProps);
-          }
-        };
-
-
-
-        photonClient.onEvent = function (code, content, actorNr) {
-          console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
-          
-          if (code === BATTLE_EVENT_CODES.END_TURN) {
-            // Only master updates the turn. Other clients wait for properties update.
-            if (photonClient.isMasterClient()) {
-              turnManager.advanceTurn();
-            }
-          }
-          
-          // … handle other event codes if necessary …
-        };
-
-
-
-
-
-        photonClient.onLeftRoom = function() {
-            debugLog("Photon: Left room.");
-            addCombatLogMessage("Left battle room.");
-            // Clean up UI and state
-            document.getElementById("battle-card").classList.add("hidden");
-            currentBattleData = null;
-            // Maybe re-enable the attack button on the creature card if it's still visible?
-            // Or handle returning to the map view properly.
-        };
-
-        debugLog("Connecting to Photon...");
-        photonClient.connectToRegionMaster("us");
-
-    } catch (error) {
-        debugLog("Error initializing Photon: " + error.message, true);
+  // Listen for spawn points from Firebase
+  database.ref("spawnPoints").on("child_added", snapshot => {
+    const spawn = snapshot.val();
+    const spawnId = snapshot.key;
+    if (!spawn || !spawn.location || isNaN(spawn.location.lat) || isNaN(spawn.location.lng)) {
+      debugLog(`Invalid spawn received: ${JSON.stringify(spawn)}`, true);
+      return;
     }
+    debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
 
-      // Setup Player Marker & Action Zone
-      let playerMarker = L.marker([0, 0], {
-        icon: L.divIcon({ className: '', html: '<div class="blinking-dot"></div>', iconSize: [15,15], iconAnchor: [7,7] })
-      }).addTo(map);
-      let playerActionZone = L.circle([0, 0], {
-        color: "blue",
-        fillColor: "rgba(0, 0, 255, 0.3)",
-        fillOpacity: 0.3,
-        radius: 300
-      }).addTo(map);
-      let autoCenter = true;
-      map.on("movestart", function() { autoCenter = false; });
-
-      function updatePlayerMarker(lat, lng) {
-        playerMarker.setLatLng([lat, lng]);
-        playerActionZone.setLatLng([lat, lng]);
-        debugLog(`updatePlayerMarker: Marker updated to [${lat.toFixed(6)}, ${lng.toFixed(6)}]`);
+    let marker;
+    if (spawn.type === "creature") {
+      if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
+        let icon = L.icon({
+          iconUrl: spawn.imageUrl,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16]
+        });
+        marker = L.marker([spawn.location.lat, spawn.location.lng], { icon: icon });
+      } else {
+        marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+          color: getSpawnColor(spawn.type),
+          fillColor: getSpawnColor(spawn.type),
+          fillOpacity: 0.8,
+          radius: 8
+        });
       }
-
-      // Start tracking player location and pass generateSpawns as a callback.
-      startLocationTracking(map, photonClient, updatePlayerMarker, generateSpawns);
-
-      // Listen for spawn points from Firebase
-      database.ref("spawnPoints").on("child_added", snapshot => {
-        const spawn = snapshot.val();
-        const spawnId = snapshot.key;
-        if (!spawn || !spawn.location || isNaN(spawn.location.lat) || isNaN(spawn.location.lng)) {
-          debugLog(`Invalid spawn received: ${JSON.stringify(spawn)}`, true);
-          return;
+      marker.addTo(map)
+      .on("click", function(event) {
+        if (event.originalEvent && typeof event.originalEvent.stopPropagation === "function") {
+          event.originalEvent.stopPropagation();
         }
-        debugLog(`New spawn detected from Firebase with key ${spawnId}: ${JSON.stringify(spawn)}`);
-
-        let marker;
-        if (spawn.type === "creature") {
-          if (spawn.imageUrl && spawn.imageUrl.trim() !== "") {
-            let icon = L.icon({
-              iconUrl: spawn.imageUrl,
-              iconSize: [32, 32],
-              iconAnchor: [16, 16],
-              popupAnchor: [0, -16]
-            });
-            marker = L.marker([spawn.location.lat, spawn.location.lng], { icon: icon });
-          } else {
-            marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-              color: getSpawnColor(spawn.type),
-              fillColor: getSpawnColor(spawn.type),
-              fillOpacity: 0.8,
-              radius: 8
-            });
-          }
-          marker.addTo(map)
-          .on("click", function(event) {
-            if (event.originalEvent && typeof event.originalEvent.stopPropagation === "function") {
-              event.originalEvent.stopPropagation();
-            }
-            debugLog("Displaying creature card for " + spawn.creatureName);
-            showCreatureCard(spawn);
-          });
-        } else {
-          marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
-            color: getSpawnColor(spawn.type),
-            fillColor: getSpawnColor(spawn.type),
-            fillOpacity: 0.8,
-            radius: 8
-          }).addTo(map)
-            .bindPopup("Spawn Type: " + spawn.type)
-            .on("click", function() {
-              debugLog("Joining battle for " + spawn.type);
-              joinBattleRoom(spawnId, photonClient);
-            });
-        }
-        spawnMarkers[snapshot.key] = marker;
-        debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
+        debugLog("Displaying creature card for " + spawn.creatureName);
+        showCreatureCard(spawn);
       });
-
-      setInterval(async () => {
-        try {
-          await database.ref("spawnPoints").remove();
-          debugLog("Cleared all spawn points at " + new Date().toLocaleTimeString());
-        } catch (error) {
-          debugLog("Error clearing spawn points: " + error.message, true);
-        }
-      }, 300000);
-
-      document.getElementById('card-close')?.addEventListener('click', function() {
-        document.getElementById('creature-card').classList.add('hidden');
+    } else {
+      marker = L.circleMarker([spawn.location.lat, spawn.location.lng], {
+        color: getSpawnColor(spawn.type),
+        fillColor: getSpawnColor(spawn.type),
+        fillOpacity: 0.8,
+        radius: 8
+      }).addTo(map)
+      .bindPopup("Spawn Type: " + spawn.type)
+      .on("click", function() {
+        debugLog("Joining battle for " + spawn.type);
+        joinBattleRoom(spawnId, photonClient);
       });
+    }
+    spawnMarkers[snapshot.key] = marker;
+    debugLog(`Spawn marker added at [${spawn.location.lat.toFixed(6)}, ${spawn.location.lng.toFixed(6)}]`);
+  });
 
-      // Close button listener for the item card overlay
-      document.getElementById("close-item-card").addEventListener("click", function() {
-        document.getElementById("item-card").classList.add("hidden");
-      });
+  setInterval(async () => {
+    try {
+      await database.ref("spawnPoints").remove();
+      debugLog("Cleared all spawn points at " + new Date().toLocaleTimeString());
+    } catch (error) {
+      debugLog("Error clearing spawn points: " + error.message, true);
+    }
+  }, 300000);
 
-      // Replace the existing showBattleCard function (around line 1180) with this consolidated version:
-function showBattleCard(battleData) {
+  document.getElementById('card-close')?.addEventListener('click', function() {
+    document.getElementById('creature-card').classList.add('hidden');
+  });
+
+  // Close button for the item card overlay
+  document.getElementById("close-item-card").addEventListener("click", function() {
+    document.getElementById("item-card").classList.add("hidden");
+  });
+
+  // Consolidated showBattleCard function definition follows…
+  function showBattleCard(battleData) {
     const battleCard = document.getElementById("battle-card");
     if (!battleCard) {
-        console.error("Battle card element not found!");
-        return;
+      console.error("Battle card element not found!");
+      return;
     }
-    // Ensure battle card is visible if called
     if (battleCard.classList.contains('hidden')) {
-        battleCard.classList.remove("hidden");
-        addCombatLogMessage("Battle display opened."); // Log only when opening
+      battleCard.classList.remove("hidden");
+      addCombatLogMessage("Battle display opened.");
     }
+    document.querySelectorAll('.combat-section.active').forEach(el => el.classList.remove('active'));
 
-    // Log the current state being displayed FOR DEBUGGING ONLY (can be verbose)
-    // debugLog("[showBattleCard] Updating UI with state:", JSON.stringify(battleData));
-
-    // --- Clear previous active highlights ---
-    document.querySelectorAll('.combat-section.active').forEach(el => el.classList.remove('active')); // Use section highlight
-
-    // --- Update Player Section ---
+    // Update Player Section
     const player = battleData.player;
     const playerSection = document.querySelector('.player-section');
     if (player && playerSection) {
-        document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
-        document.getElementById("player-name").textContent = player.name || "Player";
-        document.getElementById("player-level").textContent = player.level || 1;
-        document.getElementById("player-class").textContent = player.class || "Class";
-        // HP Text Update
-        const playerHpTextEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-text");
-        if (playerHpTextEl) {
-            playerHpTextEl.innerHTML = `<span id="player-current-hp">${player.currentHp}</span>/<span id="player-max-hp">${player.maxHp}</span>`;
-        }
-        // HP Bar Fill Update
-        const playerHpFillEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-fill");
-        if (playerHpFillEl) {
-            const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
-            playerHpFillEl.style.width = `${Math.max(0, playerHpPercent)}%`;
-        }
-        document.getElementById("player-ac").textContent = player.ac || '?';
-        document.getElementById("player-phys-dr").textContent = player.physicalDR || 0;
-        document.getElementById("player-mag-dr").textContent = player.magicalDR || 0;
-        document.getElementById("player-save").textContent = player.save || 0;
-
-        // Update Player Status Effects (Placeholder)
-        const playerStatusDiv = playerSection.querySelector(".player-status"); // Corrected selector
-        if (playerStatusDiv) playerStatusDiv.innerHTML = ""; // Clear
-        // TODO: Render player.statusEffects
-
+      document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
+      document.getElementById("player-name").textContent = player.name || "Player";
+      document.getElementById("player-level").textContent = player.level || 1;
+      document.getElementById("player-class").textContent = player.class || "Class";
+      const playerHpTextEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-text");
+      if (playerHpTextEl) {
+        playerHpTextEl.innerHTML = `<span id="player-current-hp">${player.currentHp}</span>/<span id="player-max-hp">${player.maxHp}</span>`;
+      }
+      const playerHpFillEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-fill");
+      if (playerHpFillEl) {
+        const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
+        playerHpFillEl.style.width = `${Math.max(0, playerHpPercent)}%`;
+      }
+      document.getElementById("player-ac").textContent = player.ac || '?';
+      document.getElementById("player-phys-dr").textContent = player.physicalDR || 0;
+      document.getElementById("player-mag-dr").textContent = player.magicalDR || 0;
+      document.getElementById("player-save").textContent = player.save || 0;
+      const playerStatusDiv = playerSection.querySelector(".player-status");
+      if (playerStatusDiv) playerStatusDiv.innerHTML = "";
     } else {
-        console.error("[showBattleCard] Player data or player section missing!");
-        addCombatLogMessage("Error: Player data missing!");
+      console.error("[showBattleCard] Player data or player section missing!");
+      addCombatLogMessage("Error: Player data missing!");
     }
 
-    // --- Update Enemy Section ---
+    // Update Enemy Section (similar logic follows)
     const enemySection = document.querySelector('.enemy-section');
     if (battleData.enemies && battleData.enemies.length > 0 && enemySection) {
-        const enemy = battleData.enemies[0]; // Assuming one enemy
-
-        enemySection.style.display = ''; // Make sure it's visible
-
-        enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
-        enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
-         // HP Text Update
-         const enemyHpTextEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-text");
-         if (enemyHpTextEl) {
-              enemyHpTextEl.innerHTML = `<span class="enemy-current-hp">${enemy.currentHp}</span>/<span class="enemy-max-hp">${enemy.maxHp}</span>`;
-         }
-         // HP Bar Fill Update
-        const enemyHpFillEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-fill");
-        if (enemyHpFillEl) {
-            const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
-            enemyHpFillEl.style.width = `${Math.max(0, enemyHpPercent)}%`;
-        }
-        enemySection.querySelector(".enemy-ac").textContent = enemy.ac || '?';
-        enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
-        enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
-        enemySection.querySelector(".enemy-save").textContent = enemy.save || 0;
-
-        // Update Enemy Status Effects (Placeholder)
-        const enemyStatusDiv = enemySection.querySelector(".enemy-status"); // Corrected selector
-        if (enemyStatusDiv) enemyStatusDiv.innerHTML = ""; // Clear
-        // TODO: Render enemy.statusEffects
-
+      const enemy = battleData.enemies[0];
+      enemySection.style.display = '';
+      enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
+      enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
+      const enemyHpTextEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-text");
+      if (enemyHpTextEl) {
+        enemyHpTextEl.innerHTML = `<span class="enemy-current-hp">${enemy.currentHp}</span>/<span class="enemy-max-hp">${enemy.maxHp}</span>`;
+      }
+      const enemyHpFillEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-fill");
+      if (enemyHpFillEl) {
+        const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
+        enemyHpFillEl.style.width = `${Math.max(0, enemyHpPercent)}%`;
+      }
+      enemySection.querySelector(".enemy-ac").textContent = enemy.ac || '?';
+      enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
+      enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
+      enemySection.querySelector(".enemy-save").textContent = enemy.save || 0;
+      const enemyStatusDiv = enemySection.querySelector(".enemy-status");
+      if (enemyStatusDiv) enemyStatusDiv.innerHTML = "";
     } else {
-        console.error("[showBattleCard] Enemies data missing or enemy section not found!");
-        addCombatLogMessage("Error: Enemy data missing!");
-        if (enemySection) enemySection.style.display = 'none'; // Hide if no enemy
+      console.error("[showBattleCard] Enemies data missing or enemy section not found!");
+      addCombatLogMessage("Error: Enemy data missing!");
+      if (enemySection) enemySection.style.display = 'none';
     }
 
-    // --- Update Turn Order Bar & Determine Active Combatant/Button States ---
-    const turnOrderBar = document.getElementById("turn-order-bar"); // The overlay bar
-    turnOrderBar.innerHTML = ""; // Clear old
+    // Update Turn Order Bar & Button States
+    const turnOrderBar = document.getElementById("turn-order-bar");
+    turnOrderBar.innerHTML = "";
     let activeCombatantName = null;
     let isPlayerTurn = false;
-
     if (battleData.turnOrder && battleData.turnOrder.length > 0 && battleData.currentTurnIndex < battleData.turnOrder.length) {
-        activeCombatantName = battleData.turnOrder[battleData.currentTurnIndex];
-
-        // Populate turn order display
-        battleData.turnOrder.forEach((combatantName, index) => {
-            const turnItem = document.createElement("span");
-            turnItem.classList.add("turn-item");
-            if (index === battleData.currentTurnIndex) {
-                turnItem.classList.add("active");
-            }
-            turnItem.textContent = combatantName.substring(0, 10); // Abbreviate
-            turnOrderBar.appendChild(turnItem);
-        });
-
-        // --- Highlight Active Section & Set Player Turn Flag ---
-        if (player && player.name === activeCombatantName) {
-            isPlayerTurn = true;
-            if (playerSection) playerSection.classList.add('active');
-            // Log message is handled when turn *starts* in handleEndTurnEvent
-        } else {
-            // It's an enemy's turn (or another player's turn in future)
-            isPlayerTurn = false;
-            const activeEnemy = battleData.enemies.find(e => e.name === activeCombatantName);
-            if (activeEnemy && enemySection) {
-                 enemySection.classList.add('active');
-            }
-            // Log message handled elsewhere (handleEndTurnEvent/handleEnemyTurn)
+      activeCombatantName = battleData.turnOrder[battleData.currentTurnIndex];
+      battleData.turnOrder.forEach((combatantName, index) => {
+        const turnItem = document.createElement("span");
+        turnItem.classList.add("turn-item");
+        if (index === battleData.currentTurnIndex) {
+          turnItem.classList.add("active");
         }
-        debugLog(`showBattleCard: Setting button states. isPlayerTurn = ${isPlayerTurn}`); // <-- ADD THIS LINE (around line 1345)
-         // --- Enable/Disable Action Buttons Based ONLY on isPlayerTurn ---
-         document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
-         // Also check if player data exists and has offhand attacks
-         document.getElementById('action-attack-oh').disabled = !isPlayerTurn || !(player?.offHand?.numAttacks > 0);
-         document.getElementById('action-special').disabled = !isPlayerTurn; // Keep disabled for now
-         document.getElementById('action-item').disabled = !isPlayerTurn;   // Keep disabled for now
-         document.getElementById('end-turn').disabled = !isPlayerTurn;
-
+        turnItem.textContent = combatantName.substring(0, 10);
+        turnOrderBar.appendChild(turnItem);
+      });
+      if (player && player.name === activeCombatantName) {
+        isPlayerTurn = true;
+        if (playerSection) playerSection.classList.add('active');
+      } else {
+        isPlayerTurn = false;
+        const activeEnemy = battleData.enemies.find(e => e.name === activeCombatantName);
+        if (activeEnemy && enemySection) {
+          enemySection.classList.add('active');
+        }
+      }
+      debugLog(`showBattleCard: Setting button states. isPlayerTurn = ${isPlayerTurn}`);
+      document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
+      document.getElementById('action-attack-oh').disabled = !isPlayerTurn || !(player?.offHand?.numAttacks > 0);
+      document.getElementById('action-special').disabled = !isPlayerTurn;
+      document.getElementById('action-item').disabled = !isPlayerTurn;
+      document.getElementById('end-turn').disabled = !isPlayerTurn;
     } else {
-         console.error("[showBattleCard] Turn order data missing, empty, or index out of bounds!");
-         addCombatLogMessage("Error: Turn order corrupted!");
-         // Disable all buttons if turn order is broken
-         document.getElementById('action-attack-mh').disabled = true;
-         document.getElementById('action-attack-oh').disabled = true;
-         document.getElementById('action-special').disabled = true;
-         document.getElementById('action-item').disabled = true;
-         document.getElementById('end-turn').disabled = true;
+      console.error("[showBattleCard] Turn order data missing, empty, or index out of bounds!");
+      addCombatLogMessage("Error: Turn order corrupted!");
+      document.getElementById('action-attack-mh').disabled = true;
+      document.getElementById('action-attack-oh').disabled = true;
+      document.getElementById('action-special').disabled = true;
+      document.getElementById('action-item').disabled = true;
+      document.getElementById('end-turn').disabled = true;
     }
-} // --- End of consolidated showBattleCard ---
+  } // End of showBattleCard function
+
+  // (Followed by the remaining functions such as handleEnemyTurn, joinBattleRoom, generateSpawns, etc.)
+}
+ // --- End of consolidated showBattleCard ---
 
 
 
