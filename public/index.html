@@ -1253,12 +1253,17 @@ function setRoomCustomProperties(props) {
 }
 
 function sendEndTurn() {
+  // Check if turnManager is defined before proceeding.
+  if (!turnManager) {
+    console.error("Turn Manager is not initialized yet. Cannot end turn.");
+    return;
+  }
+
   if (!photonClient.isJoinedToRoom()) {
     console.error("sendEndTurn aborted: Not in a room");
     return;
   }
   
-  // Determine if it is our turn by comparing local identifier with the TurnManager state.
   const localPlayerId = photonClient.myActor().actorNr.toString();
   if (turnManager.turnOrder[turnManager.currentTurnIndex] !== localPlayerId) {
     console.error("sendEndTurn rejected: Not your turn");
@@ -1277,9 +1282,9 @@ function sendEndTurn() {
     });
   }
   
-  // Optionally, disable the action buttons in your UI immediately.
   document.getElementById('end-turn').disabled = true;
 }
+
 
 
 
@@ -2165,7 +2170,7 @@ function debugLog(message, isError = false) {
     // === TURN MANAGER INSTANTIATION START ===
     // Instantiate the TurnManager with the current photonClient.
     // The callback updates the UI (in this example, enabling/disabling the "end-turn" button).
-    let turnManager = new TurnManager(photonClient, function(turnData) {
+    turnManager = new TurnManager(photonClient, function(turnData) {
       console.log("Turn changed. Active player:", turnData.activePlayer, "Is my turn:", turnData.isMyTurn);
       
       // Update UI elements (for example, enable/disable the End Turn button)
