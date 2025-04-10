@@ -1156,10 +1156,18 @@ function sendEndTurn() {
   try {
     // Include the sender in the event delivery.
     const sendOptions = {
-  reliability: false, // send unreliably
-  receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
-  includeMyself: true
-}
+      reliability: true,
+      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
+      includeMyself: true
+    };
+    
+    console.debug("TEST: Sending dummy event 999");
+  photonClient.raiseEvent(999, { test: true }, {
+    reliability: true,
+    receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
+    includeMyself: true
+  });
+
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, sendOptions);
     debugLog("END_TURN event dispatched reliably");
     
@@ -2093,15 +2101,15 @@ function debugLog(message, isError = false) {
 
 
         photonClient.onEvent = function (code, content, actorNr) {
-          debugLog("Photon EVENT received: Code=" + code + ", ActorNr=" + actorNr);
-          switch (code) {
-            case BATTLE_EVENT_CODES.END_TURN:
-              debugLog("Handling END_TURN event from actor: " + actorNr);
-              handleEndTurnEvent();
-              break;
-            // Other cases…
-            default:
-              debugLog("Unhandled event code: " + code);
+          debugLog(`[Photon] onEvent received: code=${code}, actorNr=${actorNr}, content=${JSON.stringify(content)}`);
+          
+          if (code === BATTLE_EVENT_CODES.END_TURN) {
+            debugLog("[Photon] END_TURN event received. Processing...");
+            handleEndTurnEvent();
+          }
+
+          if (code === 999) {
+            debugLog("[Photon] Dummy event received successfully!");
           }
         };
 
