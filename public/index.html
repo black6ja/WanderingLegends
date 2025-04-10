@@ -1154,25 +1154,25 @@ function sendEndTurn() {
   }
 
   try {
-    // Send reliably with retry
+    // Include the sender in the event delivery.
     const sendOptions = {
-      reliability: true,  // Enable reliable sending
-      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All
+      reliability: true,
+      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
+      includeMyself: true
     };
     
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, sendOptions);
     debugLog("END_TURN event dispatched reliably");
     
-    // Immediately disable buttons locally
     document.querySelectorAll('.action-button').forEach(btn => {
       btn.disabled = true;
     });
     
   } catch (err) {
     debugLog("Error dispatching END_TURN: " + err.message, true);
-    // Optionally attempt to reconnect and resend
   }
 }
+
 
 /**
  * Handles the reception of an END_TURN event from Photon.
@@ -2093,23 +2093,19 @@ function debugLog(message, isError = false) {
         };
 
 
-        photonClient.onEvent = function(code, content, actorNr) {
+        photonClient.onEvent = function (code, content, actorNr) {
           debugLog("Photon EVENT received: Code=" + code + ", ActorNr=" + actorNr);
-
           switch (code) {
             case BATTLE_EVENT_CODES.END_TURN:
               debugLog("Handling END_TURN event from actor: " + actorNr);
               handleEndTurnEvent();
               break;
-
-            case BATTLE_EVENT_CODES.ENEMY_ACTION:
-              handleEnemyActionEvent(content, actorNr);
-              break;
-
+            // Other cases…
             default:
               debugLog("Unhandled event code: " + code);
           }
         };
+
 
 
 
