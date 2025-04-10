@@ -1116,43 +1116,6 @@
  function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-function handleEndTurnEvent() {
-  debugLog("--- handleEndTurnEvent START ---");
-
-  if (!currentBattleData) {
-    debugLog("handleEndTurnEvent aborted: currentBattleData is null.");
-    addCombatLogMessage("Error: Battle data lost.");
-    return;
-  }
-
-  if (photonClient.isMasterClient()) {
-    const oldIndex = currentBattleData.currentTurnIndex;
-    const newIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
-    
-    // Update Photon room properties with the new turn index
-    let newProps = {};
-    newProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = newIndex;
-    photonClient.myRoom().setCustomProperties(newProps);
-    
-    debugLog(`Master Client updated turn index to ${newIndex}.`);
-    
-    const newActiveName = currentBattleData.turnOrder[newIndex];
-    const activeEnemy = currentBattleData.enemies.find(e => e.name === newActiveName);
-    
-    if (activeEnemy) {
-      debugLog(`Master Client: It's now ${activeEnemy.name}'s turn. Triggering AI...`);
-      setTimeout(() => {
-        // Trigger enemy AI turn
-        handleEnemyTurn(activeEnemy, currentBattleData.player);
-      }, 750);
-    } else {
-      debugLog(`Master Client: New turn is for player ${newActiveName}. Waiting for player action.`);
-    }
-  } else {
-    debugLog("Non-master client: waiting for turn update from master client.");
-  }
-}
-
 
 function sendEndTurn() {
   if (!currentBattleData) {
@@ -1173,10 +1136,6 @@ function sendEndTurn() {
     debugLog("Error dispatching END_TURN event: " + err);
   }
 }
-
-
-
-
 
 
 /**
