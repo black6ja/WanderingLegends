@@ -2054,9 +2054,8 @@ function debugLog(message, isError = false) {
     // The callback updates the UI (in this example, enabling/disabling the "end-turn" button).
     let turnManager = new TurnManager(photonClient, function(turnData) {
       console.log("Turn changed. Active player:", turnData.activePlayer, "Is my turn:", turnData.isMyTurn);
-      // Update UI elements based on turn status:
+      // Enable or disable the "end-turn" button based on whether it's your turn
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
-      // You may also update other button states or display a turn-order indicator.
     });
     // === TURN MANAGER INSTANTIATION END ===
 
@@ -2093,12 +2092,14 @@ function debugLog(message, isError = false) {
       if (changedProps.turnOrder !== undefined || changedProps.currentTurnIndex !== undefined) {
         turnManager.updateFromRoomProps(changedProps);
       }
+      // ... any other property changes you handle ...
     };
+
 
     photonClient.onEvent = function (code, content, actorNr) {
       console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
       if (code === BATTLE_EVENT_CODES.END_TURN) {
-        // Only the Master client updates the turn; other clients wait for properties update.
+        // Only master updates the turn. Other clients wait for properties update.
         if (photonClient.isMasterClient()) {
           turnManager.advanceTurn();
         }
