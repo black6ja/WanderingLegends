@@ -1156,11 +1156,10 @@ function sendEndTurn() {
   try {
     // Include the sender in the event delivery.
     const sendOptions = {
-      reliability: true,
-      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
-      includeMyself: true
-    };
-    
+  reliability: false, // send unreliably
+  receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
+  includeMyself: true
+}
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, sendOptions);
     debugLog("END_TURN event dispatched reliably");
     
