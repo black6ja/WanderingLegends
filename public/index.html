@@ -1111,6 +1111,117 @@
     return total;
 }
 
+function showBattleCard(battleData) {
+    const battleCard = document.getElementById("battle-card");
+    if (!battleCard) {
+      console.error("Battle card element not found!");
+      return;
+    }
+    if (battleCard.classList.contains('hidden')) {
+      battleCard.classList.remove("hidden");
+      addCombatLogMessage("Battle display opened.");
+    }
+    document.querySelectorAll('.combat-section.active').forEach(el => el.classList.remove('active'));
+
+    // Update Player Section
+    const player = battleData.player;
+    const playerSection = document.querySelector('.player-section');
+    if (player && playerSection) {
+      document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
+      document.getElementById("player-name").textContent = player.name || "Player";
+      document.getElementById("player-level").textContent = player.level || 1;
+      document.getElementById("player-class").textContent = player.class || "Class";
+      const playerHpTextEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-text");
+      if (playerHpTextEl) {
+        playerHpTextEl.innerHTML = `<span id="player-current-hp">${player.currentHp}</span>/<span id="player-max-hp">${player.maxHp}</span>`;
+      }
+      const playerHpFillEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-fill");
+      if (playerHpFillEl) {
+        const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
+        playerHpFillEl.style.width = `${Math.max(0, playerHpPercent)}%`;
+      }
+      document.getElementById("player-ac").textContent = player.ac || '?';
+      document.getElementById("player-phys-dr").textContent = player.physicalDR || 0;
+      document.getElementById("player-mag-dr").textContent = player.magicalDR || 0;
+      document.getElementById("player-save").textContent = player.save || 0;
+      const playerStatusDiv = playerSection.querySelector(".player-status");
+      if (playerStatusDiv) playerStatusDiv.innerHTML = "";
+    } else {
+      console.error("[showBattleCard] Player data or player section missing!");
+      addCombatLogMessage("Error: Player data missing!");
+    }
+
+    // Update Enemy Section (similar logic follows)
+    const enemySection = document.querySelector('.enemy-section');
+    if (battleData.enemies && battleData.enemies.length > 0 && enemySection) {
+      const enemy = battleData.enemies[0];
+      enemySection.style.display = '';
+      enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
+      enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
+      const enemyHpTextEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-text");
+      if (enemyHpTextEl) {
+        enemyHpTextEl.innerHTML = `<span class="enemy-current-hp">${enemy.currentHp}</span>/<span class="enemy-max-hp">${enemy.maxHp}</span>`;
+      }
+      const enemyHpFillEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-fill");
+      if (enemyHpFillEl) {
+        const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
+        enemyHpFillEl.style.width = `${Math.max(0, enemyHpPercent)}%`;
+      }
+      enemySection.querySelector(".enemy-ac").textContent = enemy.ac || '?';
+      enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
+      enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
+      enemySection.querySelector(".enemy-save").textContent = enemy.save || 0;
+      const enemyStatusDiv = enemySection.querySelector(".enemy-status");
+      if (enemyStatusDiv) enemyStatusDiv.innerHTML = "";
+    } else {
+      console.error("[showBattleCard] Enemies data missing or enemy section not found!");
+      addCombatLogMessage("Error: Enemy data missing!");
+      if (enemySection) enemySection.style.display = 'none';
+    }
+
+    // Update Turn Order Bar & Button States
+    const turnOrderBar = document.getElementById("turn-order-bar");
+    turnOrderBar.innerHTML = "";
+    let activeCombatantName = null;
+    let isPlayerTurn = false;
+    if (battleData.turnOrder && battleData.turnOrder.length > 0 && battleData.currentTurnIndex < battleData.turnOrder.length) {
+      activeCombatantName = battleData.turnOrder[battleData.currentTurnIndex];
+      battleData.turnOrder.forEach((combatantName, index) => {
+        const turnItem = document.createElement("span");
+        turnItem.classList.add("turn-item");
+        if (index === battleData.currentTurnIndex) {
+          turnItem.classList.add("active");
+        }
+        turnItem.textContent = combatantName.substring(0, 10);
+        turnOrderBar.appendChild(turnItem);
+      });
+      if (player && player.name === activeCombatantName) {
+        isPlayerTurn = true;
+        if (playerSection) playerSection.classList.add('active');
+      } else {
+        isPlayerTurn = false;
+        const activeEnemy = battleData.enemies.find(e => e.name === activeCombatantName);
+        if (activeEnemy && enemySection) {
+          enemySection.classList.add('active');
+        }
+      }
+      debugLog(`showBattleCard: Setting button states. isPlayerTurn = ${isPlayerTurn}`);
+      document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
+      document.getElementById('action-attack-oh').disabled = !isPlayerTurn || !(player?.offHand?.numAttacks > 0);
+      document.getElementById('action-special').disabled = !isPlayerTurn;
+      document.getElementById('action-item').disabled = !isPlayerTurn;
+      document.getElementById('end-turn').disabled = !isPlayerTurn;
+    } else {
+      console.error("[showBattleCard] Turn order data missing, empty, or index out of bounds!");
+      addCombatLogMessage("Error: Turn order corrupted!");
+      document.getElementById('action-attack-mh').disabled = true;
+      document.getElementById('action-attack-oh').disabled = true;
+      document.getElementById('action-special').disabled = true;
+      document.getElementById('action-item').disabled = true;
+      document.getElementById('end-turn').disabled = true;
+    }
+  } // End of showBattleCard function
+
 function setRoomCustomProperties(props) {
   return new Promise(function(resolve, reject) {
     // Ensure that we are in a room before trying to update properties
@@ -2279,118 +2390,6 @@ function endTurnForEnemy() {
     }
   });
 }
-
-function showBattleCard(battleData) {
-    const battleCard = document.getElementById("battle-card");
-    if (!battleCard) {
-      console.error("Battle card element not found!");
-      return;
-    }
-    if (battleCard.classList.contains('hidden')) {
-      battleCard.classList.remove("hidden");
-      addCombatLogMessage("Battle display opened.");
-    }
-    document.querySelectorAll('.combat-section.active').forEach(el => el.classList.remove('active'));
-
-    // Update Player Section
-    const player = battleData.player;
-    const playerSection = document.querySelector('.player-section');
-    if (player && playerSection) {
-      document.getElementById("player-image").src = player.imageUrl || "/images/character-placeholder.png";
-      document.getElementById("player-name").textContent = player.name || "Player";
-      document.getElementById("player-level").textContent = player.level || 1;
-      document.getElementById("player-class").textContent = player.class || "Class";
-      const playerHpTextEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-text");
-      if (playerHpTextEl) {
-        playerHpTextEl.innerHTML = `<span id="player-current-hp">${player.currentHp}</span>/<span id="player-max-hp">${player.maxHp}</span>`;
-      }
-      const playerHpFillEl = playerSection.querySelector(".hp-bar.player-hp-bar .hp-fill");
-      if (playerHpFillEl) {
-        const playerHpPercent = player.maxHp > 0 ? (player.currentHp / player.maxHp) * 100 : 0;
-        playerHpFillEl.style.width = `${Math.max(0, playerHpPercent)}%`;
-      }
-      document.getElementById("player-ac").textContent = player.ac || '?';
-      document.getElementById("player-phys-dr").textContent = player.physicalDR || 0;
-      document.getElementById("player-mag-dr").textContent = player.magicalDR || 0;
-      document.getElementById("player-save").textContent = player.save || 0;
-      const playerStatusDiv = playerSection.querySelector(".player-status");
-      if (playerStatusDiv) playerStatusDiv.innerHTML = "";
-    } else {
-      console.error("[showBattleCard] Player data or player section missing!");
-      addCombatLogMessage("Error: Player data missing!");
-    }
-
-    // Update Enemy Section (similar logic follows)
-    const enemySection = document.querySelector('.enemy-section');
-    if (battleData.enemies && battleData.enemies.length > 0 && enemySection) {
-      const enemy = battleData.enemies[0];
-      enemySection.style.display = '';
-      enemySection.querySelector(".enemy-name").textContent = enemy.name || 'Enemy';
-      enemySection.querySelector(".enemy-image").src = enemy.imageUrl || "/images/enemy-placeholder.png";
-      const enemyHpTextEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-text");
-      if (enemyHpTextEl) {
-        enemyHpTextEl.innerHTML = `<span class="enemy-current-hp">${enemy.currentHp}</span>/<span class="enemy-max-hp">${enemy.maxHp}</span>`;
-      }
-      const enemyHpFillEl = enemySection.querySelector(".hp-bar.enemy-hp-bar .hp-fill");
-      if (enemyHpFillEl) {
-        const enemyHpPercent = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
-        enemyHpFillEl.style.width = `${Math.max(0, enemyHpPercent)}%`;
-      }
-      enemySection.querySelector(".enemy-ac").textContent = enemy.ac || '?';
-      enemySection.querySelector(".enemy-phys-dr").textContent = enemy.physicalDR?.amount ?? 0;
-      enemySection.querySelector(".enemy-mag-dr").textContent = enemy.magicalDR?.amount ?? 0;
-      enemySection.querySelector(".enemy-save").textContent = enemy.save || 0;
-      const enemyStatusDiv = enemySection.querySelector(".enemy-status");
-      if (enemyStatusDiv) enemyStatusDiv.innerHTML = "";
-    } else {
-      console.error("[showBattleCard] Enemies data missing or enemy section not found!");
-      addCombatLogMessage("Error: Enemy data missing!");
-      if (enemySection) enemySection.style.display = 'none';
-    }
-
-    // Update Turn Order Bar & Button States
-    const turnOrderBar = document.getElementById("turn-order-bar");
-    turnOrderBar.innerHTML = "";
-    let activeCombatantName = null;
-    let isPlayerTurn = false;
-    if (battleData.turnOrder && battleData.turnOrder.length > 0 && battleData.currentTurnIndex < battleData.turnOrder.length) {
-      activeCombatantName = battleData.turnOrder[battleData.currentTurnIndex];
-      battleData.turnOrder.forEach((combatantName, index) => {
-        const turnItem = document.createElement("span");
-        turnItem.classList.add("turn-item");
-        if (index === battleData.currentTurnIndex) {
-          turnItem.classList.add("active");
-        }
-        turnItem.textContent = combatantName.substring(0, 10);
-        turnOrderBar.appendChild(turnItem);
-      });
-      if (player && player.name === activeCombatantName) {
-        isPlayerTurn = true;
-        if (playerSection) playerSection.classList.add('active');
-      } else {
-        isPlayerTurn = false;
-        const activeEnemy = battleData.enemies.find(e => e.name === activeCombatantName);
-        if (activeEnemy && enemySection) {
-          enemySection.classList.add('active');
-        }
-      }
-      debugLog(`showBattleCard: Setting button states. isPlayerTurn = ${isPlayerTurn}`);
-      document.getElementById('action-attack-mh').disabled = !isPlayerTurn;
-      document.getElementById('action-attack-oh').disabled = !isPlayerTurn || !(player?.offHand?.numAttacks > 0);
-      document.getElementById('action-special').disabled = !isPlayerTurn;
-      document.getElementById('action-item').disabled = !isPlayerTurn;
-      document.getElementById('end-turn').disabled = !isPlayerTurn;
-    } else {
-      console.error("[showBattleCard] Turn order data missing, empty, or index out of bounds!");
-      addCombatLogMessage("Error: Turn order corrupted!");
-      document.getElementById('action-attack-mh').disabled = true;
-      document.getElementById('action-attack-oh').disabled = true;
-      document.getElementById('action-special').disabled = true;
-      document.getElementById('action-item').disabled = true;
-      document.getElementById('end-turn').disabled = true;
-    }
-  } // End of showBattleCard function
-
   // (Followed by the remaining functions such as handleEnemyTurn, joinBattleRoom, generateSpawns, etc.)
 }
 
