@@ -2088,18 +2088,18 @@ function debugLog(message, isError = false) {
 
     photonClient.onPropertiesChanged = function(changedProps) {
       console.log("Photon: Room properties changed:", changedProps);
-      // Delegate turn-related property updates to the Turn Manager.
+      // Delegate turn-related updates to the Turn Manager.
       if (changedProps.turnOrder !== undefined || changedProps.currentTurnIndex !== undefined) {
         turnManager.updateFromRoomProps(changedProps);
       }
-      // ... any other property changes you handle ...
+      // (Include any additional property-handling code here, if necessary)
     };
 
 
     photonClient.onEvent = function (code, content, actorNr) {
       console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
       if (code === BATTLE_EVENT_CODES.END_TURN) {
-        // Only master updates the turn. Other clients wait for properties update.
+        // Only the Master client updates the turn; others wait for the property change.
         if (photonClient.isMasterClient()) {
           turnManager.advanceTurn();
         }
@@ -2521,7 +2521,6 @@ window.showBattleCard = showBattleCard;
         debugLog(`generateRandomOffset(${meters}, ${centerLat}): latOffset=${latOffset.toFixed(6)}, lngOffset=${lngOffset.toFixed(6)}`);
         return { latOffset, lngOffset };
       }
-    }
 
     function startLocationTracking(map, photonClient, updatePlayerMarker, spawnGenerator) {
       if (!navigator.geolocation) {
