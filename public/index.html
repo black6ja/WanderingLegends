@@ -3399,19 +3399,37 @@ document.addEventListener("DOMContentLoaded", function () {
             if (joinedRoom.playerCount === 1) { // We are the first player / creator
                 debugLog("First player in room, setting initial battle state properties...");
 
-                // Determine Turn Order
-                const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
-                // Map the combatants to their actor numbers (as strings) for a unique identifier
-                const turnOrderIds = turnOrderCombatants.map(c => c.actorNr ? c.actorNr.toString() : c.instanceId);
-                const currentTurnIndex = 0;
+              // Determine Turn Order using unique identifiers
+              const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
+              // For the local player, use actorNr as a string; for enemies, use their instanceId
+              const turnOrderIds = turnOrderCombatants.map(c => {
+                return c.actorNr ? c.actorNr.toString() : c.instanceId;
+              });
+              const currentTurnIndex = 0;
 
-                // Prepare combatant data for room properties
+
+                // Prepare combatant data for room properties (more static info)
                 const combatantsProp = {};
-                combatantsProp[playerBattleData.actorNr] = { /* ... */ };
-                combatantsProp[enemyBattleData.instanceId] = { /* ... */ };
+                combatantsProp[playerBattleData.actorNr] = { // Index by actorNr for players
+                     name: playerBattleData.name,
+                     maxHp: playerBattleData.maxHp,
+                     ac: playerBattleData.ac,
+                     // Include other stats needed by AI or display?
+                };
+                 combatantsProp[enemyBattleData.instanceId] = { // Index by instanceId for enemies
+                     name: enemyBattleData.name,
+                     maxHp: enemyBattleData.maxHp,
+                     ac: enemyBattleData.ac,
+                     attackBonus: enemyBattleData.attackBonus,
+                     attackDamage: enemyBattleData.attackDamage,
+                     physicalDR: enemyBattleData.physicalDR,
+                     magicalDR: enemyBattleData.magicalDR,
+                 };
 
+                // Prepare properties to set
                 const initialProps = {};
                 initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderIds;
+                initialProps[ROOM_PROPERTY_KEYS.COMBATANTS] = combatantsProp;
                 initialProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = currentTurnIndex;
                 initialProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED] = true;
 
@@ -3426,13 +3444,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
                  // Create local currentBattleData based on what was just set
                  currentBattleData = {
-                     roomId: joinedRoom.name,
-                     // Store combatants locally indexed by name for easier lookup? Or keep separate player/enemy?
-                     // Let's keep player/enemies separate locally for easier UI updates for now.
-                     player: playerBattleData, // Contains currentHp, status etc.
-                     enemies: [enemyBattleData], // Contains currentHp, status etc.
-                     turnOrder: turnOrderNames,
-                     currentTurnIndex: currentTurnIndex,
+                  roomId: joinedRoom.name,
+                  player: playerBattleData, // Contains currentHp, status etc.
+                  enemies: [enemyBattleData], // Contains currentHp, status etc.
+                  turnOrder: turnOrderIds,
+                  currentTurnIndex: currentTurnIndex,
                      // Store the static data read from properties too? Maybe not needed if always read on join.
                  };
                  debugLog("Created local battle data for creator:", JSON.stringify(currentBattleData));
