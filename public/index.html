@@ -2100,19 +2100,23 @@ function debugLog(message, isError = false) {
 
 
         photonClient.onEvent = function(code, content, actorNr) {
-          debugLog("Photon onEvent: code=" + code + ", actorNr=" + actorNr + ", content=" + JSON.stringify(content));
+          debugLog("Photon EVENT received: Code=" + code + ", ActorNr=" + actorNr);
+
           switch (code) {
             case BATTLE_EVENT_CODES.END_TURN:
+              debugLog("Handling END_TURN event from actor: " + actorNr);
               handleEndTurnEvent();
               break;
+
             case BATTLE_EVENT_CODES.ENEMY_ACTION:
               handleEnemyActionEvent(content, actorNr);
               break;
-            // ... other event cases
+
             default:
               debugLog("Unhandled event code: " + code);
           }
         };
+
 
 
         photonClient.onLeftRoom = function() {
@@ -2379,23 +2383,27 @@ function showBattleCard(battleData) {
  * @param {object} player - The player's data from currentBattleData.
  */
  async function handleEnemyTurn(enemy, player) {
-  debugLog("Starting enemy turn for " + enemy.name);
+  debugLog("Enemy turn START for: " + enemy.name);
+
   try {
-    addCombatLogMessage(enemy.name + " is taking action...");
-    // Simulate enemy processing; replace with actual logic.
-    await delay(500);
-    
-    // (Insert your enemy action logic here; make sure it's non-blocking.)
-    
-    addCombatLogMessage(enemy.name + " ends their turn.");
-    debugLog("Enemy turn for " + enemy.name + " complete.");
-    
-    // Instead of raising an event here, directly update the turn index
-    endTurnForEnemy();
-  } catch (e) {
-    debugLog("Error in enemy turn: " + e);
+    await delay(100); // always yield first
+    addCombatLogMessage(enemy.name + " is thinking...");
+
+    await delay(300); // simulate AI calc
+    addCombatLogMessage(enemy.name + " attacks!");
+
+    // TODO: real damage, etc.
+
+    await delay(300);
+    addCombatLogMessage(enemy.name + " ends turn.");
+
+    photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
+    debugLog("Enemy END_TURN event dispatched.");
+  } catch (err) {
+    debugLog("❌ ERROR in handleEnemyTurn: " + err.message, true);
   }
 }
+
 
 function endTurnForEnemy() {
   if (!photonClient.isMasterClient()) {
