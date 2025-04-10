@@ -1041,6 +1041,8 @@
     let currentBattleData = null;
     let photonClient;
 
+    var turnManager;
+
     const BATTLE_EVENT_CODES = {
     END_TURN: 10,       // Signals the end of a combatant's turn
     ENEMY_ACTION: 11,   // Broadcasts the result of an enemy's action (e.g., attack)
