@@ -1108,6 +1108,25 @@
     return total;
 }
 
+function setRoomCustomProperties(props) {
+  return new Promise(function(resolve, reject) {
+    // Ensure that we are in a room before trying to update properties
+    if (!photonClient || !photonClient.myRoom()) {
+      return reject(new Error("Not currently in a room"));
+    }
+    photonClient.myRoom().setCustomProperties(props, null, function(success, errorMsg) {
+      if (success) {
+        debugLog("Room custom properties updated successfully:", JSON.stringify(props));
+        resolve();
+      } else {
+        debugLog("Failed to update room properties:", errorMsg, true);
+        reject(new Error(errorMsg));
+      }
+    });
+  });
+}
+
+
 /**
  * Creates a pause in async functions.
  * @param {number} ms - Milliseconds to wait.
@@ -1165,19 +1184,12 @@ function sendEndTurn() {
         return;
     }
     
-    // Increment the turn index cyclically.
     currentBattleData.currentTurnIndex = (currentBattleData.currentTurnIndex + 1) % currentBattleData.turnOrder.length;
     
-    // Update the room's custom properties using the correct key.
     setRoomCustomProperties({ [ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]: currentBattleData.currentTurnIndex })
         .then(function() {
-            // Refresh the battle UI.
             showBattleCard(currentBattleData);
-            
-            // Determine the new active combatant.
             var newActive = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
-            
-            // Check if the new active combatant is an enemy.
             var enemy = currentBattleData.enemies.find(function(e) {
                 return e.name === newActive;
             });
@@ -1195,6 +1207,7 @@ function sendEndTurn() {
             debugLog("Error updating room properties:", err);
         });
 }
+
 
 
 
