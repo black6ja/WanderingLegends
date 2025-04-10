@@ -3401,31 +3401,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 // Determine Turn Order
                 const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
-                const turnOrderNames = turnOrderCombatants.map(c => c.name);
+                // Map the combatants to their actor numbers (as strings) for a unique identifier
+                const turnOrderIds = turnOrderCombatants.map(c => c.actorNr ? c.actorNr.toString() : c.instanceId);
                 const currentTurnIndex = 0;
 
-                // Prepare combatant data for room properties (more static info)
+                // Prepare combatant data for room properties
                 const combatantsProp = {};
-                combatantsProp[playerBattleData.actorNr] = { // Index by actorNr for players
-                     name: playerBattleData.name,
-                     maxHp: playerBattleData.maxHp,
-                     ac: playerBattleData.ac,
-                     // Include other stats needed by AI or display?
-                };
-                 combatantsProp[enemyBattleData.instanceId] = { // Index by instanceId for enemies
-                     name: enemyBattleData.name,
-                     maxHp: enemyBattleData.maxHp,
-                     ac: enemyBattleData.ac,
-                     attackBonus: enemyBattleData.attackBonus,
-                     attackDamage: enemyBattleData.attackDamage,
-                     physicalDR: enemyBattleData.physicalDR,
-                     magicalDR: enemyBattleData.magicalDR,
-                 };
+                combatantsProp[playerBattleData.actorNr] = { /* ... */ };
+                combatantsProp[enemyBattleData.instanceId] = { /* ... */ };
 
-                // Prepare properties to set
                 const initialProps = {};
-                initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderNames;
-                initialProps[ROOM_PROPERTY_KEYS.COMBATANTS] = combatantsProp;
+                initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderIds;
                 initialProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = currentTurnIndex;
                 initialProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED] = true;
 
