@@ -1253,7 +1253,6 @@ function setRoomCustomProperties(props) {
 }
 
 function sendEndTurn() {
-  // Check if turnManager is defined before proceeding.
   if (!turnManager) {
     console.error("Turn Manager is not initialized yet. Cannot end turn.");
     return;
@@ -1264,17 +1263,16 @@ function sendEndTurn() {
     return;
   }
   
-  const localPlayerId = photonClient.myActor().actorNr.toString();
-  if (turnManager.turnOrder[turnManager.currentTurnIndex] !== localPlayerId) {
+  // Now compare using the player's name from the battle data:
+  const localPlayerName = currentBattleData.player.name; // your player's name
+  if (turnManager.turnOrder[turnManager.currentTurnIndex] !== localPlayerName) {
     console.error("sendEndTurn rejected: Not your turn");
     return;
   }
   
   if (photonClient.isMasterClient()) {
-    // Master can update directly.
     turnManager.advanceTurn();
   } else {
-    // Send an event so that the Master can update the turn.
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
       reliability: true,
       receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.MasterClient,
@@ -1284,6 +1282,7 @@ function sendEndTurn() {
   
   document.getElementById('end-turn').disabled = true;
 }
+
 
 
 

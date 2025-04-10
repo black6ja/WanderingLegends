@@ -114,8 +114,8 @@ class TurnManager {
      * Private: Determines the local player's unique identifier.
      */
     _getLocalPlayerIdentifier() {
-      const actor = this.photonClient.myActor();
-      return actor ? actor.actorNr.toString() : null;
-    }
+        // Assuming currentBattleData is globally accessible and has been set
+        return currentBattleData && currentBattleData.player ? currentBattleData.player.name : null;
+      }
   }
   
