@@ -1053,24 +1053,7 @@
         CURRENT_TURN_INDEX: "bTurnIdx"
     };
 
-    photonClient.connectToRegionMaster("us");
-
-    photonClient.onStateChange = function(state) {
-      console.debug("[Photon] State changed to:", state);
-    };
-
-    photonClient.onError = function(errorCode, errorMsg) {
-      console.error(`[Photon] Error ${errorCode}: ${errorMsg}`);
-    };
-
-    photonClient.onDisconnect = function() {
-      console.warn("[Photon] Disconnected - Reason:", photonClient.disconnectCause);
-    };
-
-    photonClient.onOperationResponse = function(errorCode, errorMsg, operationCode, content) {
-      console.debug(`[Photon] Operation response: code=${operationCode}, error=${errorCode}, msg=${errorMsg}`);
-    };
-
+    
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBkZV0Y0wQ2WtWywyzCo0w0rzh8RhJ2bAU",
@@ -1155,25 +1138,48 @@ function setRoomCustomProperties(props) {
 }
 
 function sendEndTurn() {
-  if (!photonClient.isInRoom()) {
-    console.error("Cannot send event - not in room");
+  if (!photonClient || !photonClient.isJoinedToRoom()) {
+    debugLog("sendEndTurn aborted: Not in a room");
     return;
   }
 
-  if (photonClient.state !== Photon.LoadBalancing.LoadBalancingClient.StateJoined) {
-    console.error("Cannot send event - invalid client state:", photonClient.state);
+  if (!currentBattleData) {
+    debugLog("sendEndTurn aborted: No battle data");
     return;
   }
 
-  console.debug("Room state valid, sending event...");
+  const activeName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+  if (activeName !== currentBattleData.player.name) {
+    debugLog("sendEndTurn rejected: Not your turn");
+    return;
+  }
 
-  photonClient.raiseEvent(999, { test: true }, { 
+  try {
+    // Include the sender in the event delivery.
+    const sendOptions = {
+      reliability: true,
+      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
+      includeMyself: true
+    };
+    
+    console.debug("TEST: Sending dummy event 999");
+  photonClient.raiseEvent(999, { test: true }, {
     reliability: true,
     receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All,
     includeMyself: true
   });
-}
 
+    photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, sendOptions);
+    debugLog("END_TURN event dispatched reliably");
+    
+    document.querySelectorAll('.action-button').forEach(btn => {
+      btn.disabled = true;
+    });
+    
+  } catch (err) {
+    debugLog("Error dispatching END_TURN: " + err.message, true);
+  }
+}
 
 
 /**
