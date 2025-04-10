@@ -1118,16 +1118,21 @@
 }
 
 function sendEndTurn() {
-    if (currentBattleData.turnOrder[currentBattleData.currentTurnIndex] !== currentBattleData.player.name) {
-        debugLog("It is not your turn!");
-        return;
-    }
-    // Send the END_TURN event using Photon with reliability.
-    photonClient.sendOperation(BATTLE_EVENT_CODES.END_TURN, [], true);
-    debugLog("Player ended turn. END_TURN event sent.");
-}
+  if (!photonClient || !photonClient.isJoinedToRoom()) {
+    debugLog("sendEndTurn aborted: Not in a room");
+    return;
+  }
 
+  if (!currentBattleData) {
+    debugLog("sendEndTurn aborted: No battle data");
+    return;
+  }
 
+  const activeName = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+  if (activeName !== currentBattleData.player.name) {
+    debugLog("sendEndTurn rejected: Not your turn");
+    return;
+  }
 
   try {
     // Send reliably with retry
@@ -1155,17 +1160,16 @@ function sendEndTurn() {
  * Advances the local turn index and triggers AI if necessary (on Master Client).
  */
  function handleEndTurnEvent(eventData) {
-    // Only the master client should process the turn update.
     if (!photonClient.isMasterClient()) {
         debugLog("Non-master client received END_TURN - waiting for master");
         return;
     }
-
+    
     // Increment the turn index cyclically.
     currentBattleData.currentTurnIndex = (currentBattleData.currentTurnIndex + 1) % currentBattleData.turnOrder.length;
-
-    // Update the room's custom properties.
-    setRoomCustomProperties({ turnIndex: currentBattleData.currentTurnIndex })
+    
+    // Update the room's custom properties using the correct key.
+    setRoomCustomProperties({ [ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]: currentBattleData.currentTurnIndex })
         .then(function() {
             // Refresh the battle UI.
             showBattleCard(currentBattleData);
@@ -1180,7 +1184,6 @@ function sendEndTurn() {
             
             if (enemy) {
                 debugLog("Master Client: Detected enemy turn for " + enemy.name + ". Triggering enemy AI shortly...");
-                // Trigger enemy AI after a 750ms delay. Adjust delay if needed.
                 setTimeout(function() {
                     handleEnemyTurn(enemy, currentBattleData.player);
                 }, 750);
