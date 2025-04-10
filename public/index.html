@@ -2171,20 +2171,23 @@ function debugLog(message, isError = false) {
     // Instantiate the TurnManager with the current photonClient.
     // The callback updates the UI (in this example, enabling/disabling the "end-turn" button).
     turnManager = new TurnManager(photonClient, function(turnData) {
-      console.log("Turn changed. Active player:", turnData.activePlayer, "Is my turn:", turnData.isMyTurn);
-      
-      // Update UI elements (for example, enable/disable the End Turn button)
+      // Update UI for turn order
+      updateTurnOrderUI(turnData.turnOrder, turnData.currentTurnIndex);
+
+      // Show a visual cue indicating whose turn it is.
+      if (turnData.isMyTurn) {
+        showPlayerTurnIndicator();
+      } else {
+        showEnemyTurnIndicator();
+      }
+
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
-      
-      // If it's not our turn and we're the master, delay enemy AI execution so the UI change is visible.
+
       if (!turnData.isMyTurn && photonClient.isMasterClient()) {
         addCombatLogMessage("Enemy turn starting...");
         
-        // Delay enemy turn by 1 second (1000 ms)
         setTimeout(() => {
-          // Determine the active enemy using the active player identifier
           const activeEnemyName = turnData.activePlayer;
-          // Assuming currentBattleData.enemies contains enemy data
           const activeEnemy = currentBattleData.enemies.find(e => e.name === activeEnemyName);
           if (activeEnemy) {
             handleEnemyTurn(activeEnemy, currentBattleData.player);
@@ -2194,6 +2197,7 @@ function debugLog(message, isError = false) {
         }, 1000);
       }
     });
+
     // === TURN MANAGER INSTANTIATION END ===
 
     // Additional Photon event handlers
