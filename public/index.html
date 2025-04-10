@@ -1130,18 +1130,15 @@ function sendEndTurn() {
   }
 
   try {
-    // Specify that the event should be sent to all including self
+    // Send the END_TURN event to everyone (including the sender)
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
-      receiverGroup: Photon.LoadBalancing.Constants.EventReceiverGroup.All
+      receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.All
     });
-
     debugLog("sendEndTurn: END_TURN event dispatched.");
   } catch (err) {
     debugLog("Error dispatching END_TURN event: " + err);
   }
 }
-
-
 
 /**
  * Handles the reception of an END_TURN event from Photon.
