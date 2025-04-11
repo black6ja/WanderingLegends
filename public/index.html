@@ -2276,6 +2276,7 @@ function debugLog(message, isError = false) {
         // After updating, dump the current state
         debugLog("After update, turn order is: " + JSON.stringify(turnManager.turnOrder));
         debugLog("After update, currentTurnIndex is: " + turnManager.currentTurnIndex);
+        debugLog("Room properties received:", JSON.stringify(props));
       }
       // Other property handling...
     };

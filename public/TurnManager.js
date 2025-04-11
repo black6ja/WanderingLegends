@@ -35,18 +35,19 @@ class TurnManager {
      * @param {object} props - Photon room custom properties (expecting turnOrder and currentTurnIndex)
      */
     updateFromRoomProps(props) {
-      if (props && props.turnOrder && typeof props.currentTurnIndex === 'number') {
-        // Only update if something has changed
-        if (this.currentTurnIndex !== props.currentTurnIndex ||
-            JSON.stringify(this.turnOrder) !== JSON.stringify(props.turnOrder)) {
-          this.turnOrder = props.turnOrder;
-          this.currentTurnIndex = props.currentTurnIndex;
-          this._triggerTurnChanged();
-          this._resetTurnTimer();
-          console.log("Local turn order updated:", this.turnOrder, "Current index:", this.currentTurnIndex);
+        // Using the same keys as defined in ROOM_PROPERTY_KEYS
+        if (props && props.bTurnOrder && typeof props.bTurnIdx === 'number') {
+          if (this.currentTurnIndex !== props.bTurnIdx ||
+              JSON.stringify(this.turnOrder) !== JSON.stringify(props.bTurnOrder)) {
+            this.turnOrder = props.bTurnOrder;
+            this.currentTurnIndex = props.bTurnIdx;
+            this._triggerTurnChanged();
+            this._resetTurnTimer();
+            console.log("Local turn order updated:", this.turnOrder, "Current index:", this.currentTurnIndex);
+          }
         }
       }
-    }
+      
   
     /**
      * Advances the turn to the next player.
