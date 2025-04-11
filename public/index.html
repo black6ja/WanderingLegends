@@ -2267,20 +2267,19 @@ function debugLog(message, isError = false) {
 
     photonClient.onPropertiesChanged = function(changedProps) {
       debugLog("Room properties changed: " + JSON.stringify(changedProps));
-      if (changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER] !== undefined || changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] !== undefined) {
-        // Log the updated properties
-        debugLog("Updated TURN_ORDER: " + JSON.stringify(changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER]));
-        debugLog("Updated CURRENT_TURN_INDEX: " + changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]);
-        turnManager.updateFromRoomProps(changedProps);
-        
-        // After updating, dump the current state
+      if (changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER] !== undefined ||
+          changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] !== undefined) {
+        const updateObj = {
+          bTurnOrder: changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER] || turnManager.turnOrder,
+          bTurnIdx: (typeof changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] === 'number')
+                    ? changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]
+                    : turnManager.currentTurnIndex
+        };
+        turnManager.updateFromRoomProps(updateObj);
         debugLog("After update, turn order is: " + JSON.stringify(turnManager.turnOrder));
         debugLog("After update, currentTurnIndex is: " + turnManager.currentTurnIndex);
-        debugLog("Room properties received:", JSON.stringify(props));
       }
-      // Other property handling...
     };
-
 
     photonClient.onEvent = function (code, content, actorNr) {
       console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
@@ -3468,6 +3467,7 @@ document.addEventListener("DOMContentLoaded", function () {
                   return { id: c.instanceId, displayName: c.name };
                 }
               });
+              turnManager.initializeTurnOrder(turnOrderEntries);
               const currentTurnIndex = 0;
 
               // Prepare properties to set:
