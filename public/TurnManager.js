@@ -10,6 +10,10 @@ class TurnManager {
       this.currentTurnIndex = 0;     // Pointer to the current turn
       this.turnTimeout = 30000;      // Timeout duration (in ms) per turn – adjust as needed
       this.turnTimer = null;
+      console.log("TurnManager initialized:", {
+        turnOrder: this.turnOrder,
+        currentTurnIndex: this.currentTurnIndex
+      });
     }
   
     /**
@@ -22,6 +26,7 @@ class TurnManager {
       this._updateRoomProperties();
       this._triggerTurnChanged();
       this._resetTurnTimer();
+      console.log("Turn order initialized:", this.turnOrder);
     }
   
     /**
@@ -38,6 +43,7 @@ class TurnManager {
           this.currentTurnIndex = props.currentTurnIndex;
           this._triggerTurnChanged();
           this._resetTurnTimer();
+          console.log("Local turn order updated:", this.turnOrder, "Current index:", this.currentTurnIndex);
         }
       }
     }
@@ -65,7 +71,7 @@ class TurnManager {
         turnOrder: this.turnOrder,
         currentTurnIndex: this.currentTurnIndex,
       };
-  
+      console.log("Updating room properties with:", newProps);
       this.photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
         if (!success) {
           console.error("Failed to update turn properties:", errorMsg);
@@ -78,6 +84,7 @@ class TurnManager {
      */
     _triggerTurnChanged() {
         const activeCombatant = this.turnOrder[this.currentTurnIndex];
+        console.log("Triggering turn change. Active combatant:", activeCombatant);
         // Compare using the composite id.
         const isMyTurn = (activeCombatant.id === this._getLocalPlayerIdentifier());
         if (typeof this.onTurnChanged === 'function') {
@@ -97,6 +104,7 @@ class TurnManager {
      */
     _resetTurnTimer() {
       this._clearTurnTimer();
+      console.log("Resetting turn timer with timeout", this.turnTimeout);
       // Optionally, only start the timer on the active player's turn;
       // For simplicity, we start it regardless—Master will auto-advance.
       this.turnTimer = setTimeout(() => {
@@ -108,6 +116,7 @@ class TurnManager {
     _clearTurnTimer() {
       if (this.turnTimer) {
         clearTimeout(this.turnTimer);
+        console.log("Cleared turn timer.");
         this.turnTimer = null;
       }
     }
@@ -117,7 +126,9 @@ class TurnManager {
      */
     _getLocalPlayerIdentifier() {
         const actor = this.photonClient.myActor();
-        return actor ? actor.actorNr.toString() : null;
-      }
+        const localId = actor ? actor.actorNr.toString() : null;
+        console.log("Local player identifier:", localId);
+        return localId;
+    }    
   }
   

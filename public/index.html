@@ -1258,22 +1258,43 @@ function setRoomCustomProperties(props) {
 
 function sendEndTurn() {
   if (!turnManager) {
-    console.error("Turn Manager is not initialized yet. Cannot end turn.");
+    console.error("Turn Manager not initialized.");
     return;
   }
   if (!photonClient.isJoinedToRoom()) {
-    console.error("sendEndTurn aborted: Not in a room");
+    console.error("Not in a room.");
     return;
   }
-
+  
+  if (!turnManager.turnOrder || turnManager.turnOrder.length === 0) {
+    console.error("Turn order is empty.");
+    return;
+  }
+  
   const localPlayerId = photonClient.myActor().actorNr.toString();
-  const activeEntry = turnManager.turnOrder[turnManager.currentTurnIndex];
+  const currentTurnIndex = turnManager.currentTurnIndex;
+  
+  // Log the current state before proceeding.
+  debugLog("sendEndTurn() - localPlayerId: " + localPlayerId);
+  debugLog("sendEndTurn() - currentTurnIndex: " + currentTurnIndex);
+  debugLog("sendEndTurn() - turnOrder length: " + turnManager.turnOrder.length);
+  
+  const activeEntry = turnManager.turnOrder[currentTurnIndex];
+  
+  // Log the active turn entry
+  debugLog("Active entry: " + JSON.stringify(activeEntry));
+  
+  if (!activeEntry) {
+    console.error("Active turn entry is undefined.");
+    return;
+  }
   
   if (activeEntry.id !== localPlayerId) {
     console.error(`sendEndTurn rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
     return;
   }
-
+  
+  // Proceed with sending the turn-end event...
   if (photonClient.isMasterClient()) {
     turnManager.advanceTurn();
   } else {
@@ -1283,8 +1304,10 @@ function sendEndTurn() {
       includeMyself: false
     });
   }
+  
   document.getElementById('end-turn').disabled = true;
 }
+
 
 function updateTurnOrderUI(turnOrder, currentTurnIndex) {
   const turnOrderBar = document.getElementById("turn-order-bar");
@@ -2243,12 +2266,18 @@ function debugLog(message, isError = false) {
     };
 
     photonClient.onPropertiesChanged = function(changedProps) {
-      console.log("Photon: Room properties changed:", changedProps);
-      // Delegate turn-related updates to the Turn Manager.
-      if (changedProps.turnOrder !== undefined || changedProps.currentTurnIndex !== undefined) {
+      debugLog("Room properties changed: " + JSON.stringify(changedProps));
+      if (changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER] !== undefined || changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] !== undefined) {
+        // Log the updated properties
+        debugLog("Updated TURN_ORDER: " + JSON.stringify(changedProps[ROOM_PROPERTY_KEYS.TURN_ORDER]));
+        debugLog("Updated CURRENT_TURN_INDEX: " + changedProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]);
         turnManager.updateFromRoomProps(changedProps);
+        
+        // After updating, dump the current state
+        debugLog("After update, turn order is: " + JSON.stringify(turnManager.turnOrder));
+        debugLog("After update, currentTurnIndex is: " + turnManager.currentTurnIndex);
       }
-      // (Include any additional property-handling code here, if necessary)
+      // Other property handling...
     };
 
 
