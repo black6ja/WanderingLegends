@@ -2439,8 +2439,11 @@ function endTurnForEnemy() {
   const oldIndex = currentBattleData.currentTurnIndex;
   const newIndex = (oldIndex + 1) % currentBattleData.turnOrder.length;
   debugLog("Master Client: Ending enemy turn. Updating turn index from " + oldIndex + " to " + newIndex);
-  let newProps = {};
-  newProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = newIndex;
+  let newProps = {
+    turnOrder: turnOrderEntries,
+    currentTurnIndex: 0
+  };
+
   
   photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
     if (success) {

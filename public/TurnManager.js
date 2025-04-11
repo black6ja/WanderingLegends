@@ -69,8 +69,8 @@ class TurnManager {
      */
     _updateRoomProperties() {
       const newProps = {
-        turnOrder: this.turnOrder,
-        currentTurnIndex: this.currentTurnIndex,
+        bTurnOrder: this.turnOrder,
+        bTurnIdx: this.currentTurnIndex
       };
       console.log("Updating room properties with:", newProps);
       this.photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
