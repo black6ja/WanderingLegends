@@ -1189,6 +1189,7 @@ function showBattleCard(battleData) {
     if (battleData.turnOrder && battleData.turnOrder.length > 0 &&
         battleData.currentTurnIndex < battleData.turnOrder.length) {
       const activeEntry = battleData.turnOrder[battleData.currentTurnIndex];
+      const activeName = activeEntry.displayName;
       activeCombatantName = activeEntry.displayName;
       battleData.turnOrder.forEach((entry, index) => {
         const turnItem = document.createElement("span");
@@ -2672,17 +2673,25 @@ window.showBattleCard = showBattleCard;
 
               const myActorNr = photonClient.myActor().actorNr;
               const currentTurnIndex = currentBattleData.currentTurnIndex;
-              if (!currentBattleData.turnOrder || typeof currentTurnIndex !== 'number' || currentTurnIndex < 0 || currentTurnIndex >= currentBattleData.turnOrder.length) {
+
+              if (!currentBattleData.turnOrder ||
+                  typeof currentTurnIndex !== 'number' ||
+                  currentTurnIndex < 0 ||
+                  currentTurnIndex >= currentBattleData.turnOrder.length) {
                 debugLog(`End Turn PREVENTED: Invalid turn data. Index: ${currentTurnIndex}, Order Length: ${currentBattleData.turnOrder?.length}`);
                 console.error("Invalid turn data, cannot end turn.");
                 addCombatLogMessage("Error: Turn data corrupted.");
                 return;
               }
 
-              const activeName = currentBattleData.turnOrder[currentTurnIndex];
-              const isMyTurn = currentBattleData.player &&
-                                currentBattleData.player.name === activeName &&
-                                currentBattleData.player.actorNr === myActorNr;
+              // Define activeEntry locally by retrieving it from the turnOrder array
+              const activeEntry = currentBattleData.turnOrder[currentTurnIndex];
+              const activeName = activeEntry.displayName;  // Now we have the actual name string
+
+              const isMyTurn =
+                currentBattleData.player &&
+                currentBattleData.player.name === activeName &&
+                currentBattleData.player.actorNr === myActorNr;
 
               debugLog(`End Turn Check: MyTurn=${isMyTurn}, ActiveName=${activeName}, MyName=${currentBattleData.player?.name}, MyActorNr=${myActorNr}`);
 
