@@ -3489,9 +3489,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
               const initialProps = {};
               initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderEntries;
-              initialProps[ROOM_PROPERTY_KEYS.COMBATANTS] = combatantsProp;
               initialProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = currentTurnIndex;
               initialProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED] = true;
+              photonClient.myRoom().setCustomProperties(initialProps);
+
 
               if (photonClient.isJoinedToRoom()) {
                 photonClient.myRoom().setCustomProperties(initialProps);
