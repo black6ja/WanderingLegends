@@ -77,16 +77,18 @@ class TurnManager {
      * Private: Calls the onTurnChanged callback with the new state.
      */
     _triggerTurnChanged() {
-      const activePlayer = this.turnOrder[this.currentTurnIndex];
-      const isMyTurn = (activePlayer === this._getLocalPlayerIdentifier());
-      if (typeof this.onTurnChanged === 'function') {
-        this.onTurnChanged({
-          activePlayer: activePlayer,
-          currentTurnIndex: this.currentTurnIndex,
-          isMyTurn: isMyTurn,
-        });
+        const activeCombatant = this.turnOrder[this.currentTurnIndex];
+        // Compare using the composite id.
+        const isMyTurn = (activeCombatant.id === this._getLocalPlayerIdentifier());
+        if (typeof this.onTurnChanged === 'function') {
+          this.onTurnChanged({
+            activePlayer: activeCombatant.displayName,
+            activePlayerId: activeCombatant.id,
+            currentTurnIndex: this.currentTurnIndex,
+            isMyTurn: isMyTurn,
+          });
+        }
       }
-    }
   
     /**
      * Private: Resets the turn timeout timer.
@@ -114,8 +116,8 @@ class TurnManager {
      * Private: Determines the local player's unique identifier.
      */
     _getLocalPlayerIdentifier() {
-        // Assuming currentBattleData is globally accessible and has been set
-        return currentBattleData && currentBattleData.player ? currentBattleData.player.name : null;
+        const actor = this.photonClient.myActor();
+        return actor ? actor.actorNr.toString() : null;
       }
   }
   
