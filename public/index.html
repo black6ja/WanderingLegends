@@ -1267,6 +1267,7 @@ function sendEndTurn() {
   }
   
   const localPlayerId = photonClient.myActor().actorNr.toString();
+  // Now compare using the 'id' property of the current turn entry.
   if (turnManager.turnOrder[turnManager.currentTurnIndex].id !== localPlayerId) {
     console.error("sendEndTurn rejected: Not your turn");
     return;
@@ -1284,6 +1285,7 @@ function sendEndTurn() {
   
   document.getElementById('end-turn').disabled = true;
 }
+
 
 
 
@@ -3401,16 +3403,22 @@ document.addEventListener("DOMContentLoaded", function () {
             if (joinedRoom.playerCount === 1) { // First player/creator
               debugLog("First player in room, setting initial battle state properties...");
 
-              // Determine Turn Order
+              // Determine Turn Order from the two combatants sorted by initiative
               const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
-              // Use actorNr (converted to string) if available; otherwise, use a unique instance id for enemies.
-              const turnOrderIds = turnOrderCombatants.map(c => {
-                return c.actorNr ? c.actorNr.toString() : c.instanceId;
+
+              // Map each combatant to an entry object with id and displayName
+              const turnOrderEntries = turnOrderCombatants.map(c => {
+                if (c.actorNr) {
+                  // For players:
+                  return { id: c.actorNr.toString(), displayName: c.name };
+                } else {
+                  // For enemies:
+                  return { id: c.instanceId, displayName: c.name };
+                }
               });
               const currentTurnIndex = 0;
 
-
-              // Prepare combatant data for room properties (this can remain the same if your AI uses combatantsProp indexed by a unique key):
+              // Prepare properties to set:
               const combatantsProp = {};
               combatantsProp[playerBattleData.actorNr] = {
                 name: playerBattleData.name,
@@ -3427,9 +3435,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 magicalDR: enemyBattleData.magicalDR,
               };
 
-              // Prepare properties to set, storing the composite array:
               const initialProps = {};
-              initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderIds;
+              initialProps[ROOM_PROPERTY_KEYS.TURN_ORDER] = turnOrderEntries;
               initialProps[ROOM_PROPERTY_KEYS.COMBATANTS] = combatantsProp;
               initialProps[ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX] = currentTurnIndex;
               initialProps[ROOM_PROPERTY_KEYS.BATTLE_STATE_INITIALIZED] = true;
@@ -3442,15 +3449,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 throw new Error("Failed to set initial room properties.");
               }
 
-              // Create local battle data using composite turn order:
+              // Create local battle data using the same turn order entries:
               currentBattleData = {
                 roomId: joinedRoom.name,
-                player: playerBattleData,
+                player: playerBattleData, // player data
                 enemies: [enemyBattleData],
-                turnOrder: turnOrderIds,  // Now an array of objects { id, displayName }
+                turnOrder: turnOrderEntries, // now an array of objects {id, displayName}
                 currentTurnIndex: currentTurnIndex,
               };
               debugLog("Created local battle data for creator:", JSON.stringify(currentBattleData));
+
             } else {
               // For joining existing battle, currentBattleData is populated in onJoinRoom or onPropertiesChanged.
             }
