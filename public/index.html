@@ -3401,16 +3401,14 @@ document.addEventListener("DOMContentLoaded", function () {
             if (joinedRoom.playerCount === 1) { // First player/creator
               debugLog("First player in room, setting initial battle state properties...");
 
-              // Determine Turn Order using composite objects:
+              // Determine Turn Order
               const turnOrderCombatants = [playerBattleData, enemyBattleData].sort((a, b) => b.initiative - a.initiative);
-              // For each combatant, create an entry with an id and a displayName.
-              const turnOrderEntries = turnOrderCombatants.map(c => {
-                return { 
-                  id: (c.actorNr ? c.actorNr.toString() : c.instanceId), 
-                  displayName: c.name 
-                };
+              // Use actorNr (converted to string) if available; otherwise, use a unique instance id for enemies.
+              const turnOrderIds = turnOrderCombatants.map(c => {
+                return c.actorNr ? c.actorNr.toString() : c.instanceId;
               });
               const currentTurnIndex = 0;
+
 
               // Prepare combatant data for room properties (this can remain the same if your AI uses combatantsProp indexed by a unique key):
               const combatantsProp = {};
