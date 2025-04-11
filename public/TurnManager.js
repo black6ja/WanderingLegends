@@ -86,7 +86,6 @@ class TurnManager {
     _triggerTurnChanged() {
         const activeCombatant = this.turnOrder[this.currentTurnIndex];
         console.log("Triggering turn change. Active combatant:", activeCombatant);
-        // Compare using the composite id.
         const isMyTurn = (activeCombatant.id === this._getLocalPlayerIdentifier());
         if (typeof this.onTurnChanged === 'function') {
           this.onTurnChanged({
@@ -94,9 +93,11 @@ class TurnManager {
             activePlayerId: activeCombatant.id,
             currentTurnIndex: this.currentTurnIndex,
             isMyTurn: isMyTurn,
+            turnOrder: this.turnOrder  // <-- Add this line!
           });
         }
       }
+      
   
     /**
      * Private: Resets the turn timeout timer.
