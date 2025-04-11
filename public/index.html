@@ -1260,19 +1260,19 @@ function sendEndTurn() {
     console.error("Turn Manager is not initialized yet. Cannot end turn.");
     return;
   }
-
   if (!photonClient.isJoinedToRoom()) {
     console.error("sendEndTurn aborted: Not in a room");
     return;
   }
-  
+
   const localPlayerId = photonClient.myActor().actorNr.toString();
-  // Now compare using the 'id' property of the current turn entry.
-  if (turnManager.turnOrder[turnManager.currentTurnIndex].id !== localPlayerId) {
-    console.error("sendEndTurn rejected: Not your turn");
+  const activeEntry = turnManager.turnOrder[turnManager.currentTurnIndex];
+  
+  if (activeEntry.id !== localPlayerId) {
+    console.error(`sendEndTurn rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
     return;
   }
-  
+
   if (photonClient.isMasterClient()) {
     turnManager.advanceTurn();
   } else {
@@ -1282,13 +1282,23 @@ function sendEndTurn() {
       includeMyself: false
     });
   }
-  
   document.getElementById('end-turn').disabled = true;
 }
 
-
-
-
+function updateTurnOrderUI(turnOrder, currentTurnIndex) {
+  const turnOrderBar = document.getElementById("turn-order-bar");
+  turnOrderBar.innerHTML = "";
+  turnOrder.forEach((entry, index) => {
+    const turnItem = document.createElement("span");
+    turnItem.classList.add("turn-item");
+    if (index === currentTurnIndex) {
+      turnItem.classList.add("active");
+    }
+    // Use displayName to show the name
+    turnItem.textContent = entry.displayName.substring(0, 10);
+    turnOrderBar.appendChild(turnItem);
+  });
+}
 
 
 
