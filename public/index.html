@@ -3447,7 +3447,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 roomId: joinedRoom.name,
                 player: playerBattleData,
                 enemies: [enemyBattleData],
-                turnOrder: turnOrderEntries,  // Now an array of objects { id, displayName }
+                turnOrder: turnOrderIds,  // Now an array of objects { id, displayName }
                 currentTurnIndex: currentTurnIndex,
               };
               debugLog("Created local battle data for creator:", JSON.stringify(currentBattleData));
