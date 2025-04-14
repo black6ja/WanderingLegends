@@ -35,6 +35,7 @@ class TurnManager {
      * @param {object} props - Photon room custom properties (expecting turnOrder and currentTurnIndex)
      */
     updateFromRoomProps(props) {
+        console.log('[TurnManager] updateFromRoomProps called. Props:', props);
         // Using the same keys as defined in ROOM_PROPERTY_KEYS
         if (props && props.bTurnOrder && typeof props.bTurnIdx === 'number') {
           if (this.currentTurnIndex !== props.bTurnIdx ||
@@ -54,6 +55,7 @@ class TurnManager {
      * Only the Master client should call this method.
      */
     advanceTurn() {
+        console.log('[TurnManager] advanceTurn called. Current index:', this.currentTurnIndex);
         // Only proceed if the local actor is the master client.
         const localActorNr = this.photonClient.myActor().actorNr;
         const masterActorNr = this.photonClient.myRoom().masterClientActorNr; // Make sure this property is available
@@ -61,7 +63,12 @@ class TurnManager {
         
         this._clearTurnTimer();
         this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
+        console.log('[TurnManager] New currentTurnIndex:', this.currentTurnIndex);
         this._updateRoomProperties();
+        console.log('[TurnManager] _updateRoomProperties called. New props:', {
+          bTurnOrder: this.turnOrder,
+          bTurnIdx: this.currentTurnIndex
+        });
         this._triggerTurnChanged();
         this._resetTurnTimer();
       }
@@ -75,7 +82,7 @@ class TurnManager {
         bTurnOrder: this.turnOrder,
         bTurnIdx: this.currentTurnIndex
       };
-      console.log("Updating room properties with:", newProps);
+      console.log('[TurnManager] _updateRoomProperties called. New props:', newProps);
       this.photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
         if (!success) {
           console.error("Failed to update turn properties:", errorMsg);
@@ -87,8 +94,8 @@ class TurnManager {
      * Private: Calls the onTurnChanged callback with the new state.
      */
     _triggerTurnChanged() {
+        console.log('[TurnManager] _triggerTurnChanged called. Active combatant:', this.turnOrder[this.currentTurnIndex]);
         const activeCombatant = this.turnOrder[this.currentTurnIndex];
-        console.log("Triggering turn change. Active combatant:", activeCombatant);
         const isMyTurn = (activeCombatant.id === this._getLocalPlayerIdentifier());
         if (typeof this.onTurnChanged === 'function') {
           this.onTurnChanged({
