@@ -1077,7 +1077,7 @@
         return 0;
     }
     const diceRegex = /(\d+)?d(\d+)([+-]\d+)?/i;
-    const match = diceString.match(diceRegex);
+    const match = diceRegex.match(diceString);
 
     if (!match) {
         // Handle simple numbers as "rolls" (e.g., for flat damage bonuses)
@@ -1270,51 +1270,54 @@ function setRoomCustomProperties(props) {
 }
 
 function sendEndTurn() {
+  debugLog('[sendEndTurn] Called');
   if (!turnManager) {
-    console.error("Turn Manager not initialized.");
+    console.error('[sendEndTurn] Turn Manager not initialized.');
     return;
   }
   if (!photonClient.isJoinedToRoom()) {
-    console.error("Not in a room.");
+    console.error('[sendEndTurn] Not in a room.');
     return;
   }
   
   if (!turnManager.turnOrder || turnManager.turnOrder.length === 0) {
-    console.error("Turn order is empty.");
+    console.error('[sendEndTurn] Turn order is empty.');
     return;
   }
   
   const localPlayerId = photonClient.myActor().actorNr.toString();
   const currentTurnIndex = turnManager.currentTurnIndex;
   
-  // Log the current state before proceeding.
-  debugLog("sendEndTurn() - localPlayerId: " + localPlayerId);
-  debugLog("sendEndTurn() - currentTurnIndex: " + currentTurnIndex);
-  debugLog("sendEndTurn() - turnOrder length: " + turnManager.turnOrder.length);
+  debugLog('[sendEndTurn] localPlayerId: ' + localPlayerId);
+  debugLog('[sendEndTurn] currentTurnIndex: ' + currentTurnIndex);
+  debugLog('[sendEndTurn] turnOrder length: ' + turnManager.turnOrder.length);
   
   const activeEntry = turnManager.turnOrder[currentTurnIndex];
-  
-  // Log the active turn entry
-  debugLog("Active entry: " + JSON.stringify(activeEntry));
+  debugLog('[sendEndTurn] Active entry: ' + JSON.stringify(activeEntry));
   
   if (!activeEntry) {
-    console.error("Active turn entry is undefined.");
+    console.error('[sendEndTurn] Active turn entry is undefined.');
     return;
   }
   
   if (activeEntry.id !== localPlayerId) {
-    console.error(`sendEndTurn rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
+    console.error(`[sendEndTurn] Rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
     return;
   }
   
+  debugLog('[sendEndTurn] Passed all checks. Proceeding to advance turn logic.');
+
   // Proceed with sending the turn-end event...
   // Proceed with sending the turn-end event.
   // In a single-player scenario (or when there's only one human client), immediately advance the turn.
   if (photonClient.myRoom().playerCount === 1) {
+    debugLog('[sendEndTurn] Only one player in room. Calling turnManager.advanceTurn()');
     turnManager.advanceTurn();
   } else if (photonClient.isMasterClient) {
+    debugLog('[sendEndTurn] Master client. Calling turnManager.advanceTurn()');
     turnManager.advanceTurn();
   } else {
+    debugLog('[sendEndTurn] Not master, raising END_TURN event.');
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
       reliability: true,
       receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.MasterClient,
@@ -1322,8 +1325,6 @@ function sendEndTurn() {
     });
   }
 
-
-  
   document.getElementById('end-turn').disabled = true;
 }
 
