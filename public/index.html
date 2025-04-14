@@ -1072,48 +1072,20 @@
     const database = firebase.database();
 
     function rollDice(diceString) {
-    if (!diceString || typeof diceString !== 'string') {
-        console.error("Invalid dice string:", diceString);
+    if (!diceString) {
         return 0;
     }
     const diceRegex = /(\d+)?d(\d+)([+-]\d+)?/i;
-    const match = diceRegex.match(diceString);
+    const match = diceString.match(diceRegex);
 
     if (!match) {
         // Handle simple numbers as "rolls" (e.g., for flat damage bonuses)
-        const flatNumber = parseInt(diceString, 10);
-        if (!isNaN(flatNumber)) return flatNumber;
-        console.error("Could not parse dice string:", diceString);
-        return 0;
+        const num = parseInt(diceString, 10);
+        return isNaN(num) ? 0 : num;
     }
+    // ... rest of the function ...
 
-    const numDice = match[1] ? parseInt(match[1], 10) : 1;
-    const numSides = parseInt(match[2], 10);
-    const modifier = match[3] ? parseInt(match[3], 10) : 0;
-
-    let total = 0;
-    let rolls = []; // Keep track of individual rolls for logging (optional)
-
-    if (numSides <= 0) {
-         console.error("Dice must have at least 1 side:", diceString);
-         return 0;
-    }
-
-    for (let i = 0; i < numDice; i++) {
-        const roll = Math.floor(Math.random() * numSides) + 1;
-        rolls.push(roll);
-        total += roll;
-    }
-
-    total += modifier;
-
-    // Log the roll details (optional but good for debugging)
-    // debugLog(`Rolled ${diceString}: [${rolls.join(', ')}] + (${modifier}) = ${total}`);
-
-    return total;
-}
-
-function showBattleCard(battleData) {
+    function showBattleCard(battleData) {
     const battleCard = document.getElementById("battle-card");
     if (!battleCard) {
       console.error("Battle card element not found!");
@@ -1654,7 +1626,7 @@ function handleEnemyActionEvent(content, senderName) {
 function robustLeaveRoom(timeout = 10000) {
     return new Promise((resolve, reject) => {
         if (!photonClient.isJoinedToRoom()) { // Use the official check
-            debugLog("[robustLeaveRoom] Not currently in a room.");
+            debugLog("Not currently in a room.");
             return resolve();
         }
 
@@ -1725,8 +1697,8 @@ async function forcePhotonReconnect() {
     debugLog("[forcePhotonReconnect] Reconnecting Photon...");
     // Assuming connectToRegionMaster is the correct way you connect
     if (!photonClient.connectToRegionMaster("us")) {
-         debugLog("[forcePhotonReconnect] connectToRegionMaster call failed immediately.", true);
-         throw new Error("Photon connectToRegionMaster call failed immediately.");
+         debugLog("[forcePhotonReconnect] connectToRegionMaster call failed immediately on retry.", true);
+         throw new Error("Photon connectToRegionMaster failed on reconnect.");
     }
 
     // Wait until we are back in the lobby
@@ -2821,7 +2793,7 @@ window.showBattleCard = showBattleCard;
  * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object, rejects on error/timeout.
  */
 function simpleJoinOrCreateRoom(roomName, options, timeout = 15000) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => { // Added reject
         debugLog(`[simpleJoinOrCreateRoom] Attempting join/create for room: ${roomName}`);
 
         // 1. Store Original Global Handlers
