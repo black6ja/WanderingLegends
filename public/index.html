@@ -388,7 +388,7 @@
 }
 
 .stat-section h3 {
-  margin: 0 0 10px 0;
+  margin: 0 0 10px;
   font-size: 1.1em;
   color: #FFD700;
   text-transform: uppercase;
@@ -419,7 +419,7 @@
   color: #1d1f21;
   font-weight: bold;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background 0.2s ease;
 }
 
 .card-actions button:hover {
@@ -1072,7 +1072,8 @@
     const database = firebase.database();
 
     function rollDice(diceString) {
-    if (!diceString) {
+    if (!diceString || typeof diceString !== 'string') {
+        console.error("Invalid dice string:", diceString);
         return 0;
     }
     const diceRegex = /(\d+)?d(\d+)([+-]\d+)?/i;
@@ -1080,12 +1081,39 @@
 
     if (!match) {
         // Handle simple numbers as "rolls" (e.g., for flat damage bonuses)
-        const num = parseInt(diceString, 10);
-        return isNaN(num) ? 0 : num;
+        const flatNumber = parseInt(diceString, 10);
+        if (!isNaN(flatNumber)) return flatNumber;
+        console.error("Could not parse dice string:", diceString);
+        return 0;
     }
-    // ... rest of the function ...
 
-    function showBattleCard(battleData) {
+    const numDice = match[1] ? parseInt(match[1], 10) : 1;
+    const numSides = parseInt(match[2], 10);
+    const modifier = match[3] ? parseInt(match[3], 10) : 0;
+
+    let total = 0;
+    let rolls = []; // Keep track of individual rolls for logging (optional)
+
+    if (numSides <= 0) {
+         console.error("Dice must have at least 1 side:", diceString);
+         return 0;
+    }
+
+    for (let i = 0; i < numDice; i++) {
+        const roll = Math.floor(Math.random() * numSides) + 1;
+        rolls.push(roll);
+        total += roll;
+    }
+
+    total += modifier;
+
+    // Log the roll details (optional but good for debugging)
+    // debugLog(`Rolled ${diceString}: [${rolls.join(', ')}] + (${modifier}) = ${total}`);
+
+    return total;
+}
+
+function showBattleCard(battleData) {
     const battleCard = document.getElementById("battle-card");
     if (!battleCard) {
       console.error("Battle card element not found!");
@@ -1242,54 +1270,47 @@ function setRoomCustomProperties(props) {
 }
 
 function sendEndTurn() {
-  debugLog('[sendEndTurn] Called');
   if (!turnManager) {
-    console.error('[sendEndTurn] Turn Manager not initialized.');
+    console.error("Turn Manager not initialized.");
     return;
   }
   if (!photonClient.isJoinedToRoom()) {
-    console.error('[sendEndTurn] Not in a room.');
+    console.error("Not in a room.");
     return;
   }
   
   if (!turnManager.turnOrder || turnManager.turnOrder.length === 0) {
-    console.error('[sendEndTurn] Turn order is empty.');
+    console.error("Turn order is empty.");
     return;
   }
   
   const localPlayerId = photonClient.myActor().actorNr.toString();
   const currentTurnIndex = turnManager.currentTurnIndex;
   
-  debugLog('[sendEndTurn] localPlayerId: ' + localPlayerId);
-  debugLog('[sendEndTurn] currentTurnIndex: ' + currentTurnIndex);
-  debugLog('[sendEndTurn] turnOrder length: ' + turnManager.turnOrder.length);
+  // Log the current state before proceeding.
+  debugLog("sendEndTurn() - localPlayerId: " + localPlayerId);
+  debugLog("sendEndTurn() - currentTurnIndex: " + currentTurnIndex);
+  debugLog("sendEndTurn() - turnOrder length: " + turnManager.turnOrder.length);
   
   const activeEntry = turnManager.turnOrder[currentTurnIndex];
-  debugLog('[sendEndTurn] Active entry: ' + JSON.stringify(activeEntry));
+  
+  // Log the active turn entry
+  debugLog("Active entry: " + JSON.stringify(activeEntry));
   
   if (!activeEntry) {
-    console.error('[sendEndTurn] Active turn entry is undefined.');
+    console.error("Active turn entry is undefined.");
     return;
   }
   
   if (activeEntry.id !== localPlayerId) {
-    console.error(`[sendEndTurn] Rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
+    console.error(`sendEndTurn rejected: Not your turn. Active is ${activeEntry.displayName}, I am ${currentBattleData.player.name}`);
     return;
   }
   
-  debugLog('[sendEndTurn] Passed all checks. Proceeding to advance turn logic.');
-
   // Proceed with sending the turn-end event...
-  // Proceed with sending the turn-end event.
-  // In a single-player scenario (or when there's only one human client), immediately advance the turn.
-  if (photonClient.myRoom().playerCount === 1) {
-    debugLog('[sendEndTurn] Only one player in room. Calling turnManager.advanceTurn()');
-    turnManager.advanceTurn();
-  } else if (photonClient.isMasterClient) {
-    debugLog('[sendEndTurn] Master client. Calling turnManager.advanceTurn()');
-    turnManager.advanceTurn();
+  if (photonClient.myRoom().masterClientActorNr === photonClient.myActor().actorNr) {
+  turnManager.advanceTurn();
   } else {
-    debugLog('[sendEndTurn] Not master, raising END_TURN event.');
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
       reliability: true,
       receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.MasterClient,
@@ -1297,6 +1318,7 @@ function sendEndTurn() {
     });
   }
 
+  
   document.getElementById('end-turn').disabled = true;
 }
 
@@ -1387,8 +1409,7 @@ function updateTurnOrderUI(turnOrder, currentTurnIndex) {
      if (typeof myActorNr === 'undefined') {
           debugLog("Error: Cannot get myActorNr, client might not be fully joined.", true);
           addCombatLogMessage("Error synchronizing player.");
-          // Consider trying again shortly? Or leaving the room?
-          return;
+          return; // Cannot proceed without actor number
      }
 
      let localPlayer = null;
@@ -1626,7 +1647,7 @@ function handleEnemyActionEvent(content, senderName) {
 function robustLeaveRoom(timeout = 10000) {
     return new Promise((resolve, reject) => {
         if (!photonClient.isJoinedToRoom()) { // Use the official check
-            debugLog("Not currently in a room.");
+            debugLog("[robustLeaveRoom] Not currently in a room.");
             return resolve();
         }
 
@@ -1697,8 +1718,8 @@ async function forcePhotonReconnect() {
     debugLog("[forcePhotonReconnect] Reconnecting Photon...");
     // Assuming connectToRegionMaster is the correct way you connect
     if (!photonClient.connectToRegionMaster("us")) {
-         debugLog("[forcePhotonReconnect] connectToRegionMaster call failed immediately on retry.", true);
-         throw new Error("Photon connectToRegionMaster failed on reconnect.");
+         debugLog("[forcePhotonReconnect] connectToRegionMaster call failed immediately.", true);
+         throw new Error("Photon connectToRegionMaster call failed immediately.");
     }
 
     // Wait until we are back in the lobby
@@ -2205,8 +2226,6 @@ function debugLog(message, isError = false) {
       // Update UI for turn order
       updateTurnOrderUI(turnData.turnOrder, turnData.currentTurnIndex);
 
-      debugLog('[TurnManager Callback] Fired. TurnData: ' + JSON.stringify(turnData));
-
       // Show a visual cue indicating whose turn it is.
       if (turnData.isMyTurn) {
         showPlayerTurnIndicator();
@@ -2216,36 +2235,19 @@ function debugLog(message, isError = false) {
 
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
 
-      // --- AI TURN HANDLING ---
-      // Only the Master Client should trigger AI actions
       if (!turnData.isMyTurn && photonClient.isMasterClient) {
-        const activeEntry = turnData.turnOrder[turnData.currentTurnIndex];
-        debugLog('[AI TURN CHECK] ActiveEntry: ' + JSON.stringify(activeEntry));
-        // Check if this entry is an AI (by a property like isAI or type)
-        if (activeEntry && (activeEntry.isAI || activeEntry.type === 'AI' || activeEntry.type === 'enemy')) {
-          addCombatLogMessage("Enemy turn starting...");
-          showEnemyTurnIndicator();
-          setTimeout(() => {
-            debugLog('[AI TURN] currentBattleData.enemies: ' + JSON.stringify(currentBattleData && currentBattleData.enemies));
-            // Try to find the enemy in currentBattleData.enemies by id or name
-            let activeEnemy = null;
-            if (currentBattleData && currentBattleData.enemies) {
-              activeEnemy = currentBattleData.enemies.find(e => e.id === activeEntry.id || e.name === activeEntry.displayName || e.name === activeEntry.id);
-            }
-            debugLog('[AI TURN] activeEnemy found: ' + JSON.stringify(activeEnemy));
-            if (activeEnemy) {
-              debugLog('[AI TURN] Calling handleEnemyTurn...');
-              handleEnemyTurn(activeEnemy, currentBattleData.player);
-            } else {
-              console.error("No enemy found matching:", activeEntry.id, activeEntry.displayName, activeEntry);
-              addCombatLogMessage("Error: No enemy found for AI turn!");
-            }
-          }, 500); // Short delay for UI feedback
-        } else {
-          debugLog("[AI TURN] Turn advanced to non-player, but entry is not marked as AI:", activeEntry);
-        }
+        addCombatLogMessage("Enemy turn starting...");
+        
+        setTimeout(() => {
+          const activeEnemyName = turnData.activePlayer;
+          const activeEnemy = currentBattleData.enemies.find(e => e.name === activeEnemyName);
+          if (activeEnemy) {
+            handleEnemyTurn(activeEnemy, currentBattleData.player);
+          } else {
+            console.error("No enemy found matching:", activeEnemyName);
+          }
+        }, 1000);
       }
-
     });
 
     // === TURN MANAGER INSTANTIATION END ===
@@ -2793,7 +2795,7 @@ window.showBattleCard = showBattleCard;
  * @returns {Promise<Photon.LoadBalancing.Room>} Resolves with the Room object, rejects on error/timeout.
  */
 function simpleJoinOrCreateRoom(roomName, options, timeout = 15000) {
-    return new Promise((resolve, reject) => { // Added reject
+    return new Promise((resolve, reject) => {
         debugLog(`[simpleJoinOrCreateRoom] Attempting join/create for room: ${roomName}`);
 
         // 1. Store Original Global Handlers
@@ -3574,7 +3576,7 @@ function addCombatLogMessage(message)
           const newItem = document.createElement("li");
           newItem.textContent = message;
           logList.appendChild(newItem);
-          // Auto-scroll
+          // Auto-scroll to bottom
           logList.scrollTop = logList.scrollHeight;
       } else {
           console.warn("Combat log list element not found.");

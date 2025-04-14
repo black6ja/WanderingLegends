@@ -1,5 +1,3 @@
-console.log("TurnManager.js loaded");
-
 class TurnManager {
     /**
      * @param {object} photonClient - The Photon client instance.
@@ -37,7 +35,6 @@ class TurnManager {
      * @param {object} props - Photon room custom properties (expecting turnOrder and currentTurnIndex)
      */
     updateFromRoomProps(props) {
-        console.log('[TurnManager] updateFromRoomProps called. Props:', props);
         // Using the same keys as defined in ROOM_PROPERTY_KEYS
         if (props && props.bTurnOrder && typeof props.bTurnIdx === 'number') {
           if (this.currentTurnIndex !== props.bTurnIdx ||
@@ -57,24 +54,15 @@ class TurnManager {
      * Only the Master client should call this method.
      */
     advanceTurn() {
-        console.log('[TurnManager] advanceTurn called. Current index:', this.currentTurnIndex);
-        // Only proceed if the local actor is the master client.
-        const localActorNr = this.photonClient.myActor().actorNr;
-        const masterActorNr = this.photonClient.myRoom().masterClientActorNr; // Make sure this property is available
-        if (localActorNr !== masterActorNr) return;
-        
-        this._clearTurnTimer();
-        this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
-        console.log('[TurnManager] New currentTurnIndex:', this.currentTurnIndex);
-        this._updateRoomProperties();
-        console.log('[TurnManager] _updateRoomProperties called. New props:', {
-          bTurnOrder: this.turnOrder,
-          bTurnIdx: this.currentTurnIndex
-        });
-        this._triggerTurnChanged();
-        this._resetTurnTimer();
-      }
-      
+      // Only proceed if you are the Master client
+      if (!this.photonClient.isMasterClient) return;
+  
+      this._clearTurnTimer();
+      this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
+      this._updateRoomProperties();
+      this._triggerTurnChanged();
+      this._resetTurnTimer();
+    }
   
     /**
      * Private: Updates Photon room custom properties with the current turn data.
@@ -84,7 +72,7 @@ class TurnManager {
         bTurnOrder: this.turnOrder,
         bTurnIdx: this.currentTurnIndex
       };
-      console.log('[TurnManager] _updateRoomProperties called. New props:', newProps);
+      console.log("Updating room properties with:", newProps);
       this.photonClient.myRoom().setCustomProperties(newProps, null, function(success, errorMsg) {
         if (!success) {
           console.error("Failed to update turn properties:", errorMsg);
@@ -96,8 +84,8 @@ class TurnManager {
      * Private: Calls the onTurnChanged callback with the new state.
      */
     _triggerTurnChanged() {
-        console.log('[TurnManager] _triggerTurnChanged called. Active combatant:', this.turnOrder[this.currentTurnIndex]);
         const activeCombatant = this.turnOrder[this.currentTurnIndex];
+        console.log("Triggering turn change. Active combatant:", activeCombatant);
         const isMyTurn = (activeCombatant.id === this._getLocalPlayerIdentifier());
         if (typeof this.onTurnChanged === 'function') {
           this.onTurnChanged({
