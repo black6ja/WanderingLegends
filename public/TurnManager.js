@@ -55,7 +55,7 @@ class TurnManager {
      */
     advanceTurn() {
       // Only proceed if you are the Master client
-      if (!this.photonClient.isMasterClient()) return;
+      if (!this.photonClient.isMasterClient) return;
   
       this._clearTurnTimer();
       this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
