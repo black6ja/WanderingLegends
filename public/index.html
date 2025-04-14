@@ -1414,7 +1414,8 @@ function updateTurnOrderUI(turnOrder, currentTurnIndex) {
      if (typeof myActorNr === 'undefined') {
           debugLog("Error: Cannot get myActorNr, client might not be fully joined.", true);
           addCombatLogMessage("Error synchronizing player.");
-          return; // Cannot proceed without actor number
+          // Consider trying again shortly? Or leaving the room?
+          return;
      }
 
      let localPlayer = null;
@@ -2231,6 +2232,8 @@ function debugLog(message, isError = false) {
       // Update UI for turn order
       updateTurnOrderUI(turnData.turnOrder, turnData.currentTurnIndex);
 
+      debugLog('[TurnManager Callback] Fired. TurnData: ' + JSON.stringify(turnData));
+
       // Show a visual cue indicating whose turn it is.
       if (turnData.isMyTurn) {
         showPlayerTurnIndicator();
@@ -2244,17 +2247,21 @@ function debugLog(message, isError = false) {
       // Only the Master Client should trigger AI actions
       if (!turnData.isMyTurn && photonClient.isMasterClient) {
         const activeEntry = turnData.turnOrder[turnData.currentTurnIndex];
+        debugLog('[AI TURN CHECK] ActiveEntry: ' + JSON.stringify(activeEntry));
         // Check if this entry is an AI (by a property like isAI or type)
         if (activeEntry && (activeEntry.isAI || activeEntry.type === 'AI' || activeEntry.type === 'enemy')) {
           addCombatLogMessage("Enemy turn starting...");
           showEnemyTurnIndicator();
           setTimeout(() => {
+            debugLog('[AI TURN] currentBattleData.enemies: ' + JSON.stringify(currentBattleData && currentBattleData.enemies));
             // Try to find the enemy in currentBattleData.enemies by id or name
             let activeEnemy = null;
             if (currentBattleData && currentBattleData.enemies) {
               activeEnemy = currentBattleData.enemies.find(e => e.id === activeEntry.id || e.name === activeEntry.displayName || e.name === activeEntry.id);
             }
+            debugLog('[AI TURN] activeEnemy found: ' + JSON.stringify(activeEnemy));
             if (activeEnemy) {
+              debugLog('[AI TURN] Calling handleEnemyTurn...');
               handleEnemyTurn(activeEnemy, currentBattleData.player);
             } else {
               console.error("No enemy found matching:", activeEntry.id, activeEntry.displayName, activeEntry);
@@ -2262,7 +2269,7 @@ function debugLog(message, isError = false) {
             }
           }, 500); // Short delay for UI feedback
         } else {
-          debugLog("Turn advanced to non-player, but entry is not marked as AI:", activeEntry);
+          debugLog("[AI TURN] Turn advanced to non-player, but entry is not marked as AI:", activeEntry);
         }
       }
 
