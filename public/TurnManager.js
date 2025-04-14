@@ -1,3 +1,5 @@
+console.log("TurnManager.js loaded");
+
 class TurnManager {
     /**
      * @param {object} photonClient - The Photon client instance.
