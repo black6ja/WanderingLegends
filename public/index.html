@@ -1308,8 +1308,8 @@ function sendEndTurn() {
   }
   
   // Proceed with sending the turn-end event...
-  if (photonClient.isMasterClient) {
-    turnManager.advanceTurn();
+  if (photonClient.myRoom().masterClientActorNr === photonClient.myActor().actorNr) {
+  turnManager.advanceTurn();
   } else {
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
       reliability: true,
@@ -1317,6 +1317,7 @@ function sendEndTurn() {
       includeMyself: false
     });
   }
+
   
   document.getElementById('end-turn').disabled = true;
 }

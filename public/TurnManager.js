@@ -54,15 +54,18 @@ class TurnManager {
      * Only the Master client should call this method.
      */
     advanceTurn() {
-      // Only proceed if you are the Master client
-      if (!this.photonClient.isMasterClient) return;
-  
-      this._clearTurnTimer();
-      this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
-      this._updateRoomProperties();
-      this._triggerTurnChanged();
-      this._resetTurnTimer();
-    }
+        // Only proceed if the local actor is the master client.
+        const localActorNr = this.photonClient.myActor().actorNr;
+        const masterActorNr = this.photonClient.myRoom().masterClientActorNr; // Make sure this property is available
+        if (localActorNr !== masterActorNr) return;
+        
+        this._clearTurnTimer();
+        this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
+        this._updateRoomProperties();
+        this._triggerTurnChanged();
+        this._resetTurnTimer();
+      }
+      
   
     /**
      * Private: Updates Photon room custom properties with the current turn data.
