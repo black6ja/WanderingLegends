@@ -388,7 +388,7 @@
 }
 
 .stat-section h3 {
-  margin: 0 0 10px;
+  margin: 0 0 10px 0;
   font-size: 1.1em;
   color: #FFD700;
   text-transform: uppercase;
@@ -419,7 +419,7 @@
   color: #1d1f21;
   font-weight: bold;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .card-actions button:hover {
@@ -2240,19 +2240,32 @@ function debugLog(message, isError = false) {
 
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
 
+      // --- AI TURN HANDLING ---
+      // Only the Master Client should trigger AI actions
       if (!turnData.isMyTurn && photonClient.isMasterClient) {
-        addCombatLogMessage("Enemy turn starting...");
-        
-        setTimeout(() => {
-          const activeEnemyName = turnData.activePlayer;
-          const activeEnemy = currentBattleData.enemies.find(e => e.name === activeEnemyName);
-          if (activeEnemy) {
-            handleEnemyTurn(activeEnemy, currentBattleData.player);
-          } else {
-            console.error("No enemy found matching:", activeEnemyName);
-          }
-        }, 1000);
+        const activeEntry = turnData.turnOrder[turnData.currentTurnIndex];
+        // Check if this entry is an AI (by a property like isAI or type)
+        if (activeEntry && (activeEntry.isAI || activeEntry.type === 'AI' || activeEntry.type === 'enemy')) {
+          addCombatLogMessage("Enemy turn starting...");
+          showEnemyTurnIndicator();
+          setTimeout(() => {
+            // Try to find the enemy in currentBattleData.enemies by id or name
+            let activeEnemy = null;
+            if (currentBattleData && currentBattleData.enemies) {
+              activeEnemy = currentBattleData.enemies.find(e => e.id === activeEntry.id || e.name === activeEntry.displayName || e.name === activeEntry.id);
+            }
+            if (activeEnemy) {
+              handleEnemyTurn(activeEnemy, currentBattleData.player);
+            } else {
+              console.error("No enemy found matching:", activeEntry.id, activeEntry.displayName, activeEntry);
+              addCombatLogMessage("Error: No enemy found for AI turn!");
+            }
+          }, 500); // Short delay for UI feedback
+        } else {
+          debugLog("Turn advanced to non-player, but entry is not marked as AI:", activeEntry);
+        }
       }
+
     });
 
     // === TURN MANAGER INSTANTIATION END ===
@@ -3581,7 +3594,7 @@ function addCombatLogMessage(message)
           const newItem = document.createElement("li");
           newItem.textContent = message;
           logList.appendChild(newItem);
-          // Auto-scroll to bottom
+          // Auto-scroll
           logList.scrollTop = logList.scrollHeight;
       } else {
           console.warn("Combat log list element not found.");
