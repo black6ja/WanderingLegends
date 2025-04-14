@@ -1228,6 +1228,19 @@ function showBattleCard(battleData) {
     }
   } // End of showBattleCard function
 
+  function showPlayerTurnIndicator() {
+    // For now, simply log that it’s the local player's turn.
+    debugLog("It is now my turn!");
+    // Later you could update the UI to highlight the player’s section.
+  }
+
+  function showEnemyTurnIndicator() {
+    // For now, simply log that it’s not the local player's turn.
+    debugLog("It is now the enemy's turn!");
+    // Later you might update the UI to highlight the enemy’s section.
+  }
+
+
 function setRoomCustomProperties(props) {
   return new Promise(function(resolve, reject) {
     // Ensure that we are in a room before trying to update properties
