@@ -1308,8 +1308,12 @@ function sendEndTurn() {
   }
   
   // Proceed with sending the turn-end event...
-  if (photonClient.myRoom().masterClientActorNr === photonClient.myActor().actorNr) {
-  turnManager.advanceTurn();
+  // Proceed with sending the turn-end event.
+  // In a single-player scenario (or when there's only one human client), immediately advance the turn.
+  if (photonClient.myRoom().playerCount === 1) {
+    turnManager.advanceTurn();
+  } else if (photonClient.isMasterClient) {
+    turnManager.advanceTurn();
   } else {
     photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null, {
       reliability: true,
@@ -1317,6 +1321,7 @@ function sendEndTurn() {
       includeMyself: false
     });
   }
+
 
   
   document.getElementById('end-turn').disabled = true;
