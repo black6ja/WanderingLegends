@@ -10,12 +10,18 @@ class TurnManager {
       this.currentTurnIndex = 0;     // Pointer to the current turn
       this.turnTimeout = 30000;      // Timeout duration (in ms) per turn – adjust as needed
       this.turnTimer = null;
-      console.log("TurnManager initialized:", {
-        turnOrder: this.turnOrder,
-        currentTurnIndex: this.currentTurnIndex
-      });
+    }
+
+    _amIMaster() {
+        const room = this.photonClient.myRoom();
+        if (!room) return false;
+        const me   = this.photonClient.myActor().actorNr;
+        return me === room.masterClientId   // Photon JS v4
+        || me === room.masterClientActorNr;   // Photon JS v5+
     }
   
+
+    
     /**
      * Initializes the turn order. Typically called by the Master client when the battle starts.
      * @param {Array} players - An array of unique identifiers (e.g., actor numbers as strings).
@@ -55,7 +61,7 @@ class TurnManager {
      */
     advanceTurn() {
       // Only proceed if you are the Master client
-      if (!this.photonClient.isMasterClient) return;
+      if (!this._amIMaster()) return;
   
       this._clearTurnTimer();
       this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
