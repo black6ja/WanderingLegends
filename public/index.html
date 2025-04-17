@@ -949,6 +949,24 @@
     border-color: #FFD700; /* Change border if needed */
 }
 
+.float-text{
+  position:fixed;
+  pointer-events:none;
+  font-weight:bold;
+  font-size:1.4em;
+  opacity:1;
+  transform:translate(-50%,0);
+  animation: floatUp 1.2s ease-out forwards;
+}
+.float-text.dmg  { color:#e74c3c; text-shadow:0 0 6px #000; }
+.float-text.miss { color:#ccc;    text-shadow:0 0 4px #000; }
+
+@keyframes floatUp{
+  0%   { transform:translate(-50%,0);   opacity:1; }
+  100% { transform:translate(-50%,-80px); opacity:0; }
+}
+
+
   </style>
 </head>
 <body>
@@ -1071,47 +1089,109 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    function rollDice(diceString) {
-    if (!diceString || typeof diceString !== 'string') {
-        console.error("Invalid dice string:", diceString);
+    /**
+ * Rolls any standard dice expression.
+ *   – examples:  "d20"  "2d6+3"  "1d8+1d6+4"  "-2"
+ * Returns the numeric total.  All intermediate rolls are printed to debugLog().
+ */
+function rollDice(diceString) {
+  if (typeof diceString !== "string" || !diceString.trim()) {
+    console.error("Invalid dice string:", diceString);
+    return 0;
+  }
+
+  // strip whitespace, make lower‑case to simplify matching
+  const expr = diceString.replace(/\s+/g, "").toLowerCase();
+
+  /*  pattern finds either
+      1) [+|-]<N>d<S>   (a dice term, N optional ⇒ defaults to 1)
+      2) [+|-]<number>  (flat modifier)
+  */
+  const termRegex = /([+-]?)(?:(\d*)d(\d+)|(\d+))/g;
+
+  let total  = 0;
+  let rolls  = [];     // keep every individual die result for logging
+  let match;
+
+  while ((match = termRegex.exec(expr)) !== null) {
+    const signStr   = match[1] === "-" ? -1 : 1;
+
+    if (match[3]) {
+      // it’s a dice term
+      const numDice  = match[2] ? parseInt(match[2], 10) : 1;
+      const numSides = parseInt(match[3], 10);
+
+      if (numSides <= 0) {
+        console.error("Dice must have at least 1 side:", diceString);
         return 0;
-    }
-    const diceRegex = /(\d+)?d(\d+)([+-]\d+)?/i;
-    const match = diceString.match(diceRegex);
+      }
 
-    if (!match) {
-        // Handle simple numbers as "rolls" (e.g., for flat damage bonuses)
-        const flatNumber = parseInt(diceString, 10);
-        if (!isNaN(flatNumber)) return flatNumber;
-        console.error("Could not parse dice string:", diceString);
-        return 0;
-    }
-
-    const numDice = match[1] ? parseInt(match[1], 10) : 1;
-    const numSides = parseInt(match[2], 10);
-    const modifier = match[3] ? parseInt(match[3], 10) : 0;
-
-    let total = 0;
-    let rolls = []; // Keep track of individual rolls for logging (optional)
-
-    if (numSides <= 0) {
-         console.error("Dice must have at least 1 side:", diceString);
-         return 0;
-    }
-
-    for (let i = 0; i < numDice; i++) {
+      for (let i = 0; i < numDice; i++) {
         const roll = Math.floor(Math.random() * numSides) + 1;
-        rolls.push(roll);
-        total += roll;
+        rolls.push(signStr * roll);
+        total += signStr * roll;
+      }
+    } else if (match[4]) {
+      // it’s a flat number term
+      const value = signStr * parseInt(match[4], 10);
+      rolls.push(value);
+      total += value;
     }
+  }
 
-    total += modifier;
+  if (rolls.length === 0) {
+    console.error("Could not parse dice string:", diceString);
+    return 0;
+  }
 
-    // Log the roll details (optional but good for debugging)
-    // debugLog(`Rolled ${diceString}: [${rolls.join(', ')}] + (${modifier}) = ${total}`);
+  // Detailed trace for debugging
+  if (typeof debugLog === "function") {
+    const pretty = rolls.map(r => (r >= 0 ? `+${r}` : `${r}`)).join(" ");
+    debugLog(`Rolled ${diceString} ➜ ${pretty} = ${total}`);
+  }
 
-    return total;
+  return total;
 }
+
+/* rollAttack({ toHitBonus: +5 }) ➜ { roll: 17, total: 22 } */
+function rollAttack(weapon) {
+  const d20   = rollDice("d20");
+  const bonus = weapon?.toHitBonus || 0;
+  return { roll: d20, total: d20 + bonus };
+}
+
+/* rollDamage("1d8+3") ➜ { rolls:[5], total:8 } */
+function rollDamage(damageString) {
+  const termRegex = /([+-]?)(\d*)d?(\d+)?/ig;
+  let total = 0, rolls = [], m;
+
+  while ((m = termRegex.exec(damageString)) !== null) {
+    const sign = m[1] === "-" ? -1 : 1;
+    if (m[3]) {                 // dice term
+      const n   = m[2] ? parseInt(m[2],10) : 1;
+      const die = parseInt(m[3],10);
+      for (let i=0;i<n;i++) {
+        const r = Math.floor(Math.random()*die)+1;
+        rolls.push(sign*r); total += sign*r;
+      }
+    } else if (m[2]) {          // flat number
+      const val = sign*parseInt(m[2],10);
+      rolls.push(val); total += val;
+    }
+  }
+  return { rolls, total };
+}
+
+function floatText(text, x, y, kind = 'dmg') {
+  const el = document.createElement('div');
+  el.className = `float-text ${kind}`;
+  el.textContent = text;
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
 
 function showBattleCard(battleData) {
     const battleCard = document.getElementById("battle-card");
@@ -2323,6 +2403,9 @@ function debugLog(message, isError = false) {
           turnManager.advanceTurn();
         }
       }
+      else if (code === BATTLE_EVENT_CODES.ENEMY_ACTION) {
+        handleEnemyActionEvent(content, `actor ${actorNr}`);
+      }
       // Handle other events as necessary…
     };
 
@@ -2434,49 +2517,144 @@ function debugLog(message, isError = false) {
     document.getElementById("item-card").classList.add("hidden");
   });
 
+  function pickEnemyTarget(enemy, battleData){
+  /* simplest: focus current player; for multi‑player keep it interesting   */
+  const livingPlayers = [battleData.player /* push other players later */]
+                        .filter(p=>p.currentHp>0);
+  // Example strategies ---------------------------------------------------
+  // return livingPlayers[Math.floor(Math.random()*livingPlayers.length)]; // random
+  return livingPlayers.reduce((low,p)=>p.currentHp<low.currentHp?p:low,
+                              livingPlayers[0]);                         // lowest HP
+}
+
+async function playerAttackMainHand(){
+  const attacker = currentBattleData.player;
+  const defender = currentBattleData.enemies[0];          // later pick by UI
+  if(defender.currentHp<=0){ addCombatLogMessage("Target already down.");return;}
+
+  const {roll,total} = rollAttack(attacker.mainHand);
+  addCombatLogMessage(`${attacker.name} rolls ${roll}+${attacker.mainHand.toHitBonus} = ${total} vs AC ${defender.ac}`);
+
+  const hit = (roll===20) ||        // nat‑20 auto‑hit
+              (roll!==1 && total>=defender.ac);
+
+  if(hit){
+    const {rolls,total:raw} = rollDamage(attacker.mainHand.damageString);
+    const dr   = defender.physicalDR?.amount ?? 0;
+    const dmg  = Math.max(0, raw-dr);
+    defender.currentHp = Math.max(0, defender.currentHp-dmg);
+
+    addCombatLogMessage(`Hit! (${rolls.join('+')}) ${raw-dmg?`‑${dr} DR `:''}= ${dmg} dmg`);
+    showBattleCard(currentBattleData);                      // refresh bars
+
+    /* visuals */
+    const rect = document.querySelector('.enemy-image').getBoundingClientRect();
+    floatText(dmg, rect.left+rect.width/2, rect.top, 'dmg');
+
+    document.getElementById('action-attack-mh').disabled = true;
+
+    if(defender.currentHp===0){
+      addCombatLogMessage(`${defender.name} is defeated!`);
+    }
+  }else{
+    addCombatLogMessage("Miss!");
+    const rect = document.querySelector('.enemy-image').getBoundingClientRect();
+    floatText('Miss', rect.left+rect.width/2, rect.top, 'miss');
+  }
+}
+document.getElementById('action-attack-mh').onclick = playerAttackMainHand;
+
   
 /**
- * Handles the AI logic for the currently active enemy's turn.
- * Executes ONLY on the Master Client.
- * Broadcasts results via RaiseEvent.
- * @param {object} enemy - The active enemy's data from currentBattleData.
- * @param {object} player - The player's data from currentBattleData.
+ * Runs ONLY on the Master‑client and plays out one enemy AI turn.
+ * – rolls to‑hit & damage (D&D‑style)  
+ * – shows floating numbers locally  
+ * – broadcasts ENEMY_ACTION + END_TURN to everyone
  */
  async function handleEnemyTurn(enemy, player) {
   debugLog(`Enemy turn START for: ${enemy.name}`);
 
   try {
-    await delay(100);                 // always yield first
+    /* ───── 0. “thinking” pause ───────────────────────────── */
+    await delay(100);
     addCombatLogMessage(`${enemy.name} is thinking…`);
-
-    await delay(300);                 // “AI” calculation
-    addCombatLogMessage(`${enemy.name} attacks!`);
-
-    /* TODO: real damage, hit‑rolls, etc. */
-
     await delay(300);
+
+    /* ───── 1. attack roll ────────────────────────────────── */
+    const atk        = rollAttack({ toHitBonus: enemy.attackBonus || 0 });
+    const hit        = atk.total >= player.ac;
+    const targetName = player.name;
+
+    addCombatLogMessage(
+      `${enemy.name} rolls ${atk.total} (${atk.roll}+${enemy.attackBonus || 0}) vs AC ${player.ac}.`
+    );
+
+    /* ───── 2. damage roll & application (if hit) ─────────── */
+    let dmg      = 0;
+    let drApplied = 0;
+
+    if (hit) {
+      const dmgRoll  = rollDamage(enemy.attackDamage || "1d4");
+      const dr       = player.physicalDR || 0;
+      dmg            = Math.max(0, dmgRoll.total - dr);
+      drApplied      = Math.min(dmgRoll.total, dr);
+
+      // subtract HP locally ⟹ clamp at 0
+      player.currentHp = Math.max(0, player.currentHp - dmg);
+
+      addCombatLogMessage(
+        `HIT! ${enemy.name} deals ${dmg} dmg (${dmgRoll.total} rolled, ${drApplied} DR).`
+      );
+
+      /* floating red number over player portrait */
+      floatText(`-${dmg}`, window.innerWidth/2, window.innerHeight-180, 'dmg');
+    } else {
+      addCombatLogMessage(`MISS!`);
+      /* floating gray “miss” */
+      floatText(`miss`, window.innerWidth/2, window.innerHeight-180, 'miss');
+    }
+
+    /* refresh local UI */
+    showBattleCard(currentBattleData);
+
+    /* ───── 3. broadcast ENEMY_ACTION so others sync ──────── */
+    photonClient.raiseEvent(
+      BATTLE_EVENT_CODES.ENEMY_ACTION,
+      {
+        enemyName     : enemy.name,
+        targetName,
+        attackRoll    : atk.roll,
+        totalAttackRoll : atk.total,
+        targetAC      : player.ac,
+        hit,
+        damageRoll    : dmg,          // send final dmg only (or full object if you prefer)
+        finalDamage   : dmg,
+        damageType    : 'physical',
+        drApplied
+      },
+      { reliability: true, receiverGroup: Photon.LoadBalancing.Constants.ReceiverGroup.Others }
+    );
+
+    await delay(300); // small cinematic pause
     addCombatLogMessage(`${enemy.name} ends turn.`);
 
-    /* ── NEW ─────────────────────────────────────────────── */
-
-    // 1)  Master client immediately advances the turn
-    turnManager.advanceTurn();        // updates bTurnIdx + room props
-
-    // 2)  Broadcast END_TURN to **all** clients (incl. ourselves)
+    /* ───── 4. advance turn & global END_TURN ─────────────── */
+    turnManager.advanceTurn();   // updates room props (only master)
     photonClient.raiseEvent(
       BATTLE_EVENT_CODES.END_TURN,
       null,
       {
         reliability   : true,
-        receiverGroup : Photon.LoadBalancing.Constants.ReceiverGroup.All   // <‑‑ key change
+        receiverGroup : Photon.LoadBalancing.Constants.ReceiverGroup.All
       }
     );
 
-    debugLog("Enemy END_TURN broadcast (All) and turnManager.advanceTurn() called.");
+    debugLog("Enemy END_TURN broadcast and advanceTurn() complete.");
   } catch (err) {
     debugLog("❌ ERROR in handleEnemyTurn: " + err.message, true);
   }
 }
+
 
 
 function endTurnForEnemy() {
