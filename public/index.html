@@ -3053,17 +3053,6 @@ window.showBattleCard = showBattleCard;
                 document.getElementById('action-item').disabled = true;
                 document.getElementById('end-turn').disabled = true;
 
-
-                if (attackMhBtn) {
-                  /* 1️⃣  remove every handler that might have been attached earlier
-                        (including the old “NOT YET IMPLEMENTED” stub)               */
-                  const freshBtn = attackMhBtn.cloneNode(true);      // same element, no listeners
-                  attackMhBtn.parentNode.replaceChild(freshBtn, attackMhBtn);
-
-                  /* 2️⃣  attach the real battle function                            */
-                  freshBtn.addEventListener('click', playerAttackMainHand);
-                }
-
               } else {
                 addCombatLogMessage("Not your turn!");
                 debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`);
