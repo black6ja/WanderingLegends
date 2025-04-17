@@ -1228,6 +1228,26 @@ function showBattleCard(battleData) {
     }
   } // End of showBattleCard function
 
+
+  function amIMaster() {
+    const room   = photonClient.myRoom();
+    const me     = photonClient.myActor();
+    if (!room || !me) return false;
+
+    // v4.x SDK ---------------------------------
+    if (typeof room.masterClientId !== "undefined") {
+      return room.masterClientId === me.actorNr;
+    }
+
+    // very old v3.x builds ----------------------
+    if (typeof room.masterClientActorNr !== "undefined") {
+      return room.masterClientActorNr === me.actorNr;
+    }
+
+    return false;            // fallback ‑ shouldn’t happen
+  }
+
+
   function showPlayerTurnIndicator() {
     // For now, simply log that it’s the local player's turn.
     debugLog("It is now my turn!");
@@ -1308,7 +1328,7 @@ function sendEndTurn() {
   }
   
   // Proceed with sending the turn-end event...
-  if (photonClient.isMasterClient) { 
+  if (amIMaster) { 
   turnManager.advanceTurn();
   } else {
     photonClient.raiseEvent(
