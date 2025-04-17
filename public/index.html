@@ -1160,38 +1160,27 @@ function rollAttack(weapon) {
   return { roll: d20, total: d20 + bonus };
 }
 
-/**
- * rollDamage("2d6+3-1d4") ➜ { rolls:[4,2,3,-2], total:7 }
- * rollDamage("1d8")       ➜ { rolls:[5], total:5 }
- * rollDamage("5")         ➜ { rolls:[5], total:5 }
- */
- function rollDamage(expr) {
-  const parts = expr.replace(/\s+/g, '')                     // tidy
-                    .split(/(?=[+-])/);                      // keep +/‑ with term
-  let total = 0, rolls = [];
+/* rollDamage("1d8+3") ➜ { rolls:[5], total:8 } */
+function rollDamage(damageString) {
+  const termRegex = /([+-]?)(\d*)d?(\d+)?/ig;
+  let total = 0, rolls = [], m;
 
-  for (const part of parts) {
-    const sign = part[0] === '-' ? -1 : 1;
-    const term = sign === -1 ? part.slice(1) : (part[0] === '+' ? part.slice(1) : part);
-
-    if (term.includes('d')) {                                // dice term
-      const [nStr,dStr] = term.split('d');
-      const n   = nStr === '' ? 1 : parseInt(nStr,10);
-      const die = parseInt(dStr,10);
+  while ((m = termRegex.exec(damageString)) !== null) {
+    const sign = m[1] === "-" ? -1 : 1;
+    if (m[3]) {                 // dice term
+      const n   = m[2] ? parseInt(m[2],10) : 1;
+      const die = parseInt(m[3],10);
       for (let i=0;i<n;i++) {
         const r = Math.floor(Math.random()*die)+1;
-        rolls.push(sign*r);
-        total += sign*r;
+        rolls.push(sign*r); total += sign*r;
       }
-    } else {                                                 // flat number
-      const val = sign*parseInt(term,10);
-      rolls.push(val);
-      total += val;
+    } else if (m[2]) {          // flat number
+      const val = sign*parseInt(m[2],10);
+      rolls.push(val); total += val;
     }
   }
   return { rolls, total };
 }
-
 
 function floatText(text, x, y, kind = 'dmg') {
   const el = document.createElement('div');
@@ -1271,12 +1260,6 @@ function showBattleCard(battleData) {
       addCombatLogMessage("Error: Enemy data missing!");
       if (enemySection) enemySection.style.display = 'none';
     }
-
-    const mhBtn = document.getElementById('action-attack-mh');
-      if (mhBtn) {
-        mhBtn.disabled = !isPlayerTurn;         // still disable/enable based on turn
-        mhBtn.onclick   = playerAttackMainHand; // bind it *after* the element exists
-      }
 
     // Update Turn Order Bar & Button States
     const turnOrderBar = document.getElementById("turn-order-bar");
@@ -1454,6 +1437,45 @@ function updateTurnOrderUI(turnOrder, currentTurnIndex) {
     turnOrderBar.appendChild(turnItem);
   });
 }
+
+
+
+/**
+ * Handles the reception of an END_TURN event from Photon.
+ * Advances the local turn index and triggers AI if necessary (on Master Client).
+ */
+/*  function handleEndTurnEvent(eventData) {
+    if (!photonClient.isMasterClient()) {
+        debugLog("Non-master client received END_TURN - waiting for master");
+        return;
+    }
+    
+    currentBattleData.currentTurnIndex = (currentBattleData.currentTurnIndex + 1) % currentBattleData.turnOrder.length;
+    
+    setRoomCustomProperties({ [ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]: currentBattleData.currentTurnIndex })
+        .then(function() {
+            showBattleCard(currentBattleData);
+            var newActive = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
+            var enemy = currentBattleData.enemies.find(function(e) {
+                return e.name === newActive;
+            });
+            
+            if (enemy) {
+                debugLog("Master Client: Detected enemy turn for " + enemy.name + ". Triggering enemy AI shortly...");
+                setTimeout(function() {
+                    handleEnemyTurn(enemy, currentBattleData.player);
+                }, 750);
+            } else {
+                debugLog("Turn advanced to player " + newActive + ". Waiting for player action.");
+            }
+        })
+        .catch(function(err) {
+            debugLog("Error updating room properties:", err);
+        });
+} */
+
+
+
 
 
 /**
@@ -1634,38 +1656,6 @@ function handleEnemyActionEvent(content, senderName) {
      // Refresh the UI with the updated state (e.g., new HP)
      showBattleCard(currentBattleData);
 }
-
-/* ───────────  SIMPLE LOOT TABLE  ──────────── */
-const SIMPLE_LOOT_TABLE = [
-  { id:"gold_pouch",   name:"Pouch of Gold",         weight:40, qty:[10,50] },
-  { id:"healing_pot",  name:"Minor Healing Potion",  weight:30 },
-  { id:"iron_sword",   name:"Iron Sword",           weight:15 },
-  { id:"leather_armor",name:"Leather Armor",        weight:10 },
-  { id:"rare_gem",     name:"Sparkling Gem",         weight:5  }
-];
-
-/** weighted random pick */
-function pickWeighted(table){
-  const sum = table.reduce((t,i)=>t+i.weight,0);
-  let r = Math.random()*sum;
-  for(const item of table){
-    if((r-=item.weight)<=0) return {...item};
-  }
-  return {...table[table.length-1]};
-}
-
-/** roll 1‑3 items */
-function rollLoot(){
-  const count = 1+Math.floor(Math.random()*3);
-  const loot  = [];
-  for(let i=0;i<count;i++){
-    const it = pickWeighted(SIMPLE_LOOT_TABLE);
-    if(it.qty) it.amount = Math.floor(Math.random()*(it.qty[1]-it.qty[0]+1))+it.qty[0];
-    loot.push(it);
-  }
-  return loot;
-}
-
 
     // ---------- Photon Utility Functions ----------
 /**
@@ -2052,26 +2042,6 @@ function debugLog(message, isError = false) {
       });
     }
 
-    async function addLootToInventory(lootArray){
-  const uid = firebase.auth().currentUser.uid;
-  const snap = await database.ref(`players/${uid}`).once('value');
-  const playerData = snap.val();
-  const charKey    = playerData.activeCharacter;
-  const inv        = playerData[charKey].inventory || { equipment:{}, bag:{} };
-
-  // find empty bag slots
-  const empty = Object.keys(inv.bag).filter(k=>!inv.bag[k]);
-  let nextIdx = 0;
-
-  for(const item of lootArray){
-    if(nextIdx>=empty.length){
-      debugLog("Bag full, couldn’t add "+item.name, true);
-      continue;
-    }
-    inv.bag[empty[nextIdx++]] = { itemId:item.id, amount:item.amount||1 };
-  }
-  await database.ref(`players/${uid}/${charKey}/inventory`).set(inv);
-}
 
 
 
@@ -2557,47 +2527,11 @@ function debugLog(message, isError = false) {
                               livingPlayers[0]);                         // lowest HP
 }
 
-function handleBattleVictory(){
-  if (battleConcluded) return;   // double‑safety
-  battleConcluded = true;
-
-  const loot = rollLoot();
-  const list = document.getElementById('victory-loot-list');
-  list.innerHTML = '';
-  loot.forEach(l=>{
-    const li=document.createElement('li');
-    li.textContent = `${l.amount?l.amount+'× ':''}${l.name}`;
-    list.appendChild(li);
-  });
-  document.getElementById('victory-message').textContent =
-        `${currentBattleData.player.name} defeated ${currentBattleData.enemies[0].name}!`;
-  document.getElementById('victory-overlay').classList.remove('hidden');
-
-  // click ‑> stash loot, leave room, back to map
-  document.getElementById('victory-continue').onclick = async ()=>{
-    document.getElementById('victory-overlay').classList.add('hidden');
-    await addLootToInventory(loot);
-    addCombatLogMessage("Loot added to inventory.");
-    // leave Photon room
-    if(photonClient.isJoinedToRoom()) await robustLeaveRoom();
-    // hide battle UI
-    document.getElementById('battle-card').classList.add('hidden');
-    // re‑enable map etc.
-    document.getElementById('map-container').style.display = 'block';
-  };
-}
-
-let battleConcluded = false;
-
 async function playerAttackMainHand(){
   const attacker = currentBattleData.player;
   const defender = currentBattleData.enemies[0];          // later pick by UI
+  if(defender.currentHp<=0){ addCombatLogMessage("Target already down.");return;}
 
-  if (+defender.currentHp <= 0) {     // unary + guarantees number compare
-    addCombatLogMessage(`${defender.name} is defeated!`);
-    handleBattleVictory();
-    return;
-  }
   const {roll,total} = rollAttack(attacker.mainHand);
   addCombatLogMessage(`${attacker.name} rolls ${roll}+${attacker.mainHand.toHitBonus} = ${total} vs AC ${defender.ac}`);
 
@@ -2610,15 +2544,8 @@ async function playerAttackMainHand(){
     const dmg  = Math.max(0, raw-dr);
     defender.currentHp = Math.max(0, defender.currentHp-dmg);
 
-   showBattleCard(currentBattleData);    // always update bars, even if HP is 0
-
-    if (defender.currentHp === 0) {
-        addCombatLogMessage(`${defender.name} is defeated!`);
-        document.querySelectorAll('.action-button')
-                .forEach(b => b.disabled = true); // lock the bar
-        handleBattleVictory();             // overlay, loot, leave room
-        return;
-    }                     // refresh bars
+    addCombatLogMessage(`Hit! (${rolls.join('+')}) ${raw-dmg?`‑${dr} DR `:''}= ${dmg} dmg`);
+    showBattleCard(currentBattleData);                      // refresh bars
 
     /* visuals */
     const rect = document.querySelector('.enemy-image').getBoundingClientRect();
@@ -2635,20 +2562,7 @@ async function playerAttackMainHand(){
     floatText('Miss', rect.left+rect.width/2, rect.top, 'miss');
   }
 }
-
-/* ───── Wire the main‑hand attack button once the DOM is ready ───── */
-document.addEventListener('DOMContentLoaded', () => {
-  const attackMhBtn = document.getElementById('action-attack-mh');
-  if (!attackMhBtn) return;                                   // safety
-
-  // cloneNode strips every old click listener (“NOT YET IMPLEMENTED”…)
-  const cleanBtn = attackMhBtn.cloneNode(true);
-  attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
-
-  // now attach the real handler – playerAttackMainHand already exists
-  cleanBtn.addEventListener('click', playerAttackMainHand);
-});
-
+document.getElementById('action-attack-mh').onclick = playerAttackMainHand;
 
   
 /**
@@ -3058,13 +2972,31 @@ window.showBattleCard = showBattleCard;
                 document.getElementById('action-special').disabled = true;
                 document.getElementById('action-item').disabled = true;
                 document.getElementById('end-turn').disabled = true;
-
               } else {
                 addCombatLogMessage("Not your turn!");
                 debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`);
               }
             });
           }
+
+
+          const attackMhButton = document.getElementById("action-attack-mh");
+          if (attackMhButton) {
+              attackMhButton.addEventListener("click", function() {
+                  // --- ADD LOGGING ---
+                  debugLog("Attack (MH) button CLICKED."); // <-- ADD
+
+                  if (!currentBattleData || !photonClient.isJoinedToRoom() || this.disabled) {
+                        debugLog(`Attack PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}, disabled=${this.disabled}`); // <-- ADD
+                        return;
+                  }
+
+                  addCombatLogMessage("Attack (MH) Clicked - Action NOT YET IMPLEMENTED");
+                  debugLog("Player Attack MH clicked - logic pending.");
+                  // ... (Future implementation) ...
+              });
+          }
+
   });
 
  /**
@@ -4217,23 +4149,6 @@ function showItemCard(item) {
         return { color: color, thickness: thickness };
       }
 
-      document.addEventListener('DOMContentLoaded', () => {
-        // 1) Find the button
-        const attackMhBtn = document.getElementById('action-attack-mh');
-        if (!attackMhBtn) {
-          console.error('Could not find #action-attack-mh!');
-          return;
-        }
-
-        // 2) Remove any old listeners by cloning it
-        const cleanBtn = attackMhBtn.cloneNode(true);
-        attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
-
-        // 3) Attach your real handler
-        cleanBtn.addEventListener('click', playerAttackMainHand);
-      });
-
-
   </script>
 
 <!-- Character Card Overlay -->
@@ -4572,23 +4487,6 @@ function updateCreatureTable() {
 window.updateCreatureTable = updateCreatureTable;
 </script>
 -->
-<!-- ░░ Victory Screen ░░ -->
-<div id="victory-overlay" class="overlay hidden">
-  <div class="character-card video-game-theme" style="max-width:320px">
-    <h2 style="text-align:center;color:#FFD700">Victory!</h2>
-    <p id="victory-message" style="text-align:center"></p>
-    <ul id="victory-loot-list" style="list-style:none;padding:0;margin:10px 0;text-align:center"></ul>
-    <button id="victory-continue" style="width:100%;padding:10px;font-weight:bold">Continue</button>
-  </div>
-</div>
-
-<script>
-  document.getElementById('action-attack-mh').onclick = function(e) {
-    e.preventDefault();
-    console.log('MH attack clicked!');   // <-- sanity check
-    playerAttackMainHand();
-  };
-</script>
 
 </body>
 </html>
