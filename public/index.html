@@ -2552,6 +2552,9 @@ function debugLog(message, isError = false) {
 }
 
 function handleBattleVictory(){
+  if (battleConcluded) return;   // double‑safety
+  battleConcluded = true;
+  
   const loot = rollLoot();
   const list = document.getElementById('victory-loot-list');
   list.innerHTML = '';
@@ -2578,12 +2581,17 @@ function handleBattleVictory(){
   };
 }
 
+let battleConcluded = false;
 
 async function playerAttackMainHand(){
   const attacker = currentBattleData.player;
   const defender = currentBattleData.enemies[0];          // later pick by UI
-  if(defender.currentHp<=0){ addCombatLogMessage("Target already down.");return;}
 
+  if (+defender.currentHp <= 0) {     // unary + guarantees number compare
+    addCombatLogMessage(`${defender.name} is defeated!`);
+    handleBattleVictory();
+    return;
+  }
   const {roll,total} = rollAttack(attacker.mainHand);
   addCombatLogMessage(`${attacker.name} rolls ${roll}+${attacker.mainHand.toHitBonus} = ${total} vs AC ${defender.ac}`);
 
@@ -2596,10 +2604,10 @@ async function playerAttackMainHand(){
     const dmg  = Math.max(0, raw-dr);
     defender.currentHp = Math.max(0, defender.currentHp-dmg);
 
-    if(defender.currentHp===0){
+    if (defender.currentHp <= 0) {
       addCombatLogMessage(`${defender.name} is defeated!`);
-      handleBattleVictory();          // ← show victory screen & loot
-      return;                         // stop further combat flow
+      handleBattleVictory();
+      return;
     }
 
 
