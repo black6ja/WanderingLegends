@@ -2255,7 +2255,7 @@ function debugLog(message, isError = false) {
 
       document.getElementById('end-turn').disabled = !turnData.isMyTurn;
 
-      if (!turnData.isMyTurn && photonClient.isMasterClient) {
+      if (!turnData.isMyTurn && amIMaster()) {
         addCombatLogMessage("Enemy turn starting...");
         
         setTimeout(() => {
@@ -2275,7 +2275,7 @@ function debugLog(message, isError = false) {
     // Additional Photon event handlers
 
     photonClient.onJoinRoom = function(room) {
-      debugLog(`Photon: Joined Room ${room.name}. Player count: ${room.playerCount}. IsMaster: ${photonClient.isMasterClient}`);
+      debugLog(`Photon: Joined Room ${room.name}. Player count: ${room.playerCount}. IsMaster: ${amIMaster()}`);
       addCombatLogMessage(`Joined battle room: ${room.name}`);
 
       // Attempt to get initial battle state from room properties
@@ -2319,7 +2319,7 @@ function debugLog(message, isError = false) {
       console.log("[Photon] onEvent received: code =", code, ", actorNr =", actorNr, ", content =", JSON.stringify(content));
       if (code === BATTLE_EVENT_CODES.END_TURN) {
         // Only the Master client updates the turn; others wait for the property change.
-        if (photonClient.isMasterClient) {
+        if (amIMaster()) {
           turnManager.advanceTurn();
         }
       }
@@ -2480,7 +2480,7 @@ function debugLog(message, isError = false) {
 
 
 function endTurnForEnemy() {
-  if (!photonClient.isMasterClient) {
+  if (!amIMaster()) {
     debugLog("endTurnForEnemy: Only master client should update turn index.");
     return;
   }
