@@ -1272,6 +1272,12 @@ function showBattleCard(battleData) {
       if (enemySection) enemySection.style.display = 'none';
     }
 
+    const mhBtn = document.getElementById('action-attack-mh');
+      if (mhBtn) {
+        mhBtn.disabled = !isPlayerTurn;         // still disable/enable based on turn
+        mhBtn.onclick   = playerAttackMainHand; // bind it *after* the element exists
+      }
+
     // Update Turn Order Bar & Button States
     const turnOrderBar = document.getElementById("turn-order-bar");
     turnOrderBar.innerHTML = "";
@@ -4575,6 +4581,14 @@ window.updateCreatureTable = updateCreatureTable;
     <button id="victory-continue" style="width:100%;padding:10px;font-weight:bold">Continue</button>
   </div>
 </div>
+
+<script>
+  document.getElementById('action-attack-mh').onclick = function(e) {
+    e.preventDefault();
+    console.log('MH attack clicked!');   // <-- sanity check
+    playerAttackMainHand();
+  };
+</script>
 
 </body>
 </html>
