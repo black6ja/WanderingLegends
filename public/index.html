@@ -2423,26 +2423,41 @@ function debugLog(message, isError = false) {
  * @param {object} player - The player's data from currentBattleData.
  */
  async function handleEnemyTurn(enemy, player) {
-  debugLog("Enemy turn START for: " + enemy.name);
+  debugLog(`Enemy turn START for: ${enemy.name}`);
 
   try {
-    await delay(100); // always yield first
-    addCombatLogMessage(enemy.name + " is thinking...");
+    await delay(100);                 // always yield first
+    addCombatLogMessage(`${enemy.name} is thinking…`);
 
-    await delay(300); // simulate AI calc
-    addCombatLogMessage(enemy.name + " attacks!");
+    await delay(300);                 // “AI” calculation
+    addCombatLogMessage(`${enemy.name} attacks!`);
 
-    // TODO: real damage, etc.
+    /* TODO: real damage, hit‑rolls, etc. */
 
     await delay(300);
-    addCombatLogMessage(enemy.name + " ends turn.");
+    addCombatLogMessage(`${enemy.name} ends turn.`);
 
-    photonClient.raiseEvent(BATTLE_EVENT_CODES.END_TURN, null);
-    debugLog("Enemy END_TURN event dispatched.");
+    /* ── NEW ─────────────────────────────────────────────── */
+
+    // 1)  Master client immediately advances the turn
+    turnManager.advanceTurn();        // updates bTurnIdx + room props
+
+    // 2)  Broadcast END_TURN to **all** clients (incl. ourselves)
+    photonClient.raiseEvent(
+      BATTLE_EVENT_CODES.END_TURN,
+      null,
+      {
+        reliability   : true,
+        receiverGroup : Photon.LoadBalancing.Constants.ReceiverGroup.All   // <‑‑ key change
+      }
+    );
+
+    debugLog("Enemy END_TURN broadcast (All) and turnManager.advanceTurn() called.");
   } catch (err) {
     debugLog("❌ ERROR in handleEnemyTurn: " + err.message, true);
   }
 }
+
 
 function endTurnForEnemy() {
   if (!photonClient.isMasterClient) {
