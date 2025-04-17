@@ -1450,45 +1450,6 @@ function updateTurnOrderUI(turnOrder, currentTurnIndex) {
 }
 
 
-
-/**
- * Handles the reception of an END_TURN event from Photon.
- * Advances the local turn index and triggers AI if necessary (on Master Client).
- */
-/*  function handleEndTurnEvent(eventData) {
-    if (!photonClient.isMasterClient()) {
-        debugLog("Non-master client received END_TURN - waiting for master");
-        return;
-    }
-    
-    currentBattleData.currentTurnIndex = (currentBattleData.currentTurnIndex + 1) % currentBattleData.turnOrder.length;
-    
-    setRoomCustomProperties({ [ROOM_PROPERTY_KEYS.CURRENT_TURN_INDEX]: currentBattleData.currentTurnIndex })
-        .then(function() {
-            showBattleCard(currentBattleData);
-            var newActive = currentBattleData.turnOrder[currentBattleData.currentTurnIndex];
-            var enemy = currentBattleData.enemies.find(function(e) {
-                return e.name === newActive;
-            });
-            
-            if (enemy) {
-                debugLog("Master Client: Detected enemy turn for " + enemy.name + ". Triggering enemy AI shortly...");
-                setTimeout(function() {
-                    handleEnemyTurn(enemy, currentBattleData.player);
-                }, 750);
-            } else {
-                debugLog("Turn advanced to player " + newActive + ". Waiting for player action.");
-            }
-        })
-        .catch(function(err) {
-            debugLog("Error updating room properties:", err);
-        });
-} */
-
-
-
-
-
 /**
  * Creates or updates the local currentBattleData based on room properties.
  * Called on join or when initial properties are received.
@@ -1667,6 +1628,38 @@ function handleEnemyActionEvent(content, senderName) {
      // Refresh the UI with the updated state (e.g., new HP)
      showBattleCard(currentBattleData);
 }
+
+/* ───────────  SIMPLE LOOT TABLE  ──────────── */
+const SIMPLE_LOOT_TABLE = [
+  { id:"gold_pouch",   name:"Pouch of Gold",         weight:40, qty:[10,50] },
+  { id:"healing_pot",  name:"Minor Healing Potion",  weight:30 },
+  { id:"iron_sword",   name:"Iron Sword",           weight:15 },
+  { id:"leather_armor",name:"Leather Armor",        weight:10 },
+  { id:"rare_gem",     name:"Sparkling Gem",         weight:5  }
+];
+
+/** weighted random pick */
+function pickWeighted(table){
+  const sum = table.reduce((t,i)=>t+i.weight,0);
+  let r = Math.random()*sum;
+  for(const item of table){
+    if((r-=item.weight)<=0) return {...item};
+  }
+  return {...table[table.length-1]};
+}
+
+/** roll 1‑3 items */
+function rollLoot(){
+  const count = 1+Math.floor(Math.random()*3);
+  const loot  = [];
+  for(let i=0;i<count;i++){
+    const it = pickWeighted(SIMPLE_LOOT_TABLE);
+    if(it.qty) it.amount = Math.floor(Math.random()*(it.qty[1]-it.qty[0]+1))+it.qty[0];
+    loot.push(it);
+  }
+  return loot;
+}
+
 
     // ---------- Photon Utility Functions ----------
 /**
@@ -2053,6 +2046,26 @@ function debugLog(message, isError = false) {
       });
     }
 
+    async function addLootToInventory(lootArray){
+  const uid = firebase.auth().currentUser.uid;
+  const snap = await database.ref(`players/${uid}`).once('value');
+  const playerData = snap.val();
+  const charKey    = playerData.activeCharacter;
+  const inv        = playerData[charKey].inventory || { equipment:{}, bag:{} };
+
+  // find empty bag slots
+  const empty = Object.keys(inv.bag).filter(k=>!inv.bag[k]);
+  let nextIdx = 0;
+
+  for(const item of lootArray){
+    if(nextIdx>=empty.length){
+      debugLog("Bag full, couldn’t add "+item.name, true);
+      continue;
+    }
+    inv.bag[empty[nextIdx++]] = { itemId:item.id, amount:item.amount||1 };
+  }
+  await database.ref(`players/${uid}/${charKey}/inventory`).set(inv);
+}
 
 
 
@@ -2538,6 +2551,34 @@ function debugLog(message, isError = false) {
                               livingPlayers[0]);                         // lowest HP
 }
 
+function handleBattleVictory(){
+  const loot = rollLoot();
+  const list = document.getElementById('victory-loot-list');
+  list.innerHTML = '';
+  loot.forEach(l=>{
+    const li=document.createElement('li');
+    li.textContent = `${l.amount?l.amount+'× ':''}${l.name}`;
+    list.appendChild(li);
+  });
+  document.getElementById('victory-message').textContent =
+        `${currentBattleData.player.name} defeated ${currentBattleData.enemies[0].name}!`;
+  document.getElementById('victory-overlay').classList.remove('hidden');
+
+  // click ‑> stash loot, leave room, back to map
+  document.getElementById('victory-continue').onclick = async ()=>{
+    document.getElementById('victory-overlay').classList.add('hidden');
+    await addLootToInventory(loot);
+    addCombatLogMessage("Loot added to inventory.");
+    // leave Photon room
+    if(photonClient.isJoinedToRoom()) await robustLeaveRoom();
+    // hide battle UI
+    document.getElementById('battle-card').classList.add('hidden');
+    // re‑enable map etc.
+    document.getElementById('map-container').style.display = 'block';
+  };
+}
+
+
 async function playerAttackMainHand(){
   const attacker = currentBattleData.player;
   const defender = currentBattleData.enemies[0];          // later pick by UI
@@ -2554,6 +2595,13 @@ async function playerAttackMainHand(){
     const dr   = defender.physicalDR?.amount ?? 0;
     const dmg  = Math.max(0, raw-dr);
     defender.currentHp = Math.max(0, defender.currentHp-dmg);
+
+    if(defender.currentHp===0){
+      addCombatLogMessage(`${defender.name} is defeated!`);
+      handleBattleVictory();          // ← show victory screen & loot
+      return;                         // stop further combat flow
+    }
+
 
     addCombatLogMessage(`Hit! (${rolls.join('+')}) ${raw-dmg?`‑${dr} DR `:''}= ${dmg} dmg`);
     showBattleCard(currentBattleData);                      // refresh bars
@@ -4498,6 +4546,15 @@ function updateCreatureTable() {
 window.updateCreatureTable = updateCreatureTable;
 </script>
 -->
+<!-- ░░ Victory Screen ░░ -->
+<div id="victory-overlay" class="overlay hidden">
+  <div class="character-card video-game-theme" style="max-width:320px">
+    <h2 style="text-align:center;color:#FFD700">Victory!</h2>
+    <p id="victory-message" style="text-align:center"></p>
+    <ul id="victory-loot-list" style="list-style:none;padding:0;margin:10px 0;text-align:center"></ul>
+    <button id="victory-continue" style="width:100%;padding:10px;font-weight:bold">Continue</button>
+  </div>
+</div>
 
 </body>
 </html>
