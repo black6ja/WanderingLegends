@@ -1160,27 +1160,38 @@ function rollAttack(weapon) {
   return { roll: d20, total: d20 + bonus };
 }
 
-/* rollDamage("1d8+3") ➜ { rolls:[5], total:8 } */
-function rollDamage(damageString) {
-  const termRegex = /([+-]?)(\d*)d?(\d+)?/ig;
-  let total = 0, rolls = [], m;
+/**
+ * rollDamage("2d6+3-1d4") ➜ { rolls:[4,2,3,-2], total:7 }
+ * rollDamage("1d8")       ➜ { rolls:[5], total:5 }
+ * rollDamage("5")         ➜ { rolls:[5], total:5 }
+ */
+ function rollDamage(expr) {
+  const parts = expr.replace(/\s+/g, '')                     // tidy
+                    .split(/(?=[+-])/);                      // keep +/‑ with term
+  let total = 0, rolls = [];
 
-  while ((m = termRegex.exec(damageString)) !== null) {
-    const sign = m[1] === "-" ? -1 : 1;
-    if (m[3]) {                 // dice term
-      const n   = m[2] ? parseInt(m[2],10) : 1;
-      const die = parseInt(m[3],10);
+  for (const part of parts) {
+    const sign = part[0] === '-' ? -1 : 1;
+    const term = sign === -1 ? part.slice(1) : (part[0] === '+' ? part.slice(1) : part);
+
+    if (term.includes('d')) {                                // dice term
+      const [nStr,dStr] = term.split('d');
+      const n   = nStr === '' ? 1 : parseInt(nStr,10);
+      const die = parseInt(dStr,10);
       for (let i=0;i<n;i++) {
         const r = Math.floor(Math.random()*die)+1;
-        rolls.push(sign*r); total += sign*r;
+        rolls.push(sign*r);
+        total += sign*r;
       }
-    } else if (m[2]) {          // flat number
-      const val = sign*parseInt(m[2],10);
-      rolls.push(val); total += val;
+    } else {                                                 // flat number
+      const val = sign*parseInt(term,10);
+      rolls.push(val);
+      total += val;
     }
   }
   return { rolls, total };
 }
+
 
 function floatText(text, x, y, kind = 'dmg') {
   const el = document.createElement('div');
