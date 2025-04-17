@@ -2629,7 +2629,20 @@ async function playerAttackMainHand(){
     floatText('Miss', rect.left+rect.width/2, rect.top, 'miss');
   }
 }
-document.getElementById('action-attack-mh').onclick = playerAttackMainHand;
+
+/* ───── Wire the main‑hand attack button once the DOM is ready ───── */
+document.addEventListener('DOMContentLoaded', () => {
+  const attackMhBtn = document.getElementById('action-attack-mh');
+  if (!attackMhBtn) return;                                   // safety
+
+  // cloneNode strips every old click listener (“NOT YET IMPLEMENTED”…)
+  const cleanBtn = attackMhBtn.cloneNode(true);
+  attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
+
+  // now attach the real handler – playerAttackMainHand already exists
+  cleanBtn.addEventListener('click', playerAttackMainHand);
+});
+
 
   
 /**
@@ -3040,10 +3053,6 @@ window.showBattleCard = showBattleCard;
                 document.getElementById('action-item').disabled = true;
                 document.getElementById('end-turn').disabled = true;
 
-                  /* ------------------------------------------------------------------
-                  Make sure the main‑hand attack button has ONE clean listener only
-                ------------------------------------------------------------------- */
-                const attackMhBtn = document.getElementById('action-attack-mh');
 
                 if (attackMhBtn) {
                   /* 1️⃣  remove every handler that might have been attached earlier
