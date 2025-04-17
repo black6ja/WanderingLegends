@@ -3070,23 +3070,6 @@ window.showBattleCard = showBattleCard;
               }
             });
           }
-
-
-          const attackMhButton = document.getElementById("action-attack-mh");
-          if (attackMhButton) {
-              attackMhButton.addEventListener("click", function() {
-                  // --- ADD LOGGING ---
-                  debugLog("Attack (MH) button CLICKED."); // <-- ADD
-
-                  if (!currentBattleData || !photonClient.isJoinedToRoom() || this.disabled) {
-                        debugLog(`Attack PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}, disabled=${this.disabled}`); // <-- ADD
-                        return;
-                  }
-                  debugLog("Player Attack MH clicked - logic pending.");
-                  // ... (Future implementation) ...
-              });
-          }
-
   });
 
  /**
