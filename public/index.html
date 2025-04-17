@@ -4222,6 +4222,23 @@ function showItemCard(item) {
         return { color: color, thickness: thickness };
       }
 
+      document.addEventListener('DOMContentLoaded', () => {
+        // 1) Find the button
+        const attackMhBtn = document.getElementById('action-attack-mh');
+        if (!attackMhBtn) {
+          console.error('Could not find #action-attack-mh!');
+          return;
+        }
+
+        // 2) Remove any old listeners by cloning it
+        const cleanBtn = attackMhBtn.cloneNode(true);
+        attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
+
+        // 3) Attach your real handler
+        cleanBtn.addEventListener('click', playerAttackMainHand);
+      });
+
+
   </script>
 
 <!-- Character Card Overlay -->
