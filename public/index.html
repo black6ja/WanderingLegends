@@ -2554,7 +2554,7 @@ function debugLog(message, isError = false) {
 function handleBattleVictory(){
   if (battleConcluded) return;   // double‑safety
   battleConcluded = true;
-  
+
   const loot = rollLoot();
   const list = document.getElementById('victory-loot-list');
   list.innerHTML = '';
@@ -2604,15 +2604,15 @@ async function playerAttackMainHand(){
     const dmg  = Math.max(0, raw-dr);
     defender.currentHp = Math.max(0, defender.currentHp-dmg);
 
-    if (defender.currentHp <= 0) {
-      addCombatLogMessage(`${defender.name} is defeated!`);
-      handleBattleVictory();
-      return;
-    }
+   showBattleCard(currentBattleData);    // always update bars, even if HP is 0
 
-
-    addCombatLogMessage(`Hit! (${rolls.join('+')}) ${raw-dmg?`‑${dr} DR `:''}= ${dmg} dmg`);
-    showBattleCard(currentBattleData);                      // refresh bars
+    if (defender.currentHp === 0) {
+        addCombatLogMessage(`${defender.name} is defeated!`);
+        document.querySelectorAll('.action-button')
+                .forEach(b => b.disabled = true); // lock the bar
+        handleBattleVictory();             // overlay, loot, leave room
+        return;
+    }                     // refresh bars
 
     /* visuals */
     const rect = document.querySelector('.enemy-image').getBoundingClientRect();
@@ -3039,6 +3039,22 @@ window.showBattleCard = showBattleCard;
                 document.getElementById('action-special').disabled = true;
                 document.getElementById('action-item').disabled = true;
                 document.getElementById('end-turn').disabled = true;
+
+                  /* ------------------------------------------------------------------
+                  Make sure the main‑hand attack button has ONE clean listener only
+                ------------------------------------------------------------------- */
+                const attackMhBtn = document.getElementById('action-attack-mh');
+
+                if (attackMhBtn) {
+                  /* 1️⃣  remove every handler that might have been attached earlier
+                        (including the old “NOT YET IMPLEMENTED” stub)               */
+                  const freshBtn = attackMhBtn.cloneNode(true);      // same element, no listeners
+                  attackMhBtn.parentNode.replaceChild(freshBtn, attackMhBtn);
+
+                  /* 2️⃣  attach the real battle function                            */
+                  freshBtn.addEventListener('click', playerAttackMainHand);
+                }
+
               } else {
                 addCombatLogMessage("Not your turn!");
                 debugLog(`Attempted to end turn, but active is ${activeName}, I am ${currentBattleData.player?.name} (Actor ${myActorNr})`);
@@ -3057,8 +3073,6 @@ window.showBattleCard = showBattleCard;
                         debugLog(`Attack PREVENTED: currentBattleData=${!!currentBattleData}, isJoined=${photonClient.isJoinedToRoom()}, disabled=${this.disabled}`); // <-- ADD
                         return;
                   }
-
-                  addCombatLogMessage("Attack (MH) Clicked - Action NOT YET IMPLEMENTED");
                   debugLog("Player Attack MH clicked - logic pending.");
                   // ... (Future implementation) ...
               });
