@@ -3641,6 +3641,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     attackBtn.addEventListener("click", async function () {
+        event.stopPropagation();
         debugLog("Attack button clicked.");
         attackBtn.disabled = true; // Keep disabled until battle ends or leaves
         document.getElementById("creature-card").classList.add("hidden");
