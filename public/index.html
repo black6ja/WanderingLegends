@@ -4216,120 +4216,21 @@ function showItemCard(item) {
         return { color: color, thickness: thickness };
       }
 
-// ─── Hook the "Attack!" button to start a battle ───
-document.addEventListener("DOMContentLoaded", function () {
-  const attackBtn = document.getElementById("attack-button");
-  if (!attackBtn) {
-    console.error("Could not find #attack-button!");
-    return;
-  }
+      document.addEventListener('DOMContentLoaded', () => {
+        // 1) Find the button
+        const attackMhBtn = document.getElementById('action-attack-mh');
+        if (!attackMhBtn) {
+          console.error('Could not find #action-attack-mh!');
+          return;
+        }
 
-  attackBtn.addEventListener("click", async function () {
-    debugLog("Attack button clicked.");
+        // 2) Remove any old listeners by cloning it
+        const cleanBtn = attackMhBtn.cloneNode(true);
+        attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
 
-    // disable & hide
-    attackBtn.disabled = true;
-    document.getElementById("creature-card").classList.add("hidden");
-
-    const spawn = currentSpawnForBattle;
-    if (!spawn) {
-      alert("No creature selected!");
-      return;
-    }
-    const user = firebase.auth().currentUser;
-    if (!user) {
-      alert("You must be logged in!");
-      return;
-    }
-
-    try {
-      // ── FETCH PLAYER & ITEM DATA ──
-      debugLog("Fetching player data, inventory, and items…");
-      const uid = user.uid;
-      const snap = await database.ref(`players/${uid}`).once("value");
-      const data = snap.val();
-      const key = data.activeCharacter;
-      const base = data[key];
-      const inv = base.inventory || { equipment: {}, bag: {} };
-
-      const ids = new Set();
-      Object.values(inv.equipment).forEach(e => e?.itemId && ids.add(e.itemId));
-      const itemPromises = [...ids].map(id =>
-        database.ref(`items/${id}`).once("value").then(s => ({ id, d: s.val() }))
-      );
-      const itemsData = (await Promise.all(itemPromises))
-                         .reduce((o,{id,d})=>{ if(d) o[id]=d; return o; }, {});
-
-      const playerStats = calculateEffectivePlayerStats(base.stats, inv.equipment, itemsData);
-      Object.assign(playerStats, {
-        name: base.name,
-        class: base.class,
-        imageUrl: `/images/classes/${base.class.toLowerCase()}.png`,
-        currentHp: playerStats.maxHp,
-        actorNr: photonClient.myActor().actorNr,
-        initiative: rollDice("d20")
+        // 3) Attach your real handler
+        cleanBtn.addEventListener('click', playerAttackMainHand);
       });
-
-      // ── BUILD ENEMY OBJECT ──
-      const es = spawn.stats;
-      const enemy = {
-        instanceId: `${spawn.creatureId||"enemy"}_1`,
-        name: spawn.creatureName,
-        imageUrl: spawn.imageUrl,
-        ac: es.ac,
-        maxHp: es.hp,
-        currentHp: es.hp,
-        physicalDR: es.physicalDR,
-        magicalDR: es.magicalDR,
-        save: es.save,
-        attackBonus: es.attackBonus,
-        attackDamage: es.attackDamage,
-        initiative: es.initiative || rollDice("d20")
-      };
-
-      // ── JOIN / CREATE PHOTON ROOM ──
-      const roomName = `battle_${spawn.creatureId||"unk"}_${Date.now()}`;
-      const room = await prepareAndJoinBattleRoom(roomName, {
-        maxPlayers: 2,
-        isOpen: true,
-        isVisible: true
-      });
-      debugLog("In room:", room.name);
-
-      // ── IF FIRST—SET INITIAL TURN ORDER ──
-      if (room.playerCount === 1) {
-        const order = [playerStats, enemy]
-          .sort((a,b)=>b.initiative - a.initiative)
-          .map(c=>({
-            id: (c.actorNr||c.instanceId).toString(),
-            displayName: c.name
-          }));
-        turnManager.initializeTurnOrder(order);
-        const props = {
-          bInit: true,
-          bTurnOrder: order,
-          bTurnIdx: 0
-        };
-        room.setCustomProperties(props);
-        currentBattleData = {
-          roomId: room.name,
-          player: playerStats,
-          enemies: [enemy],
-          turnOrder: order,
-          currentTurnIndex: 0
-        };
-      }
-
-      // ── SHOW BATTLE UI ──
-      showBattleCard(currentBattleData);
-
-    } catch (err) {
-      console.error("Could not start battle:", err);
-      alert("Failed to start battle: " + err.message);
-      if (photonClient.isJoinedToRoom()) await robustLeaveRoom();
-    }
-  });
-});
 
 
   </script>
