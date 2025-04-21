@@ -2604,15 +2604,15 @@ async function playerAttackMainHand(){
     const dmg  = Math.max(0, raw-dr);
     defender.currentHp = Math.max(0, defender.currentHp-dmg);
 
-   showBattleCard(currentBattleData);    // always update bars, even if HP is 0
-
     if (defender.currentHp === 0) {
-        addCombatLogMessage(`${defender.name} is defeated!`);
-        document.querySelectorAll('.action-button')
-                .forEach(b => b.disabled = true); // lock the bar
-        handleBattleVictory();             // overlay, loot, leave room
-        return;
-    }                     // refresh bars
+      showBattleCard(currentBattleData);
+      addCombatLogMessage(`${defender.name} is defeated!`);
+      // hide battle and then overlay
+      document.getElementById('battle-card').classList.add('hidden');
+      document.getElementById('victory-overlay').classList.remove('hidden');
+      return;
+    }
+                    // refresh bars
 
     /* visuals */
     const rect = document.querySelector('.enemy-image').getBoundingClientRect();
