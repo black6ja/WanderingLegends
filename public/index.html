@@ -1371,6 +1371,24 @@ function setRoomCustomProperties(props) {
 }
 
 
+  // ——— Attach MH attack handler as soon as the DOM is parsed ———
+  // No need for DOMContentLoaded here since this <script> is at the bottom of <body>
+  const mhBtn = document.getElementById('action-attack-mh');
+  if (!mhBtn) {
+    console.error('Could not find #action-attack-mh!');
+  } else {
+    // Remove any old listeners
+    const clean = mhBtn.cloneNode(true);
+    mhBtn.parentNode.replaceChild(clean, mhBtn);
+
+    clean.addEventListener('click', function(event) {
+      event.stopPropagation();              // now event is defined
+      console.log('Attack (MH) clicked');   // sanity check
+      playerAttackMainHand();               // this actually runs your attack logic
+    });
+  }
+
+
 /**
  * Creates a pause in async functions.
  * @param {number} ms - Milliseconds to wait.
