@@ -2648,19 +2648,6 @@ async function playerAttackMainHand(){
   }
 }
 
-/* ───── Wire the main‑hand attack button once the DOM is ready ───── */
-document.addEventListener('DOMContentLoaded', () => {
-  const attackMhBtn = document.getElementById('action-attack-mh');
-  if (!attackMhBtn) return;                                   // safety
-
-  // cloneNode strips every old click listener (“NOT YET IMPLEMENTED”…)
-  const cleanBtn = attackMhBtn.cloneNode(true);
-  attackMhBtn.parentNode.replaceChild(cleanBtn, attackMhBtn);
-
-  // now attach the real handler – playerAttackMainHand already exists
-  cleanBtn.addEventListener('click', playerAttackMainHand);
-});
-
 
   
 /**
